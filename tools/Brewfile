@@ -1,0 +1,5 @@
+cask 'caskroom/versions/java8'
+
+brew 'bazel'
+cask 'fluor'
+cask 'intellij-idea-ce'

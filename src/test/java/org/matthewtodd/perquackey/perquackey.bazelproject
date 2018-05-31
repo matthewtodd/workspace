@@ -1,0 +1,8 @@
+directories:
+  src/test/java/org/matthewtodd/perquackey
+
+targets:
+  //src/test/java/org/matthewtodd/perquackey:TurnWorkflowTest
+
+test_sources:
+  src/test/java/org/matthewtodd/perquackey

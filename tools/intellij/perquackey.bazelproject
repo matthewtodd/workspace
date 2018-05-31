@@ -1,0 +1,7 @@
+directories:
+  tools/intellij
+
+import src/main/java/org/matthewtodd/perquackey/perquackey.bazelproject
+import src/main/java/org/matthewtodd/workflow/workflow.bazelproject
+import src/test/java/org/matthewtodd/perquackey/perquackey.bazelproject
+import src/test/java/org/matthewtodd/workflow/workflow.bazelproject
