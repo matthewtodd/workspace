@@ -6,7 +6,7 @@ import org.reactivestreams.Publisher;
 public class SpellingScreen extends WorkflowScreen<Turn.Snapshot, SpellingScreen.Events> {
   public static final String KEY = "SpellingScreen";
 
-  public SpellingScreen(Publisher<Turn.Snapshot> screenData, Events eventHandler) {
+  SpellingScreen(Publisher<Turn.Snapshot> screenData, Events eventHandler) {
     super(KEY, screenData, eventHandler);
   }
 

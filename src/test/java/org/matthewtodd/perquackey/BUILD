@@ -14,6 +14,14 @@ java_library(
 )
 
 java_test(
+  name = "TimerTest",
+  size = "small",
+  runtime_deps = [
+    ":perquackey",
+  ],
+)
+
+java_test(
   name = "TurnWorkflowTest",
   size = "small",
   runtime_deps = [

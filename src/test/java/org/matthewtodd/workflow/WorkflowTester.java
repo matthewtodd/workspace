@@ -11,48 +11,46 @@ import org.assertj.core.api.ObjectAssert;
 
 public class WorkflowTester<I, R> {
   private final Workflow<I, R> workflow;
-  private final TestSubscriber<WorkflowScreenTester<?, ?>> screen;
+  private final TestSubscriber<? extends WorkflowScreenTester<?, ?>> screen;
   private final TestSubscriber<R> result;
 
   public WorkflowTester(Workflow<I, R> workflow) {
     this.workflow = workflow;
-    this.screen = TestSubscriber.create();
-    this.result = TestSubscriber.create();
+    this.screen = Flowable.fromPublisher(workflow.screen()).map(WorkflowScreenTester::create).test();
+    this.result = Flowable.fromPublisher(workflow.result()).test();
   }
 
   public void start(I input) {
-    Flowable.fromPublisher(workflow.screen())
-        .map(s -> new WorkflowScreenTester<>(s))
-        .subscribe(screen);
-    workflow.result().subscribe(result);
     workflow.start(input);
   }
 
   public <D, E, T extends WorkflowScreen<D, E>> void on(Class<T> screenClass,
       Consumer<WorkflowScreenTester<D, E>> assertions) {
-    // TODO not sure this is giving us type safety?
     assertions.accept(currentValue(screen).cast(screenClass));
   }
 
- public <T> ObjectAssert<T> assertThat(Function<R, T> property) {
-   screen.assertComplete();
-   result.assertComplete();
-   result.assertValueCount(1);
-   return new ObjectAssert<>(property.apply(currentValue(result)));
+  public <T> ObjectAssert<T> assertThat(Function<R, T> property) {
+    screen.assertComplete();
+    result.assertComplete();
+    result.assertValueCount(1);
+    return new ObjectAssert<>(property.apply(currentValue(result)));
   }
 
-  public class WorkflowScreenTester<D, E> {
+  public static class WorkflowScreenTester<D, E> {
     private final WorkflowScreen<D, E> screen;
     private final TestSubscriber<D> screenData;
 
+    static <D, E> WorkflowScreenTester<D, E> create(WorkflowScreen<D, E> screen) {
+      return new WorkflowScreenTester<>(screen);
+    }
+
     private WorkflowScreenTester(WorkflowScreen<D, E> screen) {
       this.screen = screen;
-      screenData = TestSubscriber.create();
-      screen.screenData.subscribe(screenData);
+      this.screenData = Flowable.fromPublisher(screen.screenData).test();
     }
 
     @SuppressWarnings("unchecked")
-    private <D2, E2, T2 extends WorkflowScreen<D2, E2>> WorkflowScreenTester<D2, E2> cast(Class<T2> screenClass) {
+    <D2, E2, T2 extends WorkflowScreen<D2, E2>> WorkflowScreenTester<D2, E2> cast(Class<T2> screenClass) {
       if (!screenClass.isInstance(screen)) {
         throw new AssertionError(
             String.format("Expected to be on %s, but got %s.", screenClass.getSimpleName(),
@@ -63,30 +61,19 @@ public class WorkflowTester<I, R> {
     }
 
     public E send() {
-      assertCurrent();
       return screen.eventHandler;
     }
 
     public IntegerAssert assertThat(ToIntFunction<D> property) {
-      assertCurrent();
       return new IntegerAssert(property.applyAsInt(currentValue(screenData)));
     }
 
     public <T> IterableAssert<T> assertThat(ToIterableFunction<D, T> property) {
-      assertCurrent();
       return new IterableAssert<>(property.apply(currentValue(screenData)));
     }
 
     public <T> ObjectAssert<T> assertThat(Function<D, T> property) {
-      assertCurrent();
       return new ObjectAssert<>(property.apply(currentValue(screenData)));
-    }
-
-    private void assertCurrent() {
-      WorkflowScreenTester<?, ?> currentScreenTester = currentValue(WorkflowTester.this.screen);
-      if (this != currentScreenTester) {
-        throw new AssertionError("This %s has been replaced by %s");
-      }
     }
   }
 

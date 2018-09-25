@@ -7,6 +7,7 @@ java_library(
     "@org_reactivestreams_reactive_streams//jar",
   ],
   visibility = [
-    "//src/test/java/org/matthewtodd/perquackey:__pkg__"
+    "//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
+    "//src/test/java/org/matthewtodd/perquackey:__pkg__",
   ],
 )

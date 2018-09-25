@@ -55,7 +55,7 @@ public class Turn {
     timerSubscription.dispose();
   }
 
-  static class Snapshot {
+  public static class Snapshot {
     private final Set<String> words;
     private final int score;
     private final Timer.Snapshot timer;
@@ -71,15 +71,15 @@ public class Turn {
       this.timer = timer;
     }
 
-    Set<String> words() {
+    public Set<String> words() {
       return words;
     }
 
-    int score() {
+    public int score() {
       return score;
     }
 
-    Timer.Snapshot timer() {
+    public Timer.Snapshot timer() {
       return timer;
     }
   }

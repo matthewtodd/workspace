@@ -2,6 +2,7 @@ directories:
   src/test/java/org/matthewtodd/perquackey
 
 targets:
+  //src/test/java/org/matthewtodd/perquackey:TimerTest
   //src/test/java/org/matthewtodd/perquackey:TurnWorkflowTest
 
 test_sources:

@@ -6,11 +6,11 @@ import org.reactivestreams.Publisher;
 public class PausedScreen extends WorkflowScreen<Turn.Snapshot, PausedScreen.Events> {
   public static final String KEY = "PausedScreen";
 
-  public PausedScreen(Publisher<Turn.Snapshot> screenData, Events eventHandler) {
+  PausedScreen(Publisher<Turn.Snapshot> screenData, Events eventHandler) {
     super(KEY, screenData, eventHandler);
   }
 
-  interface Events {
+  public interface Events {
     void resumeTimer();
   }
 }
