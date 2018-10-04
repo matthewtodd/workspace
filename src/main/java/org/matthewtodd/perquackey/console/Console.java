@@ -1,148 +1,169 @@
 package org.matthewtodd.perquackey.console;
 
+import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
 import io.reactivex.Flowable;
+import io.reactivex.Scheduler;
+import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import java.io.InputStream;
-import java.io.PrintStream;
 import java.util.concurrent.TimeUnit;
 import org.matthewtodd.perquackey.PausedScreen;
 import org.matthewtodd.perquackey.SpellingScreen;
 import org.matthewtodd.perquackey.Timer;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.workflow.WorkflowScreen;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import org.reactivestreams.Publisher;
 
 public class Console {
   private final TurnWorkflow workflow;
-  private final ViewFactory viewFactory;
+  private final Window window;
 
-  public Console() {
-    workflow = new TurnWorkflow(new Timer(5, Flowable.interval(1, TimeUnit.SECONDS)));
-    viewFactory = new ViewFactory(System.in, System.out);
+  private Console() {
+    workflow = new TurnWorkflow(new Timer(3, Flowable.interval(1, TimeUnit.SECONDS)));
+    window = new Window(new BlockingScheduler());
   }
 
-  public void run() {
-    Flowable.fromPublisher(workflow.screen())
-        .subscribe(viewFactory);
-
-    workflow.start(null);
-
-    // I need some kind of event run loop now, so the program doesn't exit early...
-
-    System.out.println("Done!");
+  private void run() {
+    window.scheduler.execute(() -> {
+      Disposable subscribe = Flowable.fromPublisher(workflow.screen())
+          .observeOn(window.scheduler)
+          .map(this::viewFactory)
+          .subscribe(window::setContents);
+      workflow.start(null);
+    });
   }
 
-  private static class ViewFactory implements Subscriber<WorkflowScreen<?, ?>> {
-    private final InputStream in;
-    private final PrintStream out;
-    private Coordinator current;
+  private View viewFactory(WorkflowScreen<?, ?> screen) {
+    switch (screen.key) {
+      case PausedScreen.KEY:
+        return new PausedView(new PausedCoordinator(screen, window.scheduler));
+      case SpellingScreen.KEY:
+        return new SpellingView(new SpellingCoordinator(screen, window.scheduler));
+      default:
+        throw new AssertionError(String.format("Unexpected screen: %s", screen));
+    }
+  }
 
-    public ViewFactory(InputStream in, PrintStream out) {
-      this.in = in;
-      this.out = out;
+  private static class Window {
+    private final BlockingScheduler scheduler;
+    private View currentView = new View(Coordinator.NONE);
+
+    Window(BlockingScheduler scheduler) {
+      this.scheduler = scheduler;
     }
 
-    @Override public void onSubscribe(Subscription s) {
-      s.request(Long.MAX_VALUE);
+    void setContents(View view) {
+      currentView.detach();
+      currentView = view;
+      currentView.attach(this);
+    }
+  }
+
+  private static class View {
+    private final Coordinator coordinator;
+
+    View(Coordinator coordinator) {
+      this.coordinator = coordinator;
     }
 
-    @Override public void onNext(WorkflowScreen<?, ?> screen) {
-      out.printf("--- new screen! %s\n", screen);
-      detachCurrent();
-
-      switch (screen.key) {
-        case PausedScreen.KEY:
-          current = new PausedCoordinator((PausedScreen) screen);
-          break;
-        case SpellingScreen.KEY:
-          current = new SpellingCoordinator((SpellingScreen) screen);
-          break;
-        default:
-          throw new IllegalStateException(String.format("Unknown screen: %s", screen.key));
-      }
-
-      current.attach(in, out);
+    final void attach(Window window) {
+      coordinator.attach(this);
     }
 
-    @Override public void onError(Throwable t) {
+    final void detach() {
+      coordinator.detach(this);
+    }
+  }
 
+  private static class PausedView extends View {
+    PausedView(Coordinator coordinator) {
+      super(coordinator);
     }
 
-    @Override public void onComplete() {
-      detachCurrent();
+    void timer(Timer.Snapshot timer) {
+      System.out.printf("%s, %s\n", timer, Thread.currentThread());
     }
 
-    private void detachCurrent() {
-      if (current != null) {
-        current.detach(in, out);
-      }
+    // Maybe?
+    // https://github.com/shekhargulati/rxjava-examples/blob/master/src/main/java/org/shekhar/rxjava/examples/KeyboardObservableExample.java
+    Publisher<String> input() {
+      return null;
+    }
+  }
+
+  private static class SpellingView extends View {
+    SpellingView(Coordinator coordinator) {
+      super(coordinator);
+    }
+
+    void timer(Timer.Snapshot timer) {
+      System.out.printf("%s, %s\n", timer, Thread.currentThread());
+    }
+
+    Publisher<String> input() {
+      return null;
     }
   }
 
   private interface Coordinator {
-    void attach(InputStream in, PrintStream out);
-    void detach(InputStream in, PrintStream out);
+    Coordinator NONE = new Coordinator() {
+      @Override public void attach(View view) { }
+      @Override public void detach(View view) { }
+    };
+
+    void attach(View view);
+
+    void detach(View view);
   }
 
   private static class PausedCoordinator implements Coordinator {
     private final PausedScreen screen;
-    private Disposable subscription;
+    private final Scheduler scheduler;
+    private final CompositeDisposable subscription = new CompositeDisposable();
 
-    PausedCoordinator(PausedScreen screen) {
-      this.screen = screen;
+    PausedCoordinator(WorkflowScreen<?, ?> screen, Scheduler scheduler) {
+      this.screen = (PausedScreen) screen;
+      this.scheduler = scheduler;
     }
 
-    @Override public void attach(InputStream in, PrintStream out) {
-      out.printf("Attaching %s\n", this);
-      subscription = Flowable.fromPublisher(screen.screenData).subscribe(turn -> {
-        out.println(turn);
-        out.println(turn.timer());
-        out.println(turn.score());
-        out.println(turn.words());
-        out.println("resume: ");
+    @Override public void attach(View view) {
+      PausedView pausedView = (PausedView) view;
 
-        //String next = in.next();
-        //screen.eventHandler.resumeTimer();
-      });
+      subscription.add(Flowable.fromPublisher(screen.screenData)
+          .observeOn(scheduler)
+          .subscribe(turn -> pausedView.timer(turn.timer())));
+
+      //subscription.add(Completable.fromPublisher(pausedView.input())
+      //    .subscribe(screen.eventHandler::resumeTimer));
     }
 
-    @Override public void detach(InputStream in, PrintStream out) {
+    @Override public void detach(View view) {
       subscription.dispose();
-      out.printf("Detached %s\n", this);
     }
   }
 
   private static class SpellingCoordinator implements Coordinator {
     private final SpellingScreen screen;
-    private Disposable subscription;
+    private final Scheduler scheduler;
+    private final CompositeDisposable subscription = new CompositeDisposable();
 
-    public SpellingCoordinator(SpellingScreen screen) {
-      this.screen = screen;
+    SpellingCoordinator(WorkflowScreen<?, ?> screen, Scheduler scheduler) {
+      this.screen = (SpellingScreen) screen;
+      this.scheduler = scheduler;
     }
 
-    @Override public void attach(InputStream in, PrintStream out) {
-      out.printf("Attaching %s\n", this);
-      subscription = Flowable.fromPublisher(screen.screenData).subscribe(turn -> {
-        out.println(turn.timer());
-        out.println(turn.score());
-        out.println(turn.words());
-        out.println("word: ");
+    @Override public void attach(View view) {
+      SpellingView spellingView = (SpellingView) view;
 
-        //String next = in.next();
-        //switch (next) {
-        //  case "":
-        //    screen.eventHandler.pauseTimer();
-        //    break;
-        //  default:
-        //    screen.eventHandler.spell(next);
-        //}
-      });
+      subscription.add(Flowable.fromPublisher(screen.screenData)
+          .observeOn(scheduler)
+          .subscribe(turn -> spellingView.timer(turn.timer())));
+
+      //subscription.add(Flowable.fromPublisher(spellingView.input())
+      //    .subscribe(screen.eventHandler::spell));
     }
 
-    @Override public void detach(InputStream in, PrintStream out) {
+    @Override public void detach(View view) {
       subscription.dispose();
-      out.printf("Detached %s\n", this);
     }
   }
 

@@ -75,6 +75,7 @@ public class TimerTest {
     TimerTester seePausedAt(long remaining) {
       return see(remaining, false);
     }
+
     TimerTester seeRunningAt(long remaining) {
       return see(remaining, true);
     }

@@ -1,4 +1,10 @@
 maven_jar(
+  name = "com_github_akarnokd_rxjava2_extensions",
+  artifact = "com.github.akarnokd:rxjava2-extensions:0.20.3",
+  sha1 = "ade14a02caf1d8907797fba65e9fcffaa2e4c76e",
+)
+
+maven_jar(
   name = "io_reactivex_rxjava2_rxjava",
   artifact = "io.reactivex.rxjava2:rxjava:2.1.13",
   sha1 = "193f20aa559aaa5b9eb1154a9e2ee7dbde476213",
