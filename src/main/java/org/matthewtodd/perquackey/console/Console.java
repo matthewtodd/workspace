@@ -1,10 +1,15 @@
 package org.matthewtodd.perquackey.console;
 
 import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
+import java.util.Scanner;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.matthewtodd.perquackey.PausedScreen;
 import org.matthewtodd.perquackey.SpellingScreen;
@@ -14,18 +19,20 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Console {
+  private final BlockingScheduler mainThread;
   private final TurnWorkflow workflow;
   private final Window window;
 
   private Console() {
-    workflow = new TurnWorkflow(new Timer(3, Flowable.interval(1, TimeUnit.SECONDS)));
-    window = new Window(new BlockingScheduler());
+    mainThread = new BlockingScheduler();
+    workflow = new TurnWorkflow(new Timer(180, Flowable.interval(1, TimeUnit.SECONDS)));
+    window = new Window();
   }
 
   private void run() {
-    window.scheduler.execute(() -> {
+    mainThread.execute(() -> {
       Disposable subscribe = Flowable.fromPublisher(workflow.screen())
-          .observeOn(window.scheduler)
+          .observeOn(mainThread)
           .map(this::viewFactory)
           .subscribe(window::setContents);
       workflow.start(null);
@@ -35,26 +42,21 @@ public class Console {
   private View viewFactory(WorkflowScreen<?, ?> screen) {
     switch (screen.key) {
       case PausedScreen.KEY:
-        return new PausedView(new PausedCoordinator(screen, window.scheduler));
+        return new PausedView(new PausedCoordinator(screen, mainThread));
       case SpellingScreen.KEY:
-        return new SpellingView(new SpellingCoordinator(screen, window.scheduler));
+        return new SpellingView(new SpellingCoordinator(screen, mainThread));
       default:
         throw new AssertionError(String.format("Unexpected screen: %s", screen));
     }
   }
 
   private static class Window {
-    private final BlockingScheduler scheduler;
     private View currentView = new View(Coordinator.NONE);
-
-    Window(BlockingScheduler scheduler) {
-      this.scheduler = scheduler;
-    }
 
     void setContents(View view) {
       currentView.detach();
       currentView = view;
-      currentView.attach(this);
+      currentView.attach();
     }
   }
 
@@ -65,7 +67,7 @@ public class Console {
       this.coordinator = coordinator;
     }
 
-    final void attach(Window window) {
+    final void attach() {
       coordinator.attach(this);
     }
 
@@ -83,10 +85,12 @@ public class Console {
       System.out.printf("%s, %s\n", timer, Thread.currentThread());
     }
 
-    // Maybe?
-    // https://github.com/shekhargulati/rxjava-examples/blob/master/src/main/java/org/shekhar/rxjava/examples/KeyboardObservableExample.java
     Publisher<String> input() {
-      return null;
+      Scanner keyboard = new Scanner(System.in);
+      return Flowable.<String>create(emitter -> {
+        keyboard.next();
+        emitter.onComplete();
+      }, BackpressureStrategy.BUFFER).subscribeOn(Schedulers.io());
     }
   }
 
@@ -99,8 +103,17 @@ public class Console {
       System.out.printf("%s, %s\n", timer, Thread.currentThread());
     }
 
+    void words(Set<String> words) {
+      System.out.println(words);
+    }
+
     Publisher<String> input() {
-      return null;
+      Scanner keyboard = new Scanner(System.in);
+      return Flowable.<String>create(emitter -> {
+        while (!emitter.isCancelled()) {
+          emitter.onNext(keyboard.next());
+        }
+      }, BackpressureStrategy.BUFFER).subscribeOn(Schedulers.io());
     }
   }
 
@@ -117,23 +130,24 @@ public class Console {
 
   private static class PausedCoordinator implements Coordinator {
     private final PausedScreen screen;
-    private final Scheduler scheduler;
+    private final Scheduler mainThread;
     private final CompositeDisposable subscription = new CompositeDisposable();
 
-    PausedCoordinator(WorkflowScreen<?, ?> screen, Scheduler scheduler) {
+    PausedCoordinator(WorkflowScreen<?, ?> screen, Scheduler mainThread) {
       this.screen = (PausedScreen) screen;
-      this.scheduler = scheduler;
+      this.mainThread = mainThread;
     }
 
     @Override public void attach(View view) {
       PausedView pausedView = (PausedView) view;
 
       subscription.add(Flowable.fromPublisher(screen.screenData)
-          .observeOn(scheduler)
+          .observeOn(mainThread)
           .subscribe(turn -> pausedView.timer(turn.timer())));
 
-      //subscription.add(Completable.fromPublisher(pausedView.input())
-      //    .subscribe(screen.eventHandler::resumeTimer));
+      subscription.add(Completable.fromPublisher(pausedView.input())
+          .observeOn(mainThread)
+          .subscribe(screen.eventHandler::resumeTimer));
     }
 
     @Override public void detach(View view) {
@@ -143,23 +157,27 @@ public class Console {
 
   private static class SpellingCoordinator implements Coordinator {
     private final SpellingScreen screen;
-    private final Scheduler scheduler;
+    private final Scheduler mainThread;
     private final CompositeDisposable subscription = new CompositeDisposable();
 
-    SpellingCoordinator(WorkflowScreen<?, ?> screen, Scheduler scheduler) {
+    SpellingCoordinator(WorkflowScreen<?, ?> screen, Scheduler mainThread) {
       this.screen = (SpellingScreen) screen;
-      this.scheduler = scheduler;
+      this.mainThread = mainThread;
     }
 
     @Override public void attach(View view) {
       SpellingView spellingView = (SpellingView) view;
 
       subscription.add(Flowable.fromPublisher(screen.screenData)
-          .observeOn(scheduler)
-          .subscribe(turn -> spellingView.timer(turn.timer())));
+          .observeOn(mainThread)
+          .subscribe(turn -> {
+            spellingView.timer(turn.timer());
+            spellingView.words(turn.words());
+          }));
 
-      //subscription.add(Flowable.fromPublisher(spellingView.input())
-      //    .subscribe(screen.eventHandler::spell));
+      subscription.add(Flowable.fromPublisher(spellingView.input())
+          .observeOn(mainThread)
+          .subscribe(screen.eventHandler::spell));
     }
 
     @Override public void detach(View view) {

@@ -13,7 +13,7 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, SpellingScre
   }
 
   @Override public void start(Void input) {
-    turn.startTimer();
+    //turn.startTimer();
   }
 
   @Override public Publisher<WorkflowScreen<?, ?>> screen() {
