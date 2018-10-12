@@ -30,12 +30,13 @@ public class Console {
   }
 
   private void run() {
-    mainThread.execute(() -> {
-      Disposable subscribe = Flowable.fromPublisher(workflow.screen())
-          .map(this::viewFactory)
-          .subscribe(window::setContents);
-      workflow.start(null);
-    });
+    Disposable subscription = Flowable.fromPublisher(workflow.screen())
+        .map(this::viewFactory)
+        .subscribe(window::setContents);
+
+    mainThread.execute(() -> workflow.start(null));
+
+    subscription.dispose();
   }
 
   private View viewFactory(WorkflowScreen<?, ?> screen) {
