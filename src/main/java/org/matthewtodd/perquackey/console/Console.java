@@ -1,12 +1,12 @@
 package org.matthewtodd.perquackey.console;
 
 import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
-import io.reactivex.BackpressureStrategy;
-import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.processors.FlowableProcessor;
+import io.reactivex.processors.PublishProcessor;
 import io.reactivex.schedulers.Schedulers;
 import java.util.Scanner;
 import java.util.Set;
@@ -26,7 +26,7 @@ public class Console {
   private Console() {
     mainThread = new BlockingScheduler();
     workflow = new TurnWorkflow(new Timer(180, Flowable.interval(1, TimeUnit.SECONDS).observeOn(mainThread)));
-    window = new Window();
+    window = new Window(mainThread);
   }
 
   private void run() {
@@ -42,75 +42,73 @@ public class Console {
   private View viewFactory(WorkflowScreen<?, ?> screen) {
     switch (screen.key) {
       case PausedScreen.KEY:
-        return new PausedView(new PausedCoordinator(screen), mainThread);
+        return new PausedView(new PausedCoordinator(screen));
       case SpellingScreen.KEY:
-        return new SpellingView(new SpellingCoordinator(screen), mainThread);
+        return new SpellingView(new SpellingCoordinator(screen));
       default:
         throw new AssertionError(String.format("Unexpected screen: %s", screen));
     }
   }
 
   private static class Window {
-    private View currentView = new View(Coordinator.NONE, null); // TODO find something nicer.
+    private final FlowableProcessor<String> input = PublishProcessor.create();
+    private View currentView = new View(Coordinator.NONE);
+
+    Window(Scheduler mainThread) {
+      Scanner keyboard = new Scanner(System.in);
+      Flowable.<String>generate(emitter -> emitter.onNext(keyboard.next()))
+          .subscribeOn(Schedulers.io())
+          .observeOn(mainThread)
+          .subscribe(input);
+    }
 
     void setContents(View view) {
       currentView.detach();
       currentView = view;
-      currentView.attach();
+      currentView.attach(this);
+    }
+
+    Publisher<String> input() {
+      return input;
     }
   }
 
   private static class View {
     final Coordinator coordinator;
-    final Scheduler mainThread;
+    Window window;
 
-    View(Coordinator coordinator, Scheduler mainThread) {
+    View(Coordinator coordinator) {
       this.coordinator = coordinator;
-      this.mainThread = mainThread;
     }
 
-    final void attach() {
+    final void attach(Window window) {
+      this.window = window;
       coordinator.attach(this);
     }
 
     final void detach() {
       coordinator.detach(this);
+      this.window = null;
     }
   }
 
   private static class PausedView extends View {
-    PausedView(Coordinator coordinator, Scheduler mainThread) {
-      super(coordinator, mainThread);
+    PausedView(Coordinator coordinator) {
+      super(coordinator);
     }
 
     void timer(Timer.Snapshot timer) {
       System.out.printf("%s, %s\n", timer, Thread.currentThread());
     }
 
-    // I want to make this more general: the view and the coordinator shouldn't have to know
-    // that this is a one-shot input that triggers a state transition.
-    // But spinning over keyboard.next() on a (background) io thread over-eagerly consumes the
-    // next token on stdin (we don't yet know the subscription has been disposed), so
-    // we accidentally swallow the first spelled word.
-    // Using a pattern here (passing one to next()) wouldn't help, because we'd already be
-    // blocked in the while loop. So we'd either have to consume *something* we shouldn't or
-    // block forever.
-    // Perhaps there could be something in sharing the input "device" across views.
-    // Maybe it's a property of the window? There's probably something to explore here.
     Publisher<String> input() {
-      Scanner keyboard = new Scanner(System.in);
-      return Flowable.<String>create(emitter -> {
-        keyboard.next();
-        emitter.onComplete();
-      }, BackpressureStrategy.BUFFER)
-          .subscribeOn(Schedulers.io())
-          .observeOn(mainThread);
+      return window.input();
     }
   }
 
   private static class SpellingView extends View {
-    SpellingView(Coordinator coordinator, Scheduler mainThread) {
-      super(coordinator, mainThread);
+    SpellingView(Coordinator coordinator) {
+      super(coordinator);
     }
 
     void timer(Timer.Snapshot timer) {
@@ -122,14 +120,7 @@ public class Console {
     }
 
     Publisher<String> input() {
-      Scanner keyboard = new Scanner(System.in);
-      return Flowable.<String>create(emitter -> {
-        while (!emitter.isCancelled()) {
-          emitter.onNext(keyboard.next());
-        }
-      }, BackpressureStrategy.BUFFER)
-          .subscribeOn(Schedulers.io())
-          .observeOn(mainThread);
+      return window.input();
     }
   }
 
@@ -158,8 +149,8 @@ public class Console {
       subscription.add(Flowable.fromPublisher(screen.screenData)
           .subscribe(turn -> pausedView.timer(turn.timer())));
 
-      subscription.add(Completable.fromPublisher(pausedView.input())
-          .subscribe(screen.eventHandler::resumeTimer));
+      subscription.add(Flowable.fromPublisher(pausedView.input())
+          .subscribe(ignored -> screen.eventHandler.resumeTimer()));
     }
 
     @Override public void detach(View view) {
