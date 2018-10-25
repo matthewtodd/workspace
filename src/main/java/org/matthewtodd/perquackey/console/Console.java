@@ -2,15 +2,17 @@ package org.matthewtodd.perquackey.console;
 
 import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
 import io.reactivex.Flowable;
-import io.reactivex.Scheduler;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Action;
 import io.reactivex.processors.FlowableProcessor;
 import io.reactivex.processors.PublishProcessor;
 import io.reactivex.schedulers.Schedulers;
+import java.io.PrintStream;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import org.matthewtodd.perquackey.PausedScreen;
 import org.matthewtodd.perquackey.SpellingScreen;
 import org.matthewtodd.perquackey.Timer;
@@ -19,27 +21,26 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Console {
-  private final BlockingScheduler mainThread;
-  private final TurnWorkflow workflow;
   private final Window window;
+  private final TurnWorkflow workflow;
 
-  private Console() {
-    mainThread = new BlockingScheduler();
-    workflow = new TurnWorkflow(new Timer(180, Flowable.interval(1, TimeUnit.SECONDS).observeOn(mainThread)));
-    window = new Window(mainThread);
+  Console(Flowable<String> input, Flowable<Long> ticker, PrintStream output) {
+    window = new Window(input, output);
+    workflow = new TurnWorkflow(new Timer(180, ticker));
   }
 
-  private void run() {
+  void run(Consumer<Action> scheduler) {
     Disposable subscription = Flowable.fromPublisher(workflow.screen())
         .map(this::viewFactory)
         .subscribe(window::setContents);
 
-    mainThread.execute(() -> workflow.start(null));
+    scheduler.accept(() -> workflow.start(null));
 
     subscription.dispose();
   }
 
   private View viewFactory(WorkflowScreen<?, ?> screen) {
+    // this maybe becomes a loading cache?
     switch (screen.key) {
       case PausedScreen.KEY:
         return new PausedView(new PausedCoordinator(screen));
@@ -52,24 +53,18 @@ public class Console {
 
   private static class Window {
     private final FlowableProcessor<String> input = PublishProcessor.create();
+    private final PrintStream output;
     private View currentView = new View(Coordinator.NONE);
 
-    Window(Scheduler mainThread) {
-      Scanner keyboard = new Scanner(System.in);
-      Flowable.<String>generate(emitter -> emitter.onNext(keyboard.next()))
-          .subscribeOn(Schedulers.io())
-          .observeOn(mainThread)
-          .subscribe(input);
+    Window(Flowable<String> stdin, PrintStream output) {
+      stdin.subscribe(input);
+      this.output = output;
     }
 
     void setContents(View view) {
       currentView.detach();
       currentView = view;
       currentView.attach(this);
-    }
-
-    Publisher<String> input() {
-      return input;
     }
   }
 
@@ -98,11 +93,11 @@ public class Console {
     }
 
     void timer(Timer.Snapshot timer) {
-      System.out.printf("%s, %s\n", timer, Thread.currentThread());
+      window.output.printf("%s, %s\n", timer, Thread.currentThread());
     }
 
     Publisher<String> input() {
-      return window.input();
+      return window.input;
     }
   }
 
@@ -112,15 +107,15 @@ public class Console {
     }
 
     void timer(Timer.Snapshot timer) {
-      System.out.printf("%s, %s\n", timer, Thread.currentThread());
+      window.output.printf("%s, %s\n", timer, Thread.currentThread());
     }
 
     void words(Set<String> words) {
-      System.out.println(words);
+      window.output.println(words);
     }
 
     Publisher<String> input() {
-      return window.input();
+      return window.input;
     }
   }
 
@@ -185,6 +180,17 @@ public class Console {
   }
 
   public static void main(String[] args) {
-    new Console().run();
+    BlockingScheduler mainThread = new BlockingScheduler();
+
+    Scanner scanner = new Scanner(System.in);
+    Flowable<String> input =
+        Flowable.<String>generate(emitter -> emitter.onNext(scanner.next()))
+            .subscribeOn(Schedulers.io())
+            .observeOn(mainThread);
+
+    Flowable<Long> ticker = Flowable.interval(1, TimeUnit.SECONDS)
+        .observeOn(mainThread);
+
+    new Console(input, ticker, System.out).run(mainThread::execute);
   }
 }

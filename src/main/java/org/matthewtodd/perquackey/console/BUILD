@@ -8,6 +8,9 @@ java_library(
     "@io_reactivex_rxjava2_rxjava//jar",
     "@org_reactivestreams_reactive_streams//jar",
   ],
+  visibility = [
+    "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",
+  ],
 )
 
 java_binary(

@@ -1,0 +1,8 @@
+directories:
+  src/test/java/org/matthewtodd/perquackey/console
+
+targets:
+  //src/test/java/org/matthewtodd/perquackey/console:ConsoleTest
+
+test_sources:
+  src/test/java/org/matthewtodd/perquackey/console

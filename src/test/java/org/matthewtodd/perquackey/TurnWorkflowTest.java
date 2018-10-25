@@ -1,12 +1,13 @@
 package org.matthewtodd.perquackey;
 
 import io.reactivex.processors.BehaviorProcessor;
+import io.reactivex.processors.FlowableProcessor;
 import org.junit.Test;
 import org.matthewtodd.workflow.WorkflowTester;
 
 public class TurnWorkflowTest {
   @Test public void playingATurn() {
-    BehaviorProcessor<Long> ticker = BehaviorProcessor.create();
+    FlowableProcessor<Long> ticker = BehaviorProcessor.create();
 
     WorkflowTester<Void, Turn.Snapshot> workflow =
         new WorkflowTester<>(new TurnWorkflow(new Timer(180, ticker)));
