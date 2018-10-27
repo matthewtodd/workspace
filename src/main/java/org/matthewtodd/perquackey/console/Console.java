@@ -1,23 +1,22 @@
 package org.matthewtodd.perquackey.console;
 
 import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
-import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposables;
-import io.reactivex.processors.FlowableProcessor;
-import io.reactivex.processors.PublishProcessor;
 import io.reactivex.schedulers.Schedulers;
 import java.io.PrintStream;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.matthewtodd.console.Coordinator;
+import org.matthewtodd.console.View;
+import org.matthewtodd.console.Window;
 import org.matthewtodd.perquackey.PausedScreen;
 import org.matthewtodd.perquackey.SpellingScreen;
 import org.matthewtodd.perquackey.Timer;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.workflow.WorkflowScreen;
-import org.reactivestreams.Publisher;
 
 public class Console {
   private final CompositeDisposable subscriptions;
@@ -36,14 +35,16 @@ public class Console {
             .map(this::buildViewForScreen)
             .subscribe(window::displayView),
 
-        Completable.fromPublisher(workflow.result())
+        Flowable.fromPublisher(workflow.result())
+            .ignoreElements()
             .subscribe(subscriptions::dispose));
 
     workflow.start(null);
   }
 
   private void doOnComplete(Runnable onComplete) {
-    subscriptions.add(Disposables.fromRunnable(onComplete));
+    subscriptions.add(
+        Disposables.fromRunnable(onComplete));
   }
 
   private View buildViewForScreen(WorkflowScreen<?, ?> screen) {
@@ -58,53 +59,13 @@ public class Console {
     }
   }
 
-  private static class Window {
-    private final FlowableProcessor<String> input = PublishProcessor.create();
-    private final PrintStream output;
-    private View currentView = new View(Coordinator.NONE);
-
-    Window(Flowable<String> stdin, PrintStream output) {
-      stdin.subscribe(input);
-      this.output = output;
-    }
-
-    void displayView(View view) {
-      currentView.detach();
-      currentView = view;
-      currentView.attach(this);
-    }
-  }
-
-  private static class View {
-    final Coordinator coordinator;
-    Window window;
-
-    View(Coordinator coordinator) {
-      this.coordinator = coordinator;
-    }
-
-    final void attach(Window window) {
-      this.window = window;
-      coordinator.attach(this);
-    }
-
-    final void detach() {
-      coordinator.detach(this);
-      this.window = null;
-    }
-  }
-
   private static class PausedView extends View {
     PausedView(Coordinator coordinator) {
       super(coordinator);
     }
 
     void timer(Timer.Snapshot timer) {
-      window.output.printf("%s, %s\n", timer, Thread.currentThread());
-    }
-
-    Publisher<String> input() {
-      return window.input;
+      printf("%s, %s\n", timer, Thread.currentThread());
     }
   }
 
@@ -114,27 +75,12 @@ public class Console {
     }
 
     void timer(Timer.Snapshot timer) {
-      window.output.printf("%s, %s\n", timer, Thread.currentThread());
+      printf("%s, %s\n", timer, Thread.currentThread());
     }
 
     void words(Set<String> words) {
-      window.output.println(words);
+      printf("%s\n", words);
     }
-
-    Publisher<String> input() {
-      return window.input;
-    }
-  }
-
-  private interface Coordinator {
-    Coordinator NONE = new Coordinator() {
-      @Override public void attach(View view) { }
-      @Override public void detach(View view) { }
-    };
-
-    void attach(View view);
-
-    void detach(View view);
   }
 
   private static class PausedCoordinator implements Coordinator {
