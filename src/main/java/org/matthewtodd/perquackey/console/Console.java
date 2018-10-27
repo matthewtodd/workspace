@@ -1,10 +1,10 @@
 package org.matthewtodd.perquackey.console;
 
 import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Action;
+import io.reactivex.disposables.Disposables;
 import io.reactivex.processors.FlowableProcessor;
 import io.reactivex.processors.PublishProcessor;
 import io.reactivex.schedulers.Schedulers;
@@ -12,7 +12,6 @@ import java.io.PrintStream;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import org.matthewtodd.perquackey.PausedScreen;
 import org.matthewtodd.perquackey.SpellingScreen;
 import org.matthewtodd.perquackey.Timer;
@@ -21,25 +20,33 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Console {
+  private final CompositeDisposable subscriptions;
   private final Window window;
   private final TurnWorkflow workflow;
 
   Console(Flowable<String> input, Flowable<Long> ticker, PrintStream output) {
+    subscriptions = new CompositeDisposable();
     window = new Window(input, output);
     workflow = new TurnWorkflow(new Timer(180, ticker));
   }
 
-  void run(Consumer<Action> scheduler) {
-    Disposable subscription = Flowable.fromPublisher(workflow.screen())
-        .map(this::viewFactory)
-        .subscribe(window::setContents);
+  void start() {
+    subscriptions.addAll(
+        Flowable.fromPublisher(workflow.screen())
+            .map(this::buildViewForScreen)
+            .subscribe(window::displayView),
 
-    scheduler.accept(() -> workflow.start(null));
+        Completable.fromPublisher(workflow.result())
+            .subscribe(subscriptions::dispose));
 
-    subscription.dispose();
+    workflow.start(null);
   }
 
-  private View viewFactory(WorkflowScreen<?, ?> screen) {
+  private void doOnComplete(Runnable onComplete) {
+    subscriptions.add(Disposables.fromRunnable(onComplete));
+  }
+
+  private View buildViewForScreen(WorkflowScreen<?, ?> screen) {
     // this maybe becomes a loading cache?
     switch (screen.key) {
       case PausedScreen.KEY:
@@ -61,7 +68,7 @@ public class Console {
       this.output = output;
     }
 
-    void setContents(View view) {
+    void displayView(View view) {
       currentView.detach();
       currentView = view;
       currentView.attach(this);
@@ -183,6 +190,7 @@ public class Console {
     BlockingScheduler mainThread = new BlockingScheduler();
 
     Scanner scanner = new Scanner(System.in);
+
     Flowable<String> input =
         Flowable.<String>generate(emitter -> emitter.onNext(scanner.next()))
             .subscribeOn(Schedulers.io())
@@ -191,6 +199,8 @@ public class Console {
     Flowable<Long> ticker = Flowable.interval(1, TimeUnit.SECONDS)
         .observeOn(mainThread);
 
-    new Console(input, ticker, System.out).run(mainThread::execute);
+    Console console = new Console(input, ticker, System.out);
+    console.doOnComplete(mainThread::shutdown);
+    mainThread.execute(console::start);
   }
 }
