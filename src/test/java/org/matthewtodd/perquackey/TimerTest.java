@@ -35,6 +35,24 @@ public class TimerTest {
         .tick().seeRunningAt(0).done();
   }
 
+  @Test public void multipleSubscribers() {
+    BehaviorProcessor<Long> ticker = BehaviorProcessor.create();
+    Timer timer = new Timer(180L, ticker);
+    Flowable<Long> flowable = Flowable.fromPublisher(timer.snapshot())
+        .map(Timer.Snapshot::remaining);
+
+    timer.start();
+    TestSubscriber<Long> one = flowable.test();
+    one.assertValues(180L);
+    ticker.onNext(1L);
+    one.assertValues(180L, 179L);
+    ticker.onNext(1L);
+    one.assertValues(180L, 179L, 178L);
+
+    TestSubscriber<Long> two = flowable.test();
+    two.assertValues(178L);
+  }
+
   static class TimerTester {
     private final Timer timer;
     private final BehaviorProcessor<Long> ticker;

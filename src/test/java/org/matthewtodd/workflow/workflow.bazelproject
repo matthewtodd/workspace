@@ -1,2 +1,5 @@
 directories:
   src/test/java/org/matthewtodd/workflow
+
+test_sources:
+  src/test/java/org/matthewtodd/workflow

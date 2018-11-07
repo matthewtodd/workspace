@@ -7,6 +7,8 @@ java_library(
     "//src/main/java/org/matthewtodd/workflow",
     "@com_github_akarnokd_rxjava2_extensions//jar",
     "@io_reactivex_rxjava2_rxjava//jar",
+    "@org_jline_jline_terminal//jar",
+    "@org_reactivestreams_reactive_streams//jar",
   ],
   visibility = [
     "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",

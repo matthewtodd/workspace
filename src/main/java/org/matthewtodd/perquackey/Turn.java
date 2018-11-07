@@ -17,6 +17,7 @@ public class Turn {
   private final BehaviorProcessor<Set<String>> words;
   private final Flowable<Integer> score;
   private final Disposable timerSubscription;
+  private final Flowable<Snapshot> snapshot;
 
   // Philosophy: things can be built on timers. The turn "lego" depends on a "timer" lego.
   // A turn is inherently timed?
@@ -31,6 +32,7 @@ public class Turn {
     });
 
     timerSubscription = Completable.fromPublisher(timer.snapshot()).subscribe(this::timeIsUp);
+    snapshot = Flowable.combineLatest(Snapshot::make, words, score, timer.snapshot());
   }
 
   void spell(String word) {
@@ -47,7 +49,7 @@ public class Turn {
   }
 
   Publisher<Snapshot> snapshot() {
-    return Flowable.combineLatest(Snapshot::make, words, score, timer.snapshot());
+    return snapshot;
   }
 
   private void timeIsUp() {

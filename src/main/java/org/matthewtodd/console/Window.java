@@ -1,24 +1,99 @@
 package org.matthewtodd.console;
 
-import io.reactivex.processors.FlowableProcessor;
-import io.reactivex.processors.PublishProcessor;
-import java.io.PrintStream;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 public class Window {
-  final FlowableProcessor<String> input = PublishProcessor.create();
-  final PrintStream output;
+  private final AtomicReference<View> rootView = new AtomicReference<>(View.EMPTY);
+  private final Size size;
+  private final Canvas canvas;
 
-  private View currentView = new View(Coordinator.NONE);
+  public Window(Publisher<KeyPress> input, int rows, int columns, Consumer<Stroke> output) {
+    input.subscribe(new Subscriber<KeyPress>() {
+      @Override public void onSubscribe(Subscription s) {
+        s.request(Long.MAX_VALUE);
+      }
 
-  public Window(Publisher<String> stdin, PrintStream output) {
-    stdin.subscribe(input);
-    this.output = output;
+      @Override public void onNext(KeyPress keyPress) {
+        rootView.get().keyPress(keyPress);
+      }
+
+      @Override public void onError(Throwable t) {
+
+      }
+
+      @Override public void onComplete() {
+
+      }
+    });
+
+    size = new Size(rows, columns);
+    canvas = new Canvas(output);
   }
 
-  public void displayView(View view) {
-    currentView.detach();
-    currentView = view;
-    currentView.attach(this);
+  public void rootView(View view) {
+    rootView.get()
+        .setInvalidationListener(() -> {})
+        .detachedFromWindow();
+    rootView.set(view);
+    rootView.get()
+        .setInvalidationListener(this::draw)
+        .attachedToWindow();
+  }
+
+  private void draw() {
+    rootView.get()
+        .layout(0, 0, size.columns, size.rows)
+        .draw(canvas);
+  }
+
+  private static class Size {
+    private final int rows;
+    private final int columns;
+
+    Size(int rows, int columns) {
+      this.rows = rows;
+      this.columns = columns;
+    }
+  }
+
+  public static class KeyPress {
+    private final int keyCode;
+
+    public KeyPress(int keyCode) {
+      this.keyCode = keyCode;
+    }
+
+    public boolean isEnter() {
+      return keyCode == 13;
+    }
+
+    public boolean isLowerCaseLetter() {
+      return Character.isLowerCase(keyCode);
+    }
+
+    public boolean isSpaceBar() {
+      return keyCode == 32;
+    }
+
+    public String stringValue() {
+      if (!isLowerCaseLetter()) {
+        throw new IllegalStateException(String.format("Not a lowercase letter: %s", this));
+      }
+      return String.valueOf(Character.toChars(keyCode));
+    }
+
+    @Override public String toString() {
+      return "KeyPress{" +
+          "keyCode=" + keyCode +
+          '}';
+    }
+  }
+
+  public static class Stroke {
+
   }
 }

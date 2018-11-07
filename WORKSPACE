@@ -29,6 +29,12 @@ maven_jar(
 )
 
 maven_jar(
+  name = "org_jline_jline_terminal",
+  artifact = "org.jline:jline-terminal:3.9.0",
+  sha1 = "94542933dfd3e94af27e9c7363833065a26f03db",
+)
+
+maven_jar(
   name = "org_reactivestreams_reactive_streams",
   artifact = "org.reactivestreams:reactive-streams:1.0.2",
   sha1 = "323964c36556eb0e6209f65c1cef72b53b461ab8",

@@ -14,6 +14,10 @@ public class TurnWorkflowTest {
 
     workflow.start(null);
 
+    workflow.on(PausedScreen.class, screen -> {
+      screen.send().resumeTimer();
+    });
+
     workflow.on(SpellingScreen.class, screen -> {
       screen.assertThat(Turn.Snapshot::words).isEmpty();
       screen.assertThat(Turn.Snapshot::score).isEqualTo(0);
