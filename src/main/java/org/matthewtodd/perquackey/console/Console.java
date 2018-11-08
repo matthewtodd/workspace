@@ -1,13 +1,7 @@
 package org.matthewtodd.perquackey.console;
 
-import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
-import io.reactivex.Flowable;
-import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposables;
-import io.reactivex.schedulers.Schedulers;
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import org.jline.terminal.Size;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
@@ -16,6 +10,7 @@ import org.matthewtodd.console.Coordinator;
 import org.matthewtodd.console.View;
 import org.matthewtodd.console.Window;
 import org.matthewtodd.console.Window.KeyPress;
+import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.PausedScreen;
 import org.matthewtodd.perquackey.SpellingScreen;
 import org.matthewtodd.perquackey.Timer;
@@ -24,32 +19,25 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Console {
-  private final CompositeDisposable subscriptions;
+  private Runnable onComplete;
   private final Window window;
   private final TurnWorkflow workflow;
 
   Console(Window window, Publisher<Long> ticker) {
-    this.subscriptions = new CompositeDisposable();
+    this.onComplete = () -> {};
     this.window = window;
     this.workflow = new TurnWorkflow(new Timer(180L, ticker));
   }
 
   void start() {
-    subscriptions.addAll(
-        Flowable.fromPublisher(workflow.screen())
-            .map(this::buildViewForScreen)
-            .subscribe(window::rootView),
-
-        Flowable.fromPublisher(workflow.result())
-            .ignoreElements()
-            .subscribe(subscriptions::dispose));
-
+    Flow.of(workflow.screen()).onComplete(onComplete).subscribe(screen -> {
+      window.rootView(buildViewForScreen(screen));
+    });
     workflow.start(null);
   }
 
-  private void doOnComplete(Runnable onComplete) {
-    subscriptions.add(
-        Disposables.fromRunnable(onComplete));
+  private void doOnComplete(Runnable runnable) {
+    this.onComplete = runnable;
   }
 
   private View buildViewForScreen(WorkflowScreen<?, ?> screen) {
@@ -107,15 +95,15 @@ public class Console {
 
   private static class PausedCoordinator implements Coordinator<PausedView> {
     private final PausedScreen screen;
-    private final CompositeDisposable subscription = new CompositeDisposable();
 
     PausedCoordinator(PausedScreen screen) {
       this.screen = screen;
     }
 
     @Override public void attach(PausedView view) {
-      subscription.add(Flowable.fromPublisher(screen.screenData)
-          .subscribe(turn -> view.timer(turn.timer())));
+      Flow.of(screen.screenData).subscribe(turn -> {
+        view.timer(turn.timer());
+      });
 
       view.setKeyPressListener(keyPress -> {
         if (keyPress.isSpaceBar()) {
@@ -123,15 +111,10 @@ public class Console {
         }
       });
     }
-
-    @Override public void detach() {
-      subscription.dispose();
-    }
   }
 
   private static class SpellingCoordinator implements Coordinator<SpellingView> {
     private final SpellingScreen screen;
-    private final CompositeDisposable subscription = new CompositeDisposable();
     private final StringBuilder buffer;
 
     SpellingCoordinator(SpellingScreen screen) {
@@ -140,11 +123,10 @@ public class Console {
     }
 
     @Override public void attach(SpellingView view) {
-      subscription.add(Flowable.fromPublisher(screen.screenData)
-          .subscribe(turn -> {
-            view.timer(turn.timer());
-            view.words(turn.words());
-          }));
+      Flow.of(screen.screenData).subscribe(turn -> {
+        view.timer(turn.timer());
+        view.words(turn.words());
+      });
 
       view.setKeyPressListener(keyPress -> {
         if (keyPress.isSpaceBar()) {
@@ -158,32 +140,24 @@ public class Console {
         }
       });
     }
-
-    @Override public void detach() {
-      subscription.dispose();
-    }
   }
 
   public static void main(String[] args) throws IOException {
-    BlockingScheduler mainThread = new BlockingScheduler();
+    Flow.Scheduler mainThread = Flow.newScheduler();
 
     Terminal terminal = TerminalBuilder.terminal();
     terminal.enterRawMode();
 
-    Flowable<KeyPress> input =
-        Flowable.<KeyPress>generate(emitter -> emitter.onNext(new KeyPress(terminal.input().read())))
-            .subscribeOn(Schedulers.io())
-            .observeOn(mainThread);
+    Publisher<KeyPress> input = Flow.of(mainThread.receiving(terminal.input()))
+        .as(KeyPress::new)
+        .build();
 
-    // TODO register a WINCH signal handler.
+    // TODO register a WINCH signal handler -> window takes a Publisher<Size>.
     Size terminalSize = terminal.getSize();
     Window window = new Window(input, terminalSize.getRows(), terminalSize.getColumns(), stroke -> { });
 
-    Flowable<Long> ticker = Flowable.interval(1, TimeUnit.SECONDS)
-        .observeOn(mainThread);
-
-    Console console = new Console(window, ticker);
+    Console console = new Console(window, mainThread.ticking());
     console.doOnComplete(mainThread::shutdown);
-    mainThread.execute(console::start);
+    mainThread.startup(console::start);
   }
 }

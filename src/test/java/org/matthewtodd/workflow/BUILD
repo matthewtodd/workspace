@@ -3,10 +3,11 @@ java_library(
   srcs = glob(["*.java"]),
   deps = [
     "//src/main/java/org/matthewtodd/workflow",
-    "@io_reactivex_rxjava2_rxjava//jar",
-    "@org_assertj_assertj_core//jar",
+    "//third_party:assertj",
+    "//third_party:reactive_streams",
+    "//third_party:rxjava2",
   ],
   visibility = [
-      "//src/test/java/org/matthewtodd/perquackey:__pkg__"
+    "//src/test/java/org/matthewtodd/perquackey:__pkg__"
   ],
 )

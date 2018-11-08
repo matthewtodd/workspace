@@ -1,48 +1,50 @@
 package org.matthewtodd.perquackey;
 
-import io.reactivex.Flowable;
-import io.reactivex.processors.BehaviorProcessor;
-import io.reactivex.processors.FlowableProcessor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import org.matthewtodd.flow.Flow;
+import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
 public class Timer {
   private final long total;
-  private final FlowableProcessor<Boolean> running;
-  private final FlowableProcessor<Long> elapsed;
-  private final Flowable<Snapshot> snapshot;
+  private final AtomicLong elapsed = new AtomicLong(0);
+  private final AtomicBoolean running = new AtomicBoolean(false);
+  private final AtomicBoolean done = new AtomicBoolean(false);
+  private final Processor<Snapshot, Snapshot> snapshot;
 
   public Timer(long total, Publisher<Long> ticker) {
     this.total = total;
-    this.running = BehaviorProcessor.createDefault(false);
-    this.elapsed = BehaviorProcessor.create();
+    this.snapshot = Flow.pipe(takeSnapshot());
 
-    Flowable.fromPublisher(ticker)
-        .map(value -> true) // a steady stream of TRUEs
-        .withLatestFrom(running, Boolean::logicalAnd) // falsified when paused
-        .filter(Boolean::booleanValue) // a gappy stream of TRUEs
-        .map(value -> 1L) // as 1s
-        .scan(0L, Long::sum) // cumulatively summed
-        .take(total + 1)
-        .doOnComplete(running::onComplete)
-        .subscribe(elapsed);
-
-    this.snapshot = Flowable.combineLatest(elapsed, running, this::newSnapshot);
+    Flow.of(ticker).subscribe(t -> {
+      if (!done.get() && running.get()) {
+        elapsed.incrementAndGet();
+        snapshot.onNext(takeSnapshot());
+        if (elapsed.get() == this.total) {
+          done.set(true);
+          snapshot.onComplete();
+        }
+      }
+    });
   }
 
   void start() {
-    running.onNext(true);
+    running.set(true);
+    snapshot.onNext(takeSnapshot());
   }
 
   void stop() {
-    running.onNext(false);
+    running.set(false);
+    snapshot.onNext(takeSnapshot());
   }
 
   Publisher<Snapshot> snapshot() {
     return snapshot;
   }
 
-  private Snapshot newSnapshot(long elapsed, boolean running) {
-    return new Snapshot(total, elapsed, running);
+  private Snapshot takeSnapshot() {
+    return new Snapshot(total, elapsed.get(), running.get());
   }
 
   public static final class Snapshot {

@@ -3,12 +3,10 @@ java_library(
   srcs = glob(["*.java"]),
   deps = [
     "//src/main/java/org/matthewtodd/console",
+    "//src/main/java/org/matthewtodd/flow",
     "//src/main/java/org/matthewtodd/perquackey",
     "//src/main/java/org/matthewtodd/workflow",
-    "@com_github_akarnokd_rxjava2_extensions//jar",
-    "@io_reactivex_rxjava2_rxjava//jar",
-    "@org_jline_jline_terminal//jar",
-    "@org_reactivestreams_reactive_streams//jar",
+    "//third_party:jline",
   ],
   visibility = [
     "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",

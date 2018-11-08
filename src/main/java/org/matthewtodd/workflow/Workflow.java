@@ -5,7 +5,7 @@ import org.reactivestreams.Publisher;
 public interface Workflow<I, R> {
   void start(I input);
 
-  Publisher<WorkflowScreen<?, ?>> screen();
+  Publisher<? extends WorkflowScreen<?, ?>> screen();
 
   Publisher<R> result();
 }

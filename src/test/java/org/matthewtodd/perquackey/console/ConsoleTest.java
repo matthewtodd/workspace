@@ -2,7 +2,6 @@ package org.matthewtodd.perquackey.console;
 
 import io.reactivex.processors.BehaviorProcessor;
 import org.junit.Test;
-import org.matthewtodd.console.Window;
 import org.matthewtodd.console.Window.KeyPress;
 
 public class ConsoleTest {

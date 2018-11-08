@@ -1,6 +1,6 @@
 package org.matthewtodd.perquackey;
 
-import io.reactivex.Flowable;
+import org.matthewtodd.flow.Flow;
 import org.matthewtodd.workflow.Workflow;
 import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
@@ -12,19 +12,18 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, SpellingScre
     turn = new Turn(timer);
   }
 
-  @Override public void start(Void input) {
-    //turn.startTimer();
-  }
+  @Override public void start(Void input) { }
 
-  @Override public Publisher<WorkflowScreen<?, ?>> screen() {
-    return Flowable.fromPublisher(turn.snapshot())
-        .map(this::screenKeyFor)
-        .distinctUntilChanged()
-        .map(this::screenFor);
+  @Override public Publisher<? extends WorkflowScreen<?, ?>> screen() {
+    return Flow.of(turn.snapshot())
+        .as(this::screenKeyFor)
+        .distinct()
+        .as(this::screenFor)
+        .build();
   }
 
   @Override public Publisher<Turn.Snapshot> result() {
-    return Flowable.fromPublisher(turn.snapshot()).lastOrError().toFlowable();
+    return Flow.of(turn.snapshot()).last();
   }
 
   @Override public void spell(String word) {

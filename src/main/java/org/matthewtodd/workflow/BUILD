@@ -2,7 +2,7 @@ java_library(
   name = "workflow",
   srcs = glob(["*.java"]),
   deps = [
-    "@org_reactivestreams_reactive_streams//jar",
+    "//src/main/java/org/matthewtodd/flow",
   ],
   visibility = ["//visibility:public"],
 )

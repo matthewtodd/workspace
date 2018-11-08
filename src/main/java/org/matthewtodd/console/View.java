@@ -57,9 +57,8 @@ public abstract class View<SELF extends View> {
     return self();
   };
 
-  final SELF keyPress(KeyPress keyPress) {
+  final void keyPress(KeyPress keyPress) {
     keyPressListener.get().accept(keyPress);
-    return self();
   }
 
   final SELF layout(int left, int top, int right, int bottom) {

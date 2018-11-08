@@ -2,9 +2,8 @@ package org.matthewtodd.console;
 
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.matthewtodd.flow.Flow;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 public class Window {
   private final AtomicReference<View> rootView = new AtomicReference<>(View.EMPTY);
@@ -12,24 +11,7 @@ public class Window {
   private final Canvas canvas;
 
   public Window(Publisher<KeyPress> input, int rows, int columns, Consumer<Stroke> output) {
-    input.subscribe(new Subscriber<KeyPress>() {
-      @Override public void onSubscribe(Subscription s) {
-        s.request(Long.MAX_VALUE);
-      }
-
-      @Override public void onNext(KeyPress keyPress) {
-        rootView.get().keyPress(keyPress);
-      }
-
-      @Override public void onError(Throwable t) {
-
-      }
-
-      @Override public void onComplete() {
-
-      }
-    });
-
+    Flow.of(input).subscribe(rootView.get()::keyPress);
     size = new Size(rows, columns);
     canvas = new Canvas(output);
   }
