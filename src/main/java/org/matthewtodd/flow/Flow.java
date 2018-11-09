@@ -91,7 +91,7 @@ public class Flow {
       return Flowable.interval(1, TimeUnit.SECONDS).observeOn(scheduler);
     }
 
-    public void startup(Runnable action) {
+    public void start(Runnable action) {
       scheduler.execute(action::run);
     }
 

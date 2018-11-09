@@ -18,7 +18,7 @@ alias(
   name = "jline",
   actual = "@org_jline_jline_terminal//jar",
   visibility = [
-    "//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
+    "//src/main/java/org/matthewtodd/console:__pkg__",
   ]
 )
 

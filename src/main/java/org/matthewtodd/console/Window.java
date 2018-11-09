@@ -1,52 +1,47 @@
 package org.matthewtodd.console;
 
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
 import org.reactivestreams.Publisher;
 
 public class Window {
   private final AtomicReference<View> rootView = new AtomicReference<>(View.EMPTY);
-  private final Size size;
-  private final Canvas canvas;
+  private final Device device;
 
-  public Window(Publisher<KeyPress> input, int rows, int columns, Consumer<Stroke> output) {
-    Flow.of(input).subscribe(rootView.get()::keyPress);
-    size = new Size(rows, columns);
-    canvas = new Canvas(output);
+  public Window(Publisher<Integer> input, Device device) {
+    Flow.of(input).as(KeyPress::new).subscribe(k -> rootView.get().keyPress(k));
+    // TODO listen to WINCH from device, then redraw (= clear and draw)
+    this.device = device;
   }
 
   public void rootView(View view) {
     rootView.get()
         .setInvalidationListener(() -> {})
         .detachedFromWindow();
+    device.clear();
     rootView.set(view);
     rootView.get()
         .setInvalidationListener(this::draw)
         .attachedToWindow();
   }
 
-  private void draw() {
-    rootView.get()
-        .layout(0, 0, size.columns, size.rows)
-        .draw(canvas);
+  public void close() {
+    rootView(View.EMPTY);
   }
 
-  private static class Size {
-    private final int rows;
-    private final int columns;
-
-    Size(int rows, int columns) {
-      this.rows = rows;
-      this.columns = columns;
-    }
+  private void draw() {
+    rootView.get().draw(Canvas.root(device));
   }
 
   public static class KeyPress {
     private final int keyCode;
 
-    public KeyPress(int keyCode) {
+    KeyPress(int keyCode) {
       this.keyCode = keyCode;
+    }
+
+    public boolean isBackspace() {
+      return keyCode == 127;
     }
 
     public boolean isEnter() {
@@ -73,9 +68,5 @@ public class Window {
           "keyCode=" + keyCode +
           '}';
     }
-  }
-
-  public static class Stroke {
-
   }
 }

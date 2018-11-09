@@ -6,7 +6,6 @@ java_library(
     "//src/main/java/org/matthewtodd/flow",
     "//src/main/java/org/matthewtodd/perquackey",
     "//src/main/java/org/matthewtodd/workflow",
-    "//third_party:jline",
   ],
   visibility = [
     "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",

@@ -7,7 +7,6 @@ import org.matthewtodd.console.Window.KeyPress;
 public abstract class View<SELF extends View> {
   static final View EMPTY = new View() {
     @Override protected void onDraw(Canvas canvas) { }
-    @Override protected void onLayout(int left, int top, int right, int bottom) { }
   };
 
   private final AtomicReference<Consumer<SELF>> attachmentListener;
@@ -55,20 +54,18 @@ public abstract class View<SELF extends View> {
   final SELF draw(Canvas canvas) {
     onDraw(canvas);
     return self();
-  };
-
-  final void keyPress(KeyPress keyPress) {
-    keyPressListener.get().accept(keyPress);
   }
 
-  final SELF layout(int left, int top, int right, int bottom) {
-    onLayout(left, top, right, bottom);
+  final SELF keyPress(KeyPress keyPress) {
+    keyPressListener.get().accept(keyPress);
     return self();
   }
 
   protected abstract void onDraw(Canvas canvas);
 
-  protected abstract void onLayout(int left, int top, int right, int bottom);
+  protected final void invalidate() {
+    invalidationListener.get().run();
+  }
 
   @SuppressWarnings("unchecked")
   private SELF self() {

@@ -62,7 +62,15 @@ public class Timer {
       return total - elapsed;
     }
 
-    boolean running() {
+    public long remainingMinutes() {
+      return remaining() / 60;
+    }
+
+    public long remainingSeconds() {
+      return remaining() % 60;
+    }
+
+    public boolean running() {
       return running;
     }
 
