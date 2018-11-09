@@ -41,7 +41,7 @@ public class ConsoleTest {
     assertThat(display.toString().split("\n")).containsExactly(
         "0 points                             [paused] 3:00",
         "--------------------------------------------------",
-        "                                                  ",
+        "3   4    5     6      7       8        9          ",
         "                                                  ",
         "                                                  ",
         "                                                  ",

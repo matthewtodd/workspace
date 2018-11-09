@@ -74,6 +74,11 @@ public class Canvas {
       return this;
     }
 
+    public BoundedCanvasBuilder left(int originColumn) {
+      newOriginColumn = originColumn;
+      return this;
+    }
+
     public BoundedCanvasBuilder leftHalf() {
       newOriginColumn = originColumn;
       newColumns = columns / 2;
@@ -83,6 +88,11 @@ public class Canvas {
     public BoundedCanvasBuilder rightHalf() {
       newOriginColumn = columns - (columns / 2) + 1;
       newColumns = columns / 2;
+      return this;
+    }
+
+    public BoundedCanvasBuilder width(int columns) {
+      newColumns = columns;
       return this;
     }
 

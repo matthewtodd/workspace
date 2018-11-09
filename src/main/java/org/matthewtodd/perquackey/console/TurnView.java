@@ -1,5 +1,6 @@
 package org.matthewtodd.perquackey.console;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import org.matthewtodd.console.Canvas;
 import org.matthewtodd.console.View;
 import org.matthewtodd.perquackey.Turn;
@@ -22,6 +23,15 @@ class TurnView extends View<TurnView> {
 
     canvas.area(a -> a.top(1))
         .rule();
+
+    final AtomicInteger columnPosition = new AtomicInteger(1);
+    turn.words().eachColumn(c -> {
+      canvas.area(a -> a.top(2).left(columnPosition.get()).width(c.length()))
+          .leftAligned()
+          .text("%d", c.length());
+      columnPosition.addAndGet(c.length());
+      columnPosition.incrementAndGet();
+    });
 
     canvas.area(a -> a.bottom(1))
         .rule();
