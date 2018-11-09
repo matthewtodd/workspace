@@ -1,8 +1,5 @@
 package org.matthewtodd.perquackey;
 
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.matthewtodd.flow.Flow;
@@ -13,7 +10,7 @@ import org.reactivestreams.Publisher;
 public class Turn {
   private final Timer timer;
   private final AtomicReference<Timer.Snapshot> timerSnapshot;
-  private final Set<String> words;
+  private final AtomicReference<WordList> words;
   private final AtomicInteger score;
   private final Processor<Snapshot, Snapshot> snapshot;
 
@@ -21,7 +18,7 @@ public class Turn {
     this.timer = timer;
 
     timerSnapshot = new AtomicReference<>();
-    words = new LinkedHashSet<>();
+    words = new AtomicReference<>(WordList.EMPTY);
     score = new AtomicInteger(0);
     snapshot = Flow.pipe();
 
@@ -33,7 +30,7 @@ public class Turn {
   }
 
   void spell(String word) {
-    words.add(word);
+    words.getAndUpdate(w -> w.add(word));
     score.addAndGet(60); // TODO scoring!
     snapshot.onNext(takeSnapshot());
   }
@@ -51,21 +48,21 @@ public class Turn {
   }
 
   private Snapshot takeSnapshot() {
-    return new Snapshot(words, score.get(), timerSnapshot.get());
+    return new Snapshot(words.get(), score.get(), timerSnapshot.get());
   }
 
   public static class Snapshot {
-    private final Set<String> words;
+    private final WordList words;
     private final int score;
     private final Timer.Snapshot timer;
 
-    private Snapshot(Set<String> words, int score, Timer.Snapshot timer) {
-      this.words = Collections.unmodifiableSet(words);
+    private Snapshot(WordList words, int score, Timer.Snapshot timer) {
+      this.words = words;
       this.score = score;
       this.timer = timer;
     }
 
-    public Set<String> words() {
+    public WordList words() {
       return words;
     }
 
