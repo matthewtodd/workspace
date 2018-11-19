@@ -4,6 +4,7 @@ java_library(
   deps = [
     "//src/main/java/org/matthewtodd/console",
     "//src/main/java/org/matthewtodd/perquackey/console",
+    "//src/test/java/org/matthewtodd/perquackey",
     "//third_party:assertj",
     "//third_party:hamcrest",
     "//third_party:junit",

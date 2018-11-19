@@ -56,7 +56,7 @@ public class Turn {
     private final int score;
     private final Timer.Snapshot timer;
 
-    private Snapshot(WordList words, int score, Timer.Snapshot timer) {
+    Snapshot(WordList words, int score, Timer.Snapshot timer) {
       this.words = words;
       this.score = score;
       this.timer = timer;

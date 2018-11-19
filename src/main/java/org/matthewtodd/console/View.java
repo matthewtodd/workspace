@@ -1,74 +1,90 @@
 package org.matthewtodd.console;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.UUID;
 import java.util.function.Consumer;
-import org.matthewtodd.console.Window.KeyPress;
 
-public abstract class View<SELF extends View> {
+public abstract class View {
   static final View EMPTY = new View() {
-    @Override protected void onDraw(Canvas canvas) { }
+    @Override public void onDraw(Canvas canvas) { }
   };
 
-  private final AtomicReference<Consumer<SELF>> attachmentListener;
-  private final AtomicReference<Runnable> detachmentListener;
-  private final AtomicReference<Runnable> invalidationListener;
-  private final AtomicReference<Consumer<KeyPress>> keyPressListener;
+  private final String id;
+  private boolean invalidated = false;
+  private Consumer<View> attachmentListener = t -> { };
+  private Runnable detachmentListener = () -> { };
+  private Runnable invalidationListener = () -> { };
+  private Consumer<KeyPress> keyPressListener = t -> { };
 
-  public View() {
-    attachmentListener = new AtomicReference<>(t -> { });
-    detachmentListener = new AtomicReference<>(() -> { });
-    invalidationListener = new AtomicReference<>(() -> { });
-    keyPressListener = new AtomicReference<>(t -> { });
+  View() {
+    this(UUID.randomUUID().toString());
   }
 
-  public final SELF setAttachmentListener(Consumer<SELF> listener) {
-    attachmentListener.set(listener);
-    return self();
+  View(String id) {
+    this.id = id;
   }
 
-  public final SELF setDetachmentListener(Runnable listener) {
-    detachmentListener.set(listener);
-    return self();
+  public final void setAttachmentListener(Consumer<View> listener) {
+    attachmentListener = listener;
   }
 
-  final SELF setInvalidationListener(Runnable listener) {
-    invalidationListener.set(listener);
-    return self();
+  public final void setDetachmentListener(Runnable listener) {
+    detachmentListener = listener;
   }
 
-  public final SELF setKeyPressListener(Consumer<KeyPress> listener) {
-    keyPressListener.set(listener);
-    return self();
+  final void setInvalidationListener(Runnable listener) {
+    invalidationListener = listener;
   }
 
-  final SELF attachedToWindow() {
-    attachmentListener.get().accept(self());
-    return self();
+  public final void setKeyPressListener(Consumer<KeyPress> listener) {
+    keyPressListener = listener;
   }
 
-  final SELF detachedFromWindow() {
-    detachmentListener.get().run();
-    return self();
+  final String id() {
+    return id;
   }
 
-  final SELF draw(Canvas canvas) {
-    onDraw(canvas);
-    return self();
+  final void attachedToWindow() {
+    attachmentListener.accept(this);
   }
 
-  final SELF keyPress(KeyPress keyPress) {
-    keyPressListener.get().accept(keyPress);
-    return self();
+  final void detachedFromWindow() {
+    detachmentListener.run();
+  }
+
+  final void draw(Canvas canvas) {
+    if (invalidated) {
+      onDraw(canvas);
+      invalidated = false;
+    }
+  }
+
+  final void keyPress(KeyPress keyPress) {
+    keyPressListener.accept(keyPress);
+  }
+
+  final void invalidate() {
+    invalidated = true;
+    invalidationListener.run();
+  }
+
+  final void layout(Rect rect) {
+    invalidated = true; // not invalidate so we don't n^2 bounce all over the tree.
+    onLayout(rect);
+  }
+
+  public <T> T find(String id, Class<T> viewClass) {
+    return id().equals(id) ? viewClass.cast(this) : null;
   }
 
   protected abstract void onDraw(Canvas canvas);
 
-  protected final void invalidate() {
-    invalidationListener.get().run();
+  protected void onLayout(Rect rect) { }
+
+  int height() {
+    return Integer.MAX_VALUE;
   }
 
-  @SuppressWarnings("unchecked")
-  private SELF self() {
-    return (SELF) this;
+  int width() {
+    return Integer.MAX_VALUE;
   }
 }

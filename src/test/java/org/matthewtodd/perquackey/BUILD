@@ -11,6 +11,9 @@ java_library(
     "//third_party:reactive_streams",
     "//third_party:rxjava2",
   ],
+  visibility = [
+    "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",
+  ]
 )
 
 java_test(

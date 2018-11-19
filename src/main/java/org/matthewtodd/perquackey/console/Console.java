@@ -2,8 +2,12 @@ package org.matthewtodd.perquackey.console;
 
 import java.io.IOException;
 import org.matthewtodd.console.Device;
+import org.matthewtodd.console.HorizontalRule;
+import org.matthewtodd.console.TableView;
 import org.matthewtodd.console.TerminalDevice;
+import org.matthewtodd.console.TextView;
 import org.matthewtodd.console.View;
+import org.matthewtodd.console.ViewGroup;
 import org.matthewtodd.console.Window;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.PausedScreen;
@@ -12,6 +16,11 @@ import org.matthewtodd.perquackey.Timer;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
+
+import static org.matthewtodd.console.Alignment.LEFT;
+import static org.matthewtodd.console.Alignment.RIGHT;
+import static org.matthewtodd.console.ViewGroup.Orientation.COLUMNS;
+import static org.matthewtodd.console.ViewGroup.Orientation.ROWS;
 
 public class Console {
   private final Window window;
@@ -36,18 +45,28 @@ public class Console {
   private View buildViewForScreen(WorkflowScreen<?, ?> screen) {
     switch (screen.key) {
       case PausedScreen.KEY:
-        PausedCoordinator pausedCoordinator = new PausedCoordinator((PausedScreen) screen);
-        return new TurnView()
-            .setAttachmentListener(pausedCoordinator::attach)
-            .setDetachmentListener(pausedCoordinator::detach);
+        return buildView(new PausedCoordinator((PausedScreen) screen));
       case SpellingScreen.KEY:
-        SpellingCoordinator spellingCoordinator = new SpellingCoordinator((SpellingScreen) screen);
-        return new TurnView()
-            .setAttachmentListener(spellingCoordinator::attach)
-            .setDetachmentListener(spellingCoordinator::detach);
+        return buildView(new SpellingCoordinator((SpellingScreen) screen));
       default:
         throw new AssertionError(String.format("Unexpected screen: %s", screen));
     }
+  }
+
+  private View buildView(Coordinator coordinator) {
+    View view = new ViewGroup(ROWS,
+        new ViewGroup(COLUMNS,
+            new TextView("score", LEFT),
+            new TextView("timer", RIGHT)),
+        new HorizontalRule(),
+        new TableView("words"),
+        new HorizontalRule(),
+        new TextView("input", LEFT));
+
+    view.setAttachmentListener(coordinator::attach);
+    view.setDetachmentListener(coordinator::detach);
+
+    return view;
   }
 
   public static void main(String[] args) throws IOException {

@@ -15,58 +15,16 @@ public class Window {
   }
 
   public void rootView(View view) {
-    rootView.get()
-        .setInvalidationListener(() -> {})
-        .detachedFromWindow();
+    rootView.get().setInvalidationListener(() -> { });
+    rootView.get().detachedFromWindow();
     device.clear();
     rootView.set(view);
-    rootView.get()
-        .setInvalidationListener(this::draw)
-        .attachedToWindow();
+    rootView.get().setInvalidationListener(() -> rootView.get().draw(Canvas.root(device)));
+    rootView.get().layout(Rect.sized(device.rows(), device.columns()));
+    rootView.get().attachedToWindow();
   }
 
   public void close() {
     rootView(View.EMPTY);
-  }
-
-  private void draw() {
-    rootView.get().draw(Canvas.root(device));
-  }
-
-  public static class KeyPress {
-    private final int keyCode;
-
-    KeyPress(int keyCode) {
-      this.keyCode = keyCode;
-    }
-
-    public boolean isBackspace() {
-      return keyCode == 127;
-    }
-
-    public boolean isEnter() {
-      return keyCode == 13;
-    }
-
-    public boolean isLowerCaseLetter() {
-      return Character.isLowerCase(keyCode);
-    }
-
-    public boolean isSpaceBar() {
-      return keyCode == 32;
-    }
-
-    public String stringValue() {
-      if (!isLowerCaseLetter()) {
-        throw new IllegalStateException(String.format("Not a lowercase letter: %s", this));
-      }
-      return String.valueOf(Character.toChars(keyCode));
-    }
-
-    @Override public String toString() {
-      return "KeyPress{" +
-          "keyCode=" + keyCode +
-          '}';
-    }
   }
 }

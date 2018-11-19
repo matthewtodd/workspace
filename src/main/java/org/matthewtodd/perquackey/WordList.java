@@ -2,9 +2,14 @@ package org.matthewtodd.perquackey;
 
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.stream.IntStream;
+
+import static java.lang.String.format;
+import static java.util.Collections.singletonMap;
 
 public class WordList implements Iterable<String> {
   static final WordList EMPTY = new WordList(Collections.emptySet());
@@ -21,29 +26,24 @@ public class WordList implements Iterable<String> {
     return new WordList(newWords);
   }
 
-  public void eachColumn(Consumer<Column> consumer) {
-    consumer.accept(new Column(3));
-    consumer.accept(new Column(4));
-    consumer.accept(new Column(5));
-    consumer.accept(new Column(6));
-    consumer.accept(new Column(7));
-    consumer.accept(new Column(8));
-    consumer.accept(new Column(9));
+  public Map<String, Map<String, String>> asMap() {
+    // TODO this is terrible
+    return IntStream.rangeClosed(3, 9).collect(LinkedHashMap::new,
+        (columns, length) -> columns.put(
+            format("words-%d", length),
+            words.stream()
+                .filter(word -> word.length() == length)
+                .collect(() -> new LinkedHashMap<>(singletonMap(format("words-%d-header", length), format("%d", length))),
+                    (rows, word) -> rows.put(
+                        format("word-%s", word),
+                        word
+                    ),
+                    (a, b) -> { throw new IllegalStateException(); }
+                )),
+        (a, b) -> { throw new IllegalStateException(); });
   }
 
   @Override public Iterator<String> iterator() {
     return words.iterator();
-  }
-
-  public class Column {
-    private final int length;
-
-    private Column(int length) {
-      this.length = length;
-    }
-
-    public int length() {
-      return length;
-    }
   }
 }

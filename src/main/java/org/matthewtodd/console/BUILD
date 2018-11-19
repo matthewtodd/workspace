@@ -3,6 +3,7 @@ java_library(
   srcs = glob(["*.java"]),
   deps = [
     "//src/main/java/org/matthewtodd/flow",
+    "//third_party:commons_collections",
     "//third_party:jline"
   ],
   visibility = [

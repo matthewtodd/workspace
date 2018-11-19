@@ -3,7 +3,15 @@ alias(
   actual = "@org_assertj_assertj_core//jar",
   visibility = [
     "//src/test/java:__subpackages__",
-  ]
+  ],
+)
+
+alias(
+  name = "commons_collections",
+  actual = "@org_apache_commons_commons_collections4//jar",
+  visibility = [
+    "//src/main/java/org/matthewtodd/console:__pkg__",
+  ],
 )
 
 alias(
@@ -11,7 +19,7 @@ alias(
   actual = "@org_hamcrest_hamcrest_core//jar",
   visibility = [
     "//src/test/java:__subpackages__",
-  ]
+  ],
 )
 
 alias(
@@ -19,7 +27,7 @@ alias(
   actual = "@org_jline_jline_terminal//jar",
   visibility = [
     "//src/main/java/org/matthewtodd/console:__pkg__",
-  ]
+  ],
 )
 
 alias(
@@ -27,7 +35,7 @@ alias(
   actual = "@junit_junit//jar",
   visibility = [
     "//src/test/java:__subpackages__",
-  ]
+  ],
 )
 
 alias(
@@ -36,7 +44,7 @@ alias(
   visibility = [
     "//src/main/java/org/matthewtodd/flow:__pkg__",
     "//src/test/java:__subpackages__",
-  ]
+  ],
 )
 
 alias(
@@ -45,7 +53,7 @@ alias(
   visibility = [
     "//src/main/java/org/matthewtodd/flow:__pkg__",
     "//src/test/java:__subpackages__",
-  ]
+  ],
 )
 
 alias(
@@ -53,5 +61,5 @@ alias(
   actual = "@com_github_akarnokd_rxjava2_extensions//jar",
   visibility = [
     "//src/main/java/org/matthewtodd/flow:__pkg__",
-  ]
+  ],
 )

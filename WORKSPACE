@@ -17,6 +17,12 @@ maven_jar(
 )
 
 maven_jar(
+  name = "org_apache_commons_commons_collections4",
+  artifact = "org.apache.commons:commons-collections4:4.2",
+  sha1 = "54ebea0a5b653d3c680131e73fe807bb8f78c4ed",
+)
+
+maven_jar(
   name = "org_assertj_assertj_core",
   artifact = "org.assertj:assertj-core:3.9.1",
   sha1 = "c5ce126b15f28d56cd8f960c1a6a058b9c9aea87",
