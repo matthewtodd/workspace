@@ -2,12 +2,12 @@ java_library(
   name = "flow",
   srcs = glob(["*.java"]),
   deps = [
-    "//third_party:reactive_streams",
-    "//third_party:rxjava2",
-    "//third_party:rxjava2_extensions",
+    "@org_reactivestreams_reactive_streams",
+    "@io_reactivex_rxjava2_rxjava",
+    "@com_github_akarnokd_rxjava2_extensions",
   ],
   exports = [
-    "//third_party:reactive_streams",
+    "@org_reactivestreams_reactive_streams",
   ],
   visibility = ["//visibility:public"],
 )

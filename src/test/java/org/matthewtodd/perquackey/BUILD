@@ -5,12 +5,13 @@ java_library(
     "//src/main/java/org/matthewtodd/perquackey",
     "//src/main/java/org/matthewtodd/workflow",
     "//src/test/java/org/matthewtodd/workflow",
-    "//third_party:assertj",
-    "//third_party:hamcrest",
-    "//third_party:junit",
-    "//third_party:reactive_streams",
-    "//third_party:rxjava2",
+    "@org_assertj_assertj_core",
+    "@org_hamcrest_hamcrest_core",
+    "@junit_junit",
+    "@org_reactivestreams_reactive_streams",
+    "@io_reactivex_rxjava2_rxjava",
   ],
+  testonly = True,
   visibility = [
     "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",
   ]
