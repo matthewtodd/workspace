@@ -1,0 +1,9 @@
+directories:
+  src/main/java
+  src/test/java
+
+test_sources:
+  src/test/java
+
+targets:
+  //src/test/java/...

@@ -1,5 +1,0 @@
-directories:
-  src/main/java/org/matthewtodd/perquackey/console
-
-targets:
-  //src/main/java/org/matthewtodd/perquackey/console:perquackey
