@@ -4,15 +4,12 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public abstract class View {
-  static final View EMPTY = new View("EMPTY") {
-    @Override void onAttached(ViewContext context) { }
-    @Override void onDetached() { }
+  static final View EMPTY = new SingleView("EMPTY") {
     @Override void onMeasure(Size width, Size height) { }
-    @Override void onLayout(Rect bounds) { }
     @Override void onDraw(Canvas canvas) { }
   };
 
-  private final String id;
+  final String id;
 
   private ViewContext context = ViewContext.NONE;
   private int measuredWidth; // initialize to 0 or something
@@ -65,7 +62,11 @@ public abstract class View {
   }
 
   final void measure(Size width, Size height) {
+    setMeasuredDimensions(Integer.MIN_VALUE, Integer.MIN_VALUE);
     onMeasure(width, height);
+    if (measuredWidth == Integer.MIN_VALUE || measuredHeight == Integer.MIN_VALUE) {
+      throw new IllegalStateException(String.format("Failed to measure View %s.", id));
+    }
   }
 
   abstract void onMeasure(Size width, Size height);
@@ -100,6 +101,8 @@ public abstract class View {
   }
 
   abstract void onDraw(Canvas canvas);
+
+  public abstract <T> T find(String id, Class<T> viewClass);
 
   @Override public boolean equals(Object other) {
     return other instanceof View && Objects.equals(id, ((View) other).id);

@@ -1,5 +1,9 @@
 package org.matthewtodd.console;
 
+import java.util.Objects;
+
+import static java.util.stream.StreamSupport.stream;
+
 public abstract class ViewGroup extends View {
   private final Layout layout;
 
@@ -20,6 +24,16 @@ public abstract class ViewGroup extends View {
     for (View child : children()) {
       child.detached();
     }
+  }
+
+  @Override public <T> T find(String id, Class<T> viewClass) {
+    return Objects.equals(id, this.id)
+        ? viewClass.cast(this)
+        : stream(children().spliterator(), false)
+            .map(c -> c.find(id, viewClass))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
   }
 
   @Override final void onMeasure(Size width, Size height) {
