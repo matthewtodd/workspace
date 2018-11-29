@@ -1,34 +1,34 @@
 java_library(
-  name = "perquackey",
-  srcs = glob(["*.java"]),
-  deps = [
-    "//src/main/java/org/matthewtodd/perquackey",
-    "//src/main/java/org/matthewtodd/workflow",
-    "//src/test/java/org/matthewtodd/workflow",
-    "@org_assertj_assertj_core",
-    "@org_hamcrest_hamcrest_core",
-    "@junit_junit",
-    "@org_reactivestreams_reactive_streams",
-    "@io_reactivex_rxjava2_rxjava",
-  ],
-  testonly = True,
-  visibility = [
-    "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",
-  ]
+    name = "perquackey",
+    testonly = True,
+    srcs = glob(["*.java"]),
+    visibility = [
+        "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",
+    ],
+    deps = [
+        "//src/main/java/org/matthewtodd/perquackey",
+        "//src/main/java/org/matthewtodd/workflow",
+        "//src/test/java/org/matthewtodd/workflow",
+        "@io_reactivex_rxjava2_rxjava",
+        "@junit_junit",
+        "@org_assertj_assertj_core",
+        "@org_hamcrest_hamcrest_core",
+        "@org_reactivestreams_reactive_streams",
+    ],
 )
 
 java_test(
-  name = "TimerTest",
-  size = "small",
-  runtime_deps = [
-    ":perquackey",
-  ],
+    name = "TimerTest",
+    size = "small",
+    runtime_deps = [
+        ":perquackey",
+    ],
 )
 
 java_test(
-  name = "TurnWorkflowTest",
-  size = "small",
-  runtime_deps = [
-    ":perquackey",
-  ],
+    name = "TurnWorkflowTest",
+    size = "small",
+    runtime_deps = [
+        ":perquackey",
+    ],
 )

@@ -2,6 +2,7 @@
 cask 'caskroom/versions/java8'
 
 brew 'bazel'
+brew 'buildifier'
 cask 'fluor'
 
 # Once https://github.com/Homebrew/homebrew-bundle/blob/master/lib/bundle/cask_installer.rb
