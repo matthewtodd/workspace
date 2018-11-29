@@ -14,7 +14,7 @@ java_library(
 )
 
 java_test(
-  name = "ConsoleTest",
+  name = "PerquackeyTest",
   size = "small",
   runtime_deps = [
     ":console",

@@ -2,7 +2,7 @@ directories:
   src/test/java/org/matthewtodd/perquackey/console
 
 targets:
-  //src/test/java/org/matthewtodd/perquackey/console:ConsoleTest
+  //src/test/java/org/matthewtodd/perquackey/console:PerquackeyTest
 
 test_sources:
   src/test/java/org/matthewtodd/perquackey/console

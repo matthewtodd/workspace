@@ -76,7 +76,7 @@ public class Flow {
     return new Scheduler();
   }
 
-  public static final class Scheduler {
+  public static final class Scheduler implements Consumer<Runnable> {
     private final BlockingScheduler scheduler = new BlockingScheduler();
 
     private Scheduler() { }
@@ -91,8 +91,12 @@ public class Flow {
       return Flowable.interval(1, TimeUnit.SECONDS).observeOn(scheduler);
     }
 
-    public void start(Runnable action) {
-      scheduler.execute(action::run);
+    public void start() {
+      scheduler.execute();
+    }
+
+    @Override public void accept(Runnable action) {
+      scheduler.scheduleDirect(action);
     }
 
     public void shutdown() {

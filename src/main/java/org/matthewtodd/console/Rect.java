@@ -1,5 +1,8 @@
 package org.matthewtodd.console;
 
+import java.util.Collection;
+import java.util.Collections;
+
 class Rect {
   private final int top;
   private final int right; // exclusive
@@ -47,5 +50,10 @@ class Rect {
 
   @Override public String toString() {
     return String.format("[%d, %d, %d, %d]", top, right, bottom, left);
+  }
+
+  Collection<Rect> diff(Rect newBounds) {
+    // TODO implement this!
+    return Collections.emptyList();
   }
 }

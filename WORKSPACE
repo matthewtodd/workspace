@@ -2,6 +2,7 @@ maven_jar(
   name = "com_github_akarnokd_rxjava2_extensions",
   artifact = "com.github.akarnokd:rxjava2-extensions:0.20.3",
   sha1 = "ade14a02caf1d8907797fba65e9fcffaa2e4c76e",
+  sha1_src = "71101fdd75a864c300e004afa0970d053988ec45",
 )
 
 maven_jar(

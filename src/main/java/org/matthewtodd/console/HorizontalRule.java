@@ -1,11 +1,15 @@
 package org.matthewtodd.console;
 
-public class HorizontalRule extends View {
-  @Override protected void onDraw(Canvas canvas) {
-    canvas.fill('-');
+public class HorizontalRule extends SingleView {
+  public HorizontalRule(String id) {
+    super(id);
   }
 
-  @Override protected int height() {
-    return 1;
+  @Override void onMeasure(Size width, Size height) {
+    setMeasuredDimensions(width.full(), height.full());
+  }
+
+  @Override void onDraw(Canvas canvas) {
+    canvas.fill('-');
   }
 }

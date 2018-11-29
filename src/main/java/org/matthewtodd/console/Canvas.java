@@ -2,36 +2,41 @@ package org.matthewtodd.console;
 
 import java.util.Arrays;
 
-public class Canvas {
+class Canvas {
   private final Device device;
-  private final Rect rect;
+  private final Rect bounds;
 
-  public static Canvas root(Device device) {
+  static Canvas root(Device device) {
     return new Canvas(device, Rect.sized(device.rows(), device.columns()));
   }
 
-  private Canvas(Device device, Rect rect) {
+  private Canvas(Device device, Rect bounds) {
     this.device = device;
-    this.rect = rect;
+    this.bounds = bounds;
   }
 
-  Canvas rect(Rect rect) {
-    return new Canvas(device, rect);
+  Canvas bounds(Rect bounds) {
+    return new Canvas(device, bounds);
+  }
+
+  void clear() {
+    // TODO push this into device. I think the terminal can do a better job.
+    fill(' ');
   }
 
   void fill(char symbol) {
-    for (int i = 0; i < rect.height(); i++) {
-      device.replace(rect.top() + i, rect.left(), repeat(symbol, rect.width()));
+    for (int i = 0; i < bounds.height(); i++) {
+      device.replace(bounds.top() + i, bounds.left(), repeat(symbol, bounds.width()));
     }
   }
 
-  private String repeat(char fill, int count) {
+  private static String repeat(char fill, int count) {
     char[] buffer = new char[count];
     Arrays.fill(buffer, fill);
     return new String(buffer);
   }
 
-  void text(String text, Alignment alignment) {
-    device.replace(rect.top(), rect.left(), alignment.justify(text, rect.width()));
+  void text(String text) {
+    device.replace(bounds.top(), bounds.left(), text);
   }
 }

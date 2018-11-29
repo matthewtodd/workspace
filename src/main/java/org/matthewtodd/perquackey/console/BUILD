@@ -17,5 +17,5 @@ java_binary(
   runtime_deps = [
     ":console",
   ],
-  main_class = "org.matthewtodd.perquackey.console.Console",
+  main_class = "org.matthewtodd.perquackey.console.Perquackey",
 )
