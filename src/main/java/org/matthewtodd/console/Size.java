@@ -1,5 +1,7 @@
 package org.matthewtodd.console;
 
+import static java.lang.Integer.MAX_VALUE;
+
 final class Size {
   private final int spec;
   private final Mode mode;
@@ -15,27 +17,17 @@ final class Size {
       @Override int resolve(int spec, int requested) {
         return spec;
       }
-    },
-
-    UNSPECIFIED {
-      @Override int resolve(int spec, int requested) {
-        return requested;
-      }
     };
 
     abstract int resolve(int spec, int requested);
-  }
 
+
+  }
   static Size atMost(int limit) {
     return new Size(limit, Mode.AT_MOST);
   }
-
   static Size exactly(int size) {
     return new Size(size, Mode.EXACTLY);
-  }
-
-  static Size unspecified() {
-    return new Size(Integer.MIN_VALUE, Mode.UNSPECIFIED);
   }
 
   private Size(int spec, Mode mode) {
@@ -45,5 +37,13 @@ final class Size {
 
   int requesting(int requested) {
     return mode.resolve(spec, requested);
+  }
+
+  int available() {
+    return requesting(MAX_VALUE);
+  }
+
+  Size trim(int start, int end) {
+    return new Size(end - start, Mode.AT_MOST);
   }
 }

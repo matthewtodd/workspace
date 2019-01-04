@@ -18,7 +18,7 @@ public class AdapterView extends ViewGroup {
     Iterable<View> children();
   }
 
-  public static Adapter fixed(View... children) {
+  public static Adapter staticChildren(View... children) {
     return () -> Arrays.asList(children);
   }
 }

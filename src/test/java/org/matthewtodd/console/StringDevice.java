@@ -1,45 +1,24 @@
-package org.matthewtodd.perquackey.console;
+package org.matthewtodd.console;
 
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import org.matthewtodd.console.Device;
 
 import static java.lang.String.join;
 import static java.util.Collections.nCopies;
 
-class StringDevice implements Device, Iterable<String> {
+public class StringDevice implements Device, Iterable<String> {
   private final int rows;
   private final int columns;
   private final StringBuilder display = new StringBuilder();
 
-  static Builder rows(int rows) {
-    return new Builder(rows);
-  }
-
-  static class Builder {
-    private int rows;
-    private int columns;
-
-    private Builder(int rows) {
-      this.rows = rows;
-    }
-
-    Builder columns(int columns) {
-      this.columns = columns;
-      return this;
-    }
-
-    StringDevice build() {
-      StringDevice device = new StringDevice(rows, columns);
-      device.clear();
-      return device;
-    }
-  }
-
   private StringDevice(int rows, int columns) {
     this.rows = rows;
     this.columns = columns;
+  }
+
+  public static Builder newBuilder() {
+    return new Builder();
   }
 
   @Override public int rows() {
@@ -71,5 +50,29 @@ class StringDevice implements Device, Iterable<String> {
 
   private List<String> displayedRows() {
     return Arrays.asList(toString().split("\n"));
+  }
+
+  public static class Builder {
+    private int columns;
+    private int rows;
+
+    private Builder() {
+    }
+
+    public Builder width(int columns) {
+      this.columns = columns;
+      return this;
+    }
+
+    public Builder height(int rows) {
+      this.rows = rows;
+      return this;
+    }
+
+    public StringDevice build() {
+      StringDevice device = new StringDevice(rows, columns);
+      device.clear();
+      return device;
+    }
   }
 }

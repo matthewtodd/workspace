@@ -2,21 +2,19 @@ java_library(
     name = "console",
     testonly = True,
     srcs = glob(["*.java"]),
+    visibility = [
+        "//src/test/java/org/matthewtodd/perquackey/console:__pkg__"
+    ],
     deps = [
         "//src/main/java/org/matthewtodd/console",
-        "//src/main/java/org/matthewtodd/perquackey/console",
-        "//src/test/java/org/matthewtodd/console",
-        "//src/test/java/org/matthewtodd/perquackey",
-        "@io_reactivex_rxjava2_rxjava",
         "@junit_junit",
         "@org_assertj_assertj_core",
         "@org_hamcrest_hamcrest_core",
-        "@org_reactivestreams_reactive_streams",
     ],
 )
 
 java_test(
-    name = "PerquackeyTest",
+    name = "ConstraintLayoutTest",
     size = "small",
     runtime_deps = [
         ":console",

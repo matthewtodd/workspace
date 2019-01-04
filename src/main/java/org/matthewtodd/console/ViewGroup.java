@@ -37,11 +37,12 @@ public abstract class ViewGroup extends View {
   }
 
   @Override final void onMeasure(Size width, Size height) {
-    layout.measure(width, height, children(), this::setMeasuredDimensions);
+    layout.measure(width, height, (id) -> find(id, View.class));
+    setMeasuredDimensions(width.available(), height.available());
   }
 
   @Override final void onLayout(Rect bounds) {
-    layout.layout(bounds, children());
+    layout.layout(bounds, (id) -> find(id, View.class));
   }
 
   @Override final void onDraw(Canvas canvas) {

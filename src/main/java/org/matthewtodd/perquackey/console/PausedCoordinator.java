@@ -18,12 +18,12 @@ class PausedCoordinator implements Coordinator {
       view.find("score", TextView.class)
           .text("%d points", turn.score());
 
-    //  view.find("timer", TextView.class)
-    //      .text("%s %d:%02d",
-    //          turn.timer().running() ? "" : "[paused]",
-    //          turn.timer().remainingMinutes(),
-    //          turn.timer().remainingSeconds());
-    //
+      view.find("timer", TextView.class)
+          .text("%s %d:%02d",
+              turn.timer().running() ? "" : "[paused]",
+              turn.timer().remainingMinutes(),
+              turn.timer().remainingSeconds());
+
     //  view.find("words", TableView.class)
     //      .table(fromMap(turn.words().asMap()));
     });

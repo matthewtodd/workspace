@@ -1,17 +1,18 @@
 package org.matthewtodd.console;
 
-import static java.lang.Integer.MAX_VALUE;
-
 public class HorizontalRule extends SingleView {
-  public HorizontalRule(String id) {
+  private final char symbol;
+
+  public HorizontalRule(String id, char symbol) {
     super(id);
+    this.symbol = symbol;
   }
 
   @Override void onMeasure(Size width, Size height) {
-    setMeasuredDimensions(width.requesting(MAX_VALUE), height.requesting(MAX_VALUE));
+    setMeasuredDimensions(width.available(), height.available());
   }
 
   @Override void onDraw(Canvas canvas) {
-    canvas.fill('-');
+    canvas.fill(symbol);
   }
 }

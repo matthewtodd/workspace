@@ -14,7 +14,7 @@ public abstract class View {
   private ViewContext context = ViewContext.NONE;
   private int measuredWidth; // initialize to 0 or something
   private int measuredHeight;
-  private Rect bounds;
+  private Rect bounds = Rect.sized(0, 0);
 
   private Consumer<View> attached = v -> {};
   private Consumer<View> detached = v -> {};

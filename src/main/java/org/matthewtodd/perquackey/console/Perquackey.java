@@ -17,7 +17,7 @@ import org.matthewtodd.perquackey.Timer;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.reactivestreams.Publisher;
 
-import static org.matthewtodd.console.ConstraintLayout.constrain;
+import static org.matthewtodd.console.ConstraintLayout.Constraint.constrain;
 
 public class Perquackey {
   static Builder with(Publisher<Long> ticker) {
@@ -68,17 +68,17 @@ public class Perquackey {
 
               constrain("rule1").top().toBottomOf("score"),
               constrain("rule1").left().toLeftOfParent(),
-              constrain("rule1").width().toMatchParent(),
+              constrain("rule1").right().toRightOfParent(),
               constrain("rule1").height().fixed(1),
 
               constrain("words").top().toBottomOf("rule1"),
               constrain("words").left().toLeftOfParent(),
-              constrain("words").width().toMatchParent(),
+              constrain("words").right().toRightOfParent(),
               constrain("words").bottom().toTopOf("rule2"),
 
               constrain("rule2").bottom().toTopOf("input"),
               constrain("rule2").left().toLeftOfParent(),
-              constrain("rule2").width().toMatchParent(),
+              constrain("rule2").right().toRightOfParent(),
               constrain("rule2").height().fixed(1),
 
               constrain("input").bottom().toBottomOfParent(),
@@ -87,12 +87,13 @@ public class Perquackey {
               constrain("input").height().fixed(1)
           ),
 
-          AdapterView.fixed(
+          AdapterView.staticChildren(
               new TextView("score"),
               new TextView("timer"),
-              new HorizontalRule("rule1"),
+              new HorizontalRule("rule1", '-'),
               //new AdapterView("words", Layout.table(), Collections::emptyList),
-              new HorizontalRule("rule2"),
+              new HorizontalRule("words", 'w'),
+              new HorizontalRule("rule2", '-'),
               new TextView("input")
           ));
     }

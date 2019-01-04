@@ -6,11 +6,7 @@ class Canvas {
   private final Device device;
   private final Rect bounds;
 
-  static Canvas root(Device device) {
-    return new Canvas(device, Rect.sized(device.rows(), device.columns()));
-  }
-
-  private Canvas(Device device, Rect bounds) {
+  Canvas(Device device, Rect bounds) {
     this.device = device;
     this.bounds = bounds;
   }

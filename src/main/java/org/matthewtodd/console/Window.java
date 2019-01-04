@@ -44,6 +44,10 @@ public class Window {
         scheduler.accept(Window.this::eventLoop);
       }
     });
+
+    // the rest of the turtles handle layout, but no one ever triggers the first-run top-down draw.
+    // maybe we should instead queue up the root view actions before signalling "attached"?
+    needsDrawing.add(rootView);
   }
 
   public void close() {
@@ -53,16 +57,13 @@ public class Window {
 
   private void eventLoop() {
     drain(needsLayout, rootView -> {
-      // rootView.accept()
       rootView.measure(Size.exactly(device.columns()), Size.exactly(device.rows()));
-      rootView.layout(Rect.sized(device.rows(), device.columns()));
+      rootView.layout(device.rect());
     });
 
-    drain(needsClearing, dirty ->
-        Canvas.root(device).bounds(dirty).clear());
+    drain(needsClearing, dirty -> new Canvas(device, device.rect()).bounds(dirty).clear());
 
-    drain(needsDrawing, view ->
-        view.draw(Canvas.root(device)));
+    drain(needsDrawing, view -> view.draw(new Canvas(device, device.rect())));
   }
 
   private static <T> void drain(Set<T> set, Consumer<T> action) {
