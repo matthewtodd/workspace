@@ -14,8 +14,12 @@ public class PerquackeyTest {
     TestScheduler scheduler = new TestScheduler();
     StringDevice device = StringDevice.newBuilder().width(50).height(10).build();
 
-    Perquackey.with(ticker)
-        .on(input, scheduler::scheduleDirect, device)
+    Perquackey.newBuilder()
+        .ticker(ticker)
+        .input(input)
+        .scheduler(scheduler::scheduleDirect)
+        .device(device)
+        .build()
         .start(() -> {});
 
     scheduler.triggerActions();

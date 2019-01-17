@@ -21,39 +21,58 @@ import org.reactivestreams.Publisher;
 import static org.matthewtodd.console.ConstraintLayout.Constraint.constrain;
 
 public class Perquackey {
-  static Builder with(Publisher<Long> ticker) {
-    return new Builder().ticker(ticker);
+  static Builder newBuilder() {
+    return new Builder();
   }
 
   // Interesting, this smells like a Guice module.
-  // Still playing with boundaries.
-  // There's almost a reusable thing here, like -> workflow, -> window, -> viewFactory, -> app.
   static class Builder {
-    private TurnWorkflow workflow;
-    private Window window;
+    private Publisher<Long> ticker;
+    private Publisher<Integer> input;
+    private Consumer<Runnable> scheduler;
+    private Device device;
 
     Builder ticker(Publisher<Long> ticker) {
-      workflow = new TurnWorkflow(new Timer(180L, ticker));
+      this.ticker = ticker;
       return this;
     }
 
-    Application on(Publisher<Integer> input, Consumer<Runnable> scheduler, Device device) {
-      window = new Window(input, scheduler, device);
-      return build();
+    Builder input(Publisher<Integer> input) {
+      this.input = input;
+      return this;
     }
 
-    private Application build() {
-      return new Application(workflow, viewFactory(), window);
+    Builder scheduler(Consumer<Runnable> scheduler) {
+      this.scheduler = scheduler;
+      return this;
+    }
+
+    Builder device(Device device) {
+      this.device = device;
+      return this;
+    }
+
+    Application build() {
+      return new Application(workflow(), viewFactory(), window());
+    }
+
+    private TurnWorkflow workflow() {
+      return new TurnWorkflow(new Timer(180L, ticker));
     }
 
     private ViewFactory viewFactory() {
-      return ViewFactory.newBuilder(this::findViewById)
+      return ViewFactory.newBuilder()
+          .view(turnView())
           .bind(PausedScreen.KEY, "turn", PausedCoordinator::new)
           .bind(SpellingScreen.KEY, "turn", SpellingCoordinator::new)
           .build();
     }
 
-    private View findViewById(String id) {
+    private Window window() {
+      return new Window(input, scheduler, device);
+    }
+
+    private View turnView() {
       return new AdapterView("turn",
           // However we express this, I'm imagining a set of constraints per view, used to arrange a graph of views in dependency order.
           new ConstraintLayout(
@@ -104,8 +123,12 @@ public class Perquackey {
     Flow.Scheduler mainThread = Flow.newScheduler();
     TerminalDevice terminal = TerminalDevice.instance();
 
-    Perquackey.with(mainThread.ticking())
-        .on(mainThread.receiving(terminal.input()), mainThread, terminal)
+    Perquackey.newBuilder()
+        .ticker(mainThread.ticking())
+        .input(mainThread.receiving(terminal.input()))
+        .scheduler(mainThread)
+        .device(terminal)
+        .build()
         .run(mainThread);
   }
 }

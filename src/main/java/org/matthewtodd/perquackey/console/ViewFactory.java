@@ -1,70 +1,57 @@
 package org.matthewtodd.perquackey.console;
 
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Function;
 import org.matthewtodd.console.View;
 import org.matthewtodd.workflow.WorkflowScreen;
 
-class ViewFactory {
-  private final Function<String, View> registry;
-  private final List<Binding> bindings;
+class ViewFactory implements Function<WorkflowScreen<?, ?>, View> {
+  private final Function<String, View> views;
+  private final Function<String, String> bindings;
+  private final Function<String, Function<WorkflowScreen<?, ?>, Coordinator>> coordinators;
 
-  static Builder newBuilder(Function<String, View> registry) {
-    return new Builder(registry);
+  static Builder newBuilder() {
+    return new Builder();
   }
 
   static class Builder {
-    private final Function<String, View> registry;
-    private final List<Binding> bindings = new LinkedList<>();
+    private Map<String, View> views = new LinkedHashMap<>();
+    private Map<String, String> bindings = new LinkedHashMap<>();
+    private Map<String, Function<WorkflowScreen<?, ?>, Coordinator>> coordinators = new LinkedHashMap<>();
 
-    private Builder(Function<String, View> registry) {
-      this.registry = registry;
+    public Builder view(View view) {
+      views.put(view.id, view);
+      return this;
     }
 
-    Builder bind(String key, String id, Function<WorkflowScreen<?, ?>, Coordinator> coordinatorProvider) {
-      bindings.add(new Binding(key, id, coordinatorProvider));
+    Builder bind(String screenKey, String viewId, Function<WorkflowScreen<?, ?>, Coordinator> coordinatorProvider) {
+      bindings.put(screenKey, viewId);
+      coordinators.put(screenKey, coordinatorProvider);
       return this;
     }
 
     ViewFactory build() {
-      return new ViewFactory(registry, bindings);
+      return new ViewFactory(this);
     }
   }
 
-  private ViewFactory(Function<String, View> registry, List<Binding> bindings) {
-    this.registry = registry;
-    this.bindings = Collections.unmodifiableList(bindings);
+  private ViewFactory(Builder builder) {
+    this.views = builder.views::get;
+    this.bindings = builder.bindings::get;
+    this.coordinators = builder.coordinators::get;
   }
 
-  View get(WorkflowScreen<?, ?> screen) {
-    return bindings.stream()
-        .map(b -> b.get(screen, registry))
-        .filter(Objects::nonNull)
-        .findFirst()
-        .orElseThrow(IllegalStateException::new);
+  @Override public View apply(WorkflowScreen<?, ?> screen) {
+    Coordinator coordinator = coordinatorFor(screen);
+    return viewFor(screen).attachmentListeners(coordinator::attach, coordinator::detach);
   }
 
-  private static class Binding {
-    private final String key;
-    private final String id;
-    private final Function<WorkflowScreen<?, ?>, Coordinator> coordinatorProvider;
+  private View viewFor(WorkflowScreen<?, ?> screen) {
+    return views.apply(bindings.apply(screen.key));
+  }
 
-    private Binding(String key, String id,
-        Function<WorkflowScreen<?, ?>, Coordinator> coordinatorProvider) {
-      this.key = key;
-      this.id = id;
-      this.coordinatorProvider = coordinatorProvider;
-    }
-
-    private View get(WorkflowScreen<?, ?> screen, Function<String, View> registry) {
-      if (key.equals(screen.key)) {
-        Coordinator c = coordinatorProvider.apply(screen);
-        return registry.apply(id).attachmentListeners(c::attach, c::detach);
-      }
-      return null;
-    }
+  private Coordinator coordinatorFor(WorkflowScreen<?, ?> screen) {
+    return coordinators.apply(screen.key).apply(screen);
   }
 }

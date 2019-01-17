@@ -9,7 +9,7 @@ public abstract class View {
     @Override void onDraw(Canvas canvas) { }
   };
 
-  final String id;
+  public final String id;
 
   private ViewContext context = ViewContext.NONE;
   private int measuredWidth; // initialize to 0 or something
