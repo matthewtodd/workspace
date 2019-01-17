@@ -7,6 +7,7 @@ import org.matthewtodd.console.ConstraintLayout;
 import org.matthewtodd.console.Device;
 import org.matthewtodd.console.HorizontalRule;
 import org.matthewtodd.console.TerminalDevice;
+import org.matthewtodd.console.TextField;
 import org.matthewtodd.console.TextView;
 import org.matthewtodd.console.View;
 import org.matthewtodd.console.Window;
@@ -94,7 +95,7 @@ public class Perquackey {
               //new AdapterView("words", Layout.table(), Collections::emptyList),
               new HorizontalRule("words", 'w'),
               new HorizontalRule("rule2", '-'),
-              new TextView("input")
+              new TextField("input")
           ));
     }
   }

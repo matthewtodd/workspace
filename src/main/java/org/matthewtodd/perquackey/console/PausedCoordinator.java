@@ -23,18 +23,12 @@ class PausedCoordinator implements Coordinator {
               turn.timer().running() ? "" : "[paused]",
               turn.timer().remainingMinutes(),
               turn.timer().remainingSeconds());
-
-    //  view.find("words", TableView.class)
-    //      .table(fromMap(turn.words().asMap()));
     });
 
-    //view.find("input", TextView.class)
-    //    .text(":");
-    //
-    //view.setKeyPressListener(keyPress -> {
-    //  if (keyPress.isSpaceBar()) {
-    //    screen.eventHandler.resumeTimer();
-    //  }
-    //});
+    view.keyPressListener(keyPress -> {
+      if (keyPress.isSpaceBar()) {
+        screen.eventHandler.resumeTimer();
+      }
+    });
   }
 }

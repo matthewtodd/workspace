@@ -1,5 +1,6 @@
 package org.matthewtodd.console;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -51,8 +52,11 @@ class Rect {
   }
 
   Collection<Rect> diff(Rect newBounds) {
-    // TODO implement this!
-    return Collections.emptyList();
+    // TODO implement this more precisely!
+    Collection<Rect> rects = new ArrayList<>(2);
+    rects.add(this);
+    rects.add(newBounds);
+    return rects;
   }
 
   Rect clip(Rect clip) {
