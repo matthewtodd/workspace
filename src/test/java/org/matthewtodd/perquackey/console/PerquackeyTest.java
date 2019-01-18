@@ -9,8 +9,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class PerquackeyTest {
   @Test public void hookup() {
-    BehaviorProcessor<Integer> input = BehaviorProcessor.create();
     BehaviorProcessor<Long> ticker = BehaviorProcessor.create();
+    BehaviorProcessor<Integer> input = BehaviorProcessor.create();
     TestScheduler scheduler = new TestScheduler();
     StringDevice device = StringDevice.newBuilder().width(50).height(10).build();
 

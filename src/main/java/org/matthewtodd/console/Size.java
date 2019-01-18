@@ -20,9 +20,8 @@ final class Size {
     };
 
     abstract int resolve(int spec, int requested);
-
-
   }
+
   static Size atMost(int limit) {
     return new Size(limit, Mode.AT_MOST);
   }
@@ -43,6 +42,7 @@ final class Size {
     return requesting(MAX_VALUE);
   }
 
+  // TODO pull the AT_MOST out into Size#atMost(), maybe? Not sure if this coupling is inherent in the act.
   Size trim(int start, int end) {
     return new Size(end - start, Mode.AT_MOST);
   }

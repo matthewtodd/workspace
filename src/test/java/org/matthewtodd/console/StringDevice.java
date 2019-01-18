@@ -30,7 +30,7 @@ public class StringDevice implements Device, Iterable<String> {
   }
 
   @Override public void replace(int row, int column, String content) {
-    int start = (row - 1) * (columns() + 1) + column - 1;
+    int start = (row - 1) * (columns + 1) + column - 1;
     int end = start + content.length();
     display.replace(start, end, content);
   }

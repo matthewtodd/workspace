@@ -20,3 +20,11 @@ java_test(
         ":console",
     ],
 )
+
+java_test(
+    name = "TableLayoutTest",
+    size = "small",
+    runtime_deps = [
+        ":console",
+    ],
+)
