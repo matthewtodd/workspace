@@ -5,10 +5,12 @@ java_library(
         "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",
     ],
     deps = [
-        "//src/main/java/org/matthewtodd/console",
         "//src/main/java/org/matthewtodd/flow",
         "//src/main/java/org/matthewtodd/perquackey",
         "//src/main/java/org/matthewtodd/workflow",
+        "@com_github_akarnokd_rxjava2_extensions",
+        "@com_googlecode_lanterna_lanterna",
+        "@io_reactivex_rxjava2_rxjava",
     ],
 )
 

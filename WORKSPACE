@@ -6,6 +6,16 @@ java_import_maven_jar(
   srcjar_sha256 = "206e02bdbcdd285b549ca2931fe31164371801f4cddbeafb7f095053e6b78a0f",
   visibility = [
     "@//src/main/java/org/matthewtodd/flow:__pkg__",
+    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
+  ],
+)
+
+java_import_maven_jar(
+  artifact = "com.googlecode.lanterna:lanterna:3.0.1",
+  jar_sha256 = "0ca863b6c216099035c281743057b55f45bb435971a920270e5d29cbd093c0aa",
+  srcjar_sha256 = "f75a891dff865d3464511f807a7950930d97f2d1e99595b89c80e2c565ee5161",
+  visibility = [
+    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
   ],
 )
 
@@ -15,6 +25,7 @@ java_import_maven_jar(
   srcjar_sha256 = "79c442f52472b59864abf091b2ffe66b0a4045f828ec3ca40fa9ad6572826bb8",
   visibility = [
     "@//src/main/java/org/matthewtodd/flow:__pkg__",
+    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
     "@//src/test/java:__subpackages__",
   ],
 )
@@ -50,20 +61,12 @@ java_import_maven_jar(
 )
 
 java_import_maven_jar(
-  artifact = "org.jline:jline-terminal:3.9.0",
-  jar_sha256 = "623de3c5a526ede88fe02cf4922cba4f2e14d90e21657a0a2737985d74e5501f",
-  srcjar_sha256 = "087498a1f93b4d5c6cb6a6339fce92525e11329af616f768e1e715d0dff62782",
-  visibility = [
-    "@//src/main/java/org/matthewtodd/console:__pkg__",
-  ],
-)
-
-java_import_maven_jar(
   artifact = "org.reactivestreams:reactive-streams:1.0.2",
   jar_sha256 = "cc09ab0b140e0d0496c2165d4b32ce24f4d6446c0a26c5dc77b06bdf99ee8fae",
   srcjar_sha256 = "963a6480f46a64013d0f144ba41c6c6e63c4d34b655761717a436492886f3667",
   visibility = [
     "@//src/main/java/org/matthewtodd/flow:__pkg__",
+    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
     "@//src/test/java:__subpackages__",
   ],
 )

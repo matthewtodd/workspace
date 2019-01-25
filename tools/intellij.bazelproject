@@ -6,4 +6,5 @@ test_sources:
   src/test/java
 
 targets:
+  //src/main/java/org/matthewtodd/perquackey/console:perquackey
   //src/test/java/...
