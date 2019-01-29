@@ -1,46 +1,39 @@
 package org.matthewtodd.perquackey.console;
 
-// import org.matthewtodd.console.TextField;
-// import org.matthewtodd.console.TextView;
-// import org.matthewtodd.console.View;
-// import org.matthewtodd.flow.Flow;
-// import org.matthewtodd.perquackey.SpellingScreen;
-// import org.matthewtodd.workflow.WorkflowScreen;
+import org.matthewtodd.flow.Flow;
+import org.matthewtodd.perquackey.SpellingScreen;
+import org.matthewtodd.workflow.WorkflowScreen;
 
-class SpellingCoordinator implements Coordinator {
-  // private final SpellingScreen screen;
+class SpellingCoordinator implements Coordinator<Perquackey.TurnView> {
+   private final SpellingScreen screen;
 
-  // SpellingCoordinator(WorkflowScreen<?, ?> screen) {
-  //   this.screen = (SpellingScreen) screen;
-  // }
+   SpellingCoordinator(WorkflowScreen<?, ?> screen) {
+     this.screen = (SpellingScreen) screen;
+   }
 
-  // @Override public void attach(View view) {
-  //   Flow.of(screen.screenData).subscribe(turn -> {
-  //     view.find("score", TextView.class)
-  //         .text("%d points", turn.score());
+  @Override public void attach(Perquackey.TurnView view) {
+    view.input.setListener(new Perquackey.CommandLine.Listener() {
+      @Override public void onSpace() {
+        screen.eventHandler.pauseTimer();
+      }
 
-  //     view.find("timer", TextView.class)
-  //         .text("%s %d:%02d",
-  //             turn.timer().running() ? "" : "[paused]",
-  //             turn.timer().remainingMinutes(),
-  //             turn.timer().remainingSeconds());
-  //   });
+      @Override public void onEnter(String word) {
+        screen.eventHandler.spell(word);
+      }
+    });
 
-  //   view.keyPressListener(keyPress -> {
-  //     if (keyPress.isSpaceBar()) {
-  //       screen.eventHandler.pauseTimer();
-  //     } else {
-  //       TextField input = view.find("input", TextField.class);
+    Flow.of(screen.screenData).subscribe(turn -> {
+      view.score.setText(String.format("%d points", turn.score()));
+      view.timer.setText(String.format("%s%d:%02d",
+          turn.timer().running() ? "" : "[paused] ",
+          turn.timer().remainingMinutes(),
+          turn.timer().remainingSeconds()));
+    });
 
-  //       if (keyPress.isLowerCaseLetter()) {
-  //         input.append(keyPress.stringValue());
-  //       } else if (keyPress.isBackspace()) {
-  //         input.backspace();
-  //       } else if (keyPress.isEnter()) {
-  //         screen.eventHandler.spell(input.value());
-  //         input.clear();
-  //       }
-  //     }
-  //   });
-  // }
+    view.input.takeFocus();
+  }
+
+  @Override public void detach(Perquackey.TurnView view) {
+    view.input.setListener(null);
+  }
 }

@@ -4,7 +4,7 @@ import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
 import io.reactivex.Flowable;
 import io.reactivex.processors.BehaviorProcessor;
 import io.reactivex.schedulers.Schedulers;
-import java.io.InputStream;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -81,14 +81,26 @@ public class Flow {
 
     private Scheduler() { }
 
-    public Publisher<Integer> receiving(InputStream source) {
-      return Flowable.<Integer>generate(emitter -> emitter.onNext(source.read()))
+    // TODO is there an existing something like Supplier<T> that allows throwing an exception?
+    public interface InputSource<T> {
+      T get() throws IOException;
+    }
+
+    public <T> Publisher<T> input(InputSource<T> source) {
+      return Flowable.<T>generate(emitter -> emitter.onNext(source.get()))
           .subscribeOn(Schedulers.io())
           .observeOn(scheduler);
     }
 
     public Publisher<Long> ticking() {
       return Flowable.interval(1, TimeUnit.SECONDS).observeOn(scheduler);
+    }
+
+    // TODO make this more reactive?
+    // really what we want is to call this after anything happens in the scheduler?
+    // so, really, we'd just be wrapping every task submitted.
+    public void afterEach(Runnable afterEach) {
+      scheduler.schedulePeriodicallyDirect(afterEach, 0, 1, TimeUnit.MILLISECONDS);
     }
 
     public void start() {
