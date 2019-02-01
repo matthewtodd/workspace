@@ -6,7 +6,6 @@ java_import_maven_jar(
   srcjar_sha256 = "206e02bdbcdd285b549ca2931fe31164371801f4cddbeafb7f095053e6b78a0f",
   visibility = [
     "@//src/main/java/org/matthewtodd/flow:__pkg__",
-    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
   ],
 )
 
@@ -15,7 +14,8 @@ java_import_maven_jar(
   jar_sha256 = "0ca863b6c216099035c281743057b55f45bb435971a920270e5d29cbd093c0aa",
   srcjar_sha256 = "f75a891dff865d3464511f807a7950930d97f2d1e99595b89c80e2c565ee5161",
   visibility = [
-    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
+    "@//src/main/java/org/matthewtodd/perquackey/terminal:__pkg__",
+    "@//src/test/java/org/matthewtodd/perquackey/terminal:__pkg__",
   ],
 )
 
@@ -25,7 +25,6 @@ java_import_maven_jar(
   srcjar_sha256 = "79c442f52472b59864abf091b2ffe66b0a4045f828ec3ca40fa9ad6572826bb8",
   visibility = [
     "@//src/main/java/org/matthewtodd/flow:__pkg__",
-    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
     "@//src/test/java:__subpackages__",
   ],
 )
@@ -66,7 +65,6 @@ java_import_maven_jar(
   srcjar_sha256 = "963a6480f46a64013d0f144ba41c6c6e63c4d34b655761717a436492886f3667",
   visibility = [
     "@//src/main/java/org/matthewtodd/flow:__pkg__",
-    "@//src/main/java/org/matthewtodd/perquackey/console:__pkg__",
     "@//src/test/java:__subpackages__",
   ],
 )

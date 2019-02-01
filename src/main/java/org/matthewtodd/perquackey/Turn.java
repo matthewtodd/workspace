@@ -35,12 +35,8 @@ public class Turn {
     snapshot.onNext(takeSnapshot());
   }
 
-  void startTimer() {
-    timer.start();
-  }
-
-  void stopTimer() {
-    timer.stop();
+  void toggleTimer() {
+    timer.toggle();
   }
 
   Publisher<Snapshot> snapshot() {

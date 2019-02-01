@@ -3,7 +3,7 @@ java_library(
     testonly = True,
     srcs = glob(["*.java"]),
     visibility = [
-        "//src/test/java/org/matthewtodd/perquackey/console:__pkg__",
+        "//src/test/java/org/matthewtodd/perquackey/terminal:__pkg__",
     ],
     deps = [
         "//src/main/java/org/matthewtodd/perquackey",

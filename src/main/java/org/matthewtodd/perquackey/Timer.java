@@ -29,13 +29,8 @@ public class Timer {
     });
   }
 
-  void start() {
-    running.set(true);
-    snapshot.onNext(takeSnapshot());
-  }
-
-  void stop() {
-    running.set(false);
+  void toggle() {
+    running.set(!running.get());
     snapshot.onNext(takeSnapshot());
   }
 
@@ -58,16 +53,8 @@ public class Timer {
       this.running = running;
     }
 
-    long remaining() {
+    public long remaining() {
       return total - elapsed;
-    }
-
-    public long remainingMinutes() {
-      return remaining() / 60;
-    }
-
-    public long remainingSeconds() {
-      return remaining() % 60;
     }
 
     public boolean running() {

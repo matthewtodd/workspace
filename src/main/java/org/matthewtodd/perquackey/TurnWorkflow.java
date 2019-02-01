@@ -5,7 +5,7 @@ import org.matthewtodd.workflow.Workflow;
 import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
-public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, SpellingScreen.Events, PausedScreen.Events {
+public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.Events {
   private final Turn turn;
 
   public TurnWorkflow(Timer timer) {
@@ -15,11 +15,7 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, SpellingScre
   @Override public void start(Void input) { }
 
   @Override public Publisher<? extends WorkflowScreen<?, ?>> screen() {
-    return Flow.of(turn.snapshot())
-        .as(this::screenKeyFor)
-        .distinct()
-        .as(this::screenFor)
-        .build();
+    return Flow.single(new TurnScreen(turn.snapshot(), this));
   }
 
   @Override public Publisher<Turn.Snapshot> result() {
@@ -30,26 +26,7 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, SpellingScre
     turn.spell(word);
   }
 
-  @Override public void pauseTimer() {
-    turn.stopTimer();
-  }
-
-  @Override public void resumeTimer() {
-    turn.startTimer();
-  }
-
-  private String screenKeyFor(Turn.Snapshot turnSnapshot) {
-    return turnSnapshot.timer().running() ? SpellingScreen.KEY : PausedScreen.KEY;
-  }
-
-  private WorkflowScreen<?, ?> screenFor(String key) {
-    switch (key) {
-      case SpellingScreen.KEY:
-        return new SpellingScreen(turn.snapshot(), this);
-      case PausedScreen.KEY:
-        return new PausedScreen(turn.snapshot(), this);
-      default:
-        throw new RuntimeException(String.format("Unrecognized key: %s", key));
-    }
+  @Override public void toggleTimer() {
+    turn.toggleTimer();
   }
 }

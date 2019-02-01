@@ -1,10 +1,10 @@
 java_library(
-    name = "console",
+    name = "terminal",
     testonly = True,
     srcs = glob(["*.java"]),
     deps = [
-        "//src/main/java/org/matthewtodd/perquackey/console",
-        "//src/test/java/org/matthewtodd/perquackey",
+        "//src/main/java/org/matthewtodd/perquackey/terminal",
+        "@com_googlecode_lanterna_lanterna",
         "@io_reactivex_rxjava2_rxjava",
         "@junit_junit",
         "@org_assertj_assertj_core",
@@ -17,6 +17,6 @@ java_test(
     name = "PerquackeyTest",
     size = "small",
     runtime_deps = [
-        ":console",
+        ":terminal",
     ],
 )

@@ -1,4 +1,4 @@
-package org.matthewtodd.perquackey.console;
+package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
@@ -6,62 +6,67 @@ import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.SimpleTheme;
 import com.googlecode.lanterna.gui2.AbstractComposite;
 import com.googlecode.lanterna.gui2.AbstractInteractableComponent;
-import com.googlecode.lanterna.gui2.AbstractTextGUI;
 import com.googlecode.lanterna.gui2.BasicWindow;
+import com.googlecode.lanterna.gui2.BorderLayout;
 import com.googlecode.lanterna.gui2.Component;
 import com.googlecode.lanterna.gui2.ComponentRenderer;
 import com.googlecode.lanterna.gui2.Container;
+import com.googlecode.lanterna.gui2.Direction;
+import com.googlecode.lanterna.gui2.GridLayout;
 import com.googlecode.lanterna.gui2.InteractableRenderer;
 import com.googlecode.lanterna.gui2.Label;
 import com.googlecode.lanterna.gui2.MultiWindowTextGUI;
 import com.googlecode.lanterna.gui2.Panel;
+import com.googlecode.lanterna.gui2.Separator;
 import com.googlecode.lanterna.gui2.TextGUIGraphics;
 import com.googlecode.lanterna.gui2.Window;
+import com.googlecode.lanterna.gui2.table.Table;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.Terminal;
 import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
-import org.matthewtodd.perquackey.PausedScreen;
-import org.matthewtodd.perquackey.SpellingScreen;
+import org.matthewtodd.flow.Flow.Scheduler;
 import org.matthewtodd.perquackey.Timer;
+import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Perquackey {
-  static Builder newBuilder() {
-    return new Builder();
+  private final TurnWorkflow workflow;
+  private final ViewFactory viewFactory;
+  private final UI ui;
+
+  private Perquackey(TurnWorkflow workflow, ViewFactory viewFactory, UI ui) {
+    this.workflow = workflow;
+    this.viewFactory = viewFactory;
+    this.ui = ui;
   }
 
   public static void main(String[] args) throws Exception {
     Terminal terminal = new UnixTerminal();
+    Scheduler scheduler = Flow.newScheduler();
 
-    Flow.Scheduler mainThread = Flow.newScheduler();
-    Publisher<Long> ticker = mainThread.ticking();
-    Publisher<KeyStroke> input = mainThread.input(terminal::readInput);
-
-    // Builder
-    newBuilder()
+    Perquackey.newBuilder()
         .terminal(terminal)
-        .input(input)
-        .ticker(ticker);
+        .ticker(scheduler.ticking())
+        .looper(scheduler::loop)
+        .build()
+        .start(scheduler::shutdown);
 
-    TurnWorkflow workflow = new TurnWorkflow(new Timer(10L, ticker));
+    scheduler.start();
+  }
 
-    ViewFactory viewFactory = new ViewFactory();
+  static Builder newBuilder() {
+    return new Builder();
+  }
 
-    UI ui = new UI(terminal);
-    // Yuck, try passing a custom InputStream into the Terminal at test time?
-    Flow.of(input).subscribe(ui::handleInput);
-    mainThread.afterEach(ui::refresh);
-
-    // Run
-    Runnable onComplete = mainThread::shutdown;
+  void start(Runnable onComplete) {
     Flow.of(workflow.screen())
         .as(viewFactory::buildView)
         .subscribe(ui::setComponent);
@@ -69,38 +74,70 @@ public class Perquackey {
     Flow.of(workflow.result())
         .onComplete(onComplete)
         .subscribe(_ignored -> {});
-
-    mainThread.start();
   }
 
   static class Builder {
     private Terminal terminal;
-    private Publisher<KeyStroke> input;
     private Publisher<Long> ticker;
+    private Consumer<Runnable> looper;
 
-    public Builder terminal(Terminal terminal) {
+    Builder terminal(Terminal terminal) {
       this.terminal = terminal;
       return this;
     }
 
-    public Builder input(Publisher<KeyStroke> input) {
-      this.input = input;
-      return this;
-    }
-
-    public Builder ticker(Publisher<Long> ticker) {
+    Builder ticker(Publisher<Long> ticker) {
       this.ticker = ticker;
       return this;
     }
+
+    Builder looper(Consumer<Runnable> looper) {
+      this.looper = looper;
+      return this;
+    }
+
+    Perquackey build() {
+      TurnWorkflow workflow = new TurnWorkflow(new Timer(180L, ticker));
+
+      ViewFactory viewFactory = new ViewFactory();
+
+      UI ui = new UI(looper, terminal);
+
+      return new Perquackey(workflow, viewFactory, ui);
+    }
   }
 
-
+  static class ViewFactory {
+    Component buildView(WorkflowScreen<?, ?> screen) {
+      if (TurnScreen.KEY.equals(screen.key)) {
+        return new TurnView(new TurnCoordinator(screen));
+      }
+      throw new IllegalStateException();
+    }
+  }
 
   static class UI {
+    private final Consumer<Runnable> looper;
+    private final Terminal terminal;
     private final Window window;
-    private final MultiWindowTextGUI gui;
+    private boolean started = false;
 
-    public UI(Terminal terminal) {
+    UI(Consumer<Runnable> looper, Terminal terminal) {
+      this.looper = looper;
+      this.terminal = terminal;
+      window = new BasicWindow();
+      window.setHints(Arrays.asList(Window.Hint.NO_DECORATIONS, Window.Hint.FULL_SCREEN));
+    }
+
+    void setComponent(Component component) {
+      if (!started) {
+        start();
+        started = true;
+      }
+      window.setComponent(component);
+    }
+
+    private void start() {
       System.setProperty("java.awt.headless", "true");
       Screen screen;
 
@@ -116,82 +153,56 @@ public class Perquackey {
         throw new RuntimeException(e);
       }
 
-      window = new BasicWindow();
-      window.setHints(Arrays.asList(Window.Hint.NO_DECORATIONS, Window.Hint.FULL_SCREEN));
-
-      gui = new MultiWindowTextGUI(screen);
+      MultiWindowTextGUI gui = new MultiWindowTextGUI(screen);
       gui.setTheme(new SimpleTheme(TextColor.ANSI.DEFAULT, TextColor.ANSI.DEFAULT));
       gui.addWindow(window);
-    }
 
-    void setComponent(Component component) {
-      window.setComponent(component);
-    }
-
-    void handleInput(KeyStroke key) {
-      // cf TextGUI#processInput()
-      if (gui.handleInput(key)) { // NB skipping unhandled key strokes, not sure we need that feature
-        Field dirty;
-
+      // TODO maybe there's a better way to hook this into the scheduler.
+      // Really we just want it to happen after anything *else* happens.
+      looper.accept(() -> {
         try {
-          dirty = AbstractTextGUI.class.getDeclaredField("dirty");
-        } catch (NoSuchFieldException e) {
-          throw new RuntimeException(e);
-        }
-
-        dirty.setAccessible(true);
-
-        try {
-          dirty.set(gui, true);
-        } catch (IllegalAccessException e) {
-          throw new RuntimeException(e);
-        }
-      }
-    }
-
-    void refresh() {
-      if (gui.isPendingUpdate()) {
-        try {
-          gui.updateScreen();
+          gui.getGUIThread().processEventsAndUpdate();
         } catch (IOException e) {
           throw new RuntimeException(e);
         }
-      }
+      });
     }
   }
 
-  private static class ViewFactory {
-    Component buildView(WorkflowScreen<?, ?> screen) {
-      switch (screen.key) {
-        case PausedScreen.KEY:
-          return new TurnView(new PausedCoordinator(screen));
-        case SpellingScreen.KEY:
-          return new TurnView(new SpellingCoordinator(screen));
-        default:
-          throw new IllegalStateException();
-      }
-    }
-  }
-
-  // could extract bits of this when we have more than one view...
-  public static class TurnView extends AbstractComposite<TurnView> {
-    public final Label score;
-    public final Label timer;
-    public final CommandLine input;
+  // could extract bits of this when we have more than one view.
+  // the main novelty is the coordinator support.
+  static class TurnView extends AbstractComposite<TurnView> {
+    final Label score;
+    final Label timer;
+    final Table<String> words;
+    final CommandLine input;
     private final Coordinator<TurnView> coordinator;
 
-    public TurnView(Coordinator<TurnView> coordinator) {
+    TurnView(Coordinator<TurnView> coordinator) {
       this.coordinator = coordinator;
 
       score = new Label("");
       timer = new Label("");
+      words = new Table<>("");
       input = new CommandLine();
 
-      Panel panel = new Panel();
-      panel.addComponent(score);
-      panel.addComponent(timer);
-      panel.addComponent(input);
-      setComponent(panel);
+      Panel header = new Panel();
+      header.setLayoutManager(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0));
+      header.addComponent(score, GridLayout.createHorizontallyFilledLayoutData(1));
+      header.addComponent(timer, GridLayout.createHorizontallyEndAlignedLayoutData(1));
+
+      Panel main = new Panel();
+      main.setLayoutManager(new BorderLayout());
+      main.addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.TOP);
+      main.addComponent(words);
+      main.addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.BOTTOM);
+
+      Panel whole = new Panel();
+      whole.setLayoutManager(new BorderLayout());
+      whole.addComponent(header, BorderLayout.Location.TOP);
+      whole.addComponent(main, BorderLayout.Location.CENTER);
+      whole.addComponent(input, BorderLayout.Location.BOTTOM);
+      setComponent(whole);
     }
 
     @Override protected ComponentRenderer<TurnView> createDefaultRenderer() {
@@ -212,17 +223,17 @@ public class Perquackey {
     }
 
     @Override public synchronized void onRemoved(Container container) {
-      super.onRemoved(container);
       coordinator.detach(this);
+      super.onRemoved(container);
     }
   }
 
-  public static class CommandLine extends AbstractInteractableComponent<CommandLine> {
+  static class CommandLine extends AbstractInteractableComponent<CommandLine> {
     private StringBuilder buffer = new StringBuilder();
     private Listener listener = Listener.NONE;
 
-    public CommandLine() {
-      setInputFilter((interactable, keyStroke) -> {
+    CommandLine() {
+      setInputFilter((component, keyStroke) -> {
         switch (keyStroke.getKeyType()) {
           case Character:
             return Character.isLowerCase(keyStroke.getCharacter())
@@ -238,15 +249,7 @@ public class Perquackey {
       invalidate();
     }
 
-    interface Listener {
-      Listener NONE = new Listener() {};
-
-      default void onSpace() {}
-
-      default void onEnter(String command) {}
-    }
-
-    public void setListener(Listener listener) {
+    void setListener(Listener listener) {
       this.listener = (listener != null) ? listener : Listener.NONE;
     }
 
@@ -257,11 +260,13 @@ public class Perquackey {
         }
 
         @Override public TerminalSize getPreferredSize(CommandLine component) {
-          return new TerminalSize(buffer.length() + 1, 1);
+          return TerminalSize.ONE.withRelativeColumns(buffer.length());
         }
 
         @Override public void drawComponent(TextGUIGraphics graphics, CommandLine component) {
-          graphics.putString(component.getPosition(), String.format(":%s", buffer));
+          // N.B. position is relative to the component's drawable area.
+          // TODO should we read the buffer from the component? Not sure if these are reused.
+          graphics.putString(TerminalPosition.TOP_LEFT_CORNER, String.format(":%s", buffer));
         }
       };
     }
@@ -292,6 +297,16 @@ public class Perquackey {
       }
 
       return Result.HANDLED;
+    }
+
+    interface Listener {
+      Listener NONE = new Listener() {
+        @Override public void onSpace() { }
+        @Override public void onEnter(String command) { }
+      };
+
+      void onSpace();
+      void onEnter(String command);
     }
   }
 }

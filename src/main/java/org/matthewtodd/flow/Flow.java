@@ -3,8 +3,6 @@ package org.matthewtodd.flow;
 import hu.akarnokd.rxjava2.schedulers.BlockingScheduler;
 import io.reactivex.Flowable;
 import io.reactivex.processors.BehaviorProcessor;
-import io.reactivex.schedulers.Schedulers;
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -28,6 +26,10 @@ public class Flow {
     return BehaviorProcessor.createDefault(defaultValue);
   }
 
+  public static <T> Publisher<T> single(T item) {
+    return Flowable.just(item);
+  }
+
   public static final class Builder<T> {
     private final Flowable<T> source;
 
@@ -39,16 +41,8 @@ public class Flow {
       return new Builder<>(source.map(mapper::apply));
     }
 
-    public Builder<T> distinct() {
-      return new Builder<>(source.distinctUntilChanged());
-    }
-
     public Builder<T> onComplete(Runnable onComplete) {
       return new Builder<>(source.doOnComplete(onComplete::run));
-    }
-
-    public Publisher<T> build() {
-      return source;
     }
 
     public Publisher<T> last() {
@@ -76,39 +70,23 @@ public class Flow {
     return new Scheduler();
   }
 
-  public static final class Scheduler implements Consumer<Runnable> {
-    private final BlockingScheduler scheduler = new BlockingScheduler();
+  public static class Scheduler {
+    private final BlockingScheduler scheduler;
 
-    private Scheduler() { }
-
-    // TODO is there an existing something like Supplier<T> that allows throwing an exception?
-    public interface InputSource<T> {
-      T get() throws IOException;
+    private Scheduler() {
+      scheduler = new BlockingScheduler();
     }
 
-    public <T> Publisher<T> input(InputSource<T> source) {
-      return Flowable.<T>generate(emitter -> emitter.onNext(source.get()))
-          .subscribeOn(Schedulers.io())
-          .observeOn(scheduler);
+    public void loop(Runnable task) {
+      scheduler.schedulePeriodicallyDirect(task, 0, 1, TimeUnit.MILLISECONDS);
     }
 
     public Publisher<Long> ticking() {
       return Flowable.interval(1, TimeUnit.SECONDS).observeOn(scheduler);
     }
 
-    // TODO make this more reactive?
-    // really what we want is to call this after anything happens in the scheduler?
-    // so, really, we'd just be wrapping every task submitted.
-    public void afterEach(Runnable afterEach) {
-      scheduler.schedulePeriodicallyDirect(afterEach, 0, 1, TimeUnit.MILLISECONDS);
-    }
-
     public void start() {
       scheduler.execute();
-    }
-
-    @Override public void accept(Runnable action) {
-      scheduler.scheduleDirect(action);
     }
 
     public void shutdown() {

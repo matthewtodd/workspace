@@ -10,7 +10,7 @@ public class TimerTest {
   @Test public void countsDownWhenStarted() {
     TimerTester
         .create().seePausedAt(2)
-        .start().seeRunningAt(2)
+        .toggle().seeRunningAt(2)
         .tick().seeRunningAt(1)
         .tick().seeRunningAt(0).done();
   }
@@ -19,7 +19,7 @@ public class TimerTest {
     TimerTester
         .create().seePausedAt(2)
         .tick().tick().tick()
-        .start().seeRunningAt(2)
+        .toggle().seeRunningAt(2)
         .tick().seeRunningAt(1)
         .tick().seeRunningAt(0).done();
   }
@@ -27,11 +27,11 @@ public class TimerTest {
   @Test public void ignoresTicksWhileStopped() {
     TimerTester
         .create().seePausedAt(2)
-        .start().seeRunningAt(2)
+        .toggle().seeRunningAt(2)
         .tick().seeRunningAt(1)
         .stop().seePausedAt(1)
         .tick().tick().tick()
-        .start().seeRunningAt(1)
+        .toggle().seeRunningAt(1)
         .tick().seeRunningAt(0).done();
   }
 
@@ -41,7 +41,7 @@ public class TimerTest {
     Flowable<Long> flowable = Flowable.fromPublisher(timer.snapshot())
         .map(Timer.Snapshot::remaining);
 
-    timer.start();
+    timer.toggle();
     TestSubscriber<Long> one = flowable.test();
     one.assertValues(180L);
     ticker.onNext(1L);
@@ -58,8 +58,7 @@ public class TimerTest {
     private final BehaviorProcessor<Long> ticker;
     private final TestSubscriber<Timer.Snapshot> subscriber;
     private int index = 0;
-    private int startCalls = 0;
-    private int stopCalls = 0;
+    private int toggleCalls = 0;
     private int tickCalls = 0;
 
     static TimerTester create() {
@@ -72,16 +71,14 @@ public class TimerTest {
       subscriber = Flowable.fromPublisher(timer.snapshot()).test();
     }
 
-    TimerTester start() {
-      checkForUnseenValues("start", ++startCalls);
-      timer.start();
+    TimerTester toggle() {
+      checkForUnseenValues("toggle", ++toggleCalls);
+      timer.toggle();
       return this;
     }
 
     TimerTester stop() {
-      checkForUnseenValues("stop", ++stopCalls);
-      timer.stop();
-      return this;
+      return toggle();
     }
 
     TimerTester tick() {

@@ -1,6 +1,4 @@
-package org.matthewtodd.perquackey.console;
-
-// import org.matthewtodd.console.View;
+package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.gui2.Component;
 
