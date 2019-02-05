@@ -3,6 +3,7 @@ package org.matthewtodd.perquackey;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.workflow.Workflow;
 import org.matthewtodd.workflow.WorkflowScreen;
+import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
 public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.Events {
@@ -15,7 +16,11 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.E
   @Override public void start(Void input) { }
 
   @Override public Publisher<? extends WorkflowScreen<?, ?>> screen() {
-    return Flow.single(new TurnScreen(turn.snapshot(), this));
+    return Flow.of(turn.snapshot())
+        .as(this::screenKeyFor)
+        .distinct()
+        .as(this::screenFor)
+        .build();
   }
 
   @Override public Publisher<Turn.Snapshot> result() {
@@ -28,5 +33,17 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.E
 
   @Override public void toggleTimer() {
     turn.toggleTimer();
+  }
+
+  @Override public void quit() {
+    turn.quit();
+  }
+
+  private String screenKeyFor(Turn.Snapshot snapshot) {
+    return TurnScreen.KEY;
+  }
+
+  private WorkflowScreen<?, ?> screenFor(String key) {
+    return new TurnScreen(turn.snapshot(), this);
   }
 }

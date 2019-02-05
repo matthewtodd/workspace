@@ -29,6 +29,10 @@ public class TurnWorkflowTest {
       ticker.onNext(1L);
     }
 
+    workflow.on(TurnScreen.class, screen -> {
+      screen.send().quit();
+    });
+
     workflow.assertThat(Turn.Snapshot::score).isEqualTo(60);
   }
 }

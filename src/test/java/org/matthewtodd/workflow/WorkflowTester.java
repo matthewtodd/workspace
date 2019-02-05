@@ -26,6 +26,7 @@ public class WorkflowTester<I, R> {
 
   public <D, E, T extends WorkflowScreen<D, E>> void on(Class<T> screenClass,
       Consumer<WorkflowScreenTester<D, E>> assertions) {
+    screen.assertNotComplete();
     assertions.accept(currentValue(screen).cast(screenClass));
   }
 

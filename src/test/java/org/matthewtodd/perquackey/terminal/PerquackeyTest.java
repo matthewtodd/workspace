@@ -3,20 +3,44 @@ package org.matthewtodd.perquackey.terminal;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
+import com.googlecode.lanterna.terminal.Terminal;
 import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import com.googlecode.lanterna.terminal.virtual.VirtualTerminal;
+import com.googlecode.lanterna.terminal.virtual.VirtualTerminalListener;
 import io.reactivex.processors.BehaviorProcessor;
 import io.reactivex.schedulers.TestScheduler;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class PerquackeyTest {
   @Test public void hookup() {
+    AtomicBoolean closed = new AtomicBoolean(false);
+
     VirtualTerminal terminal = new DefaultVirtualTerminal(new TerminalSize(50, 10));
+
+    terminal.addVirtualTerminalListener(new VirtualTerminalListener() {
+      @Override public void onFlush() {
+
+      }
+
+      @Override public void onBell() {
+
+      }
+
+      @Override public void onClose() {
+        closed.set(true);
+      }
+
+      @Override public void onResized(Terminal terminal, TerminalSize terminalSize) {
+
+      }
+    });
+
     BehaviorProcessor<Long> ticker = BehaviorProcessor.create();
     TestScheduler scheduler = new TestScheduler();
 
@@ -96,6 +120,12 @@ public class PerquackeyTest {
         "──────────────────────────────────────────────────",
         ":                                                 "
     );
+
+    terminal.addInput(new KeyStroke('Q', false, false));
+    scheduler.advanceTimeBy(1, TimeUnit.MILLISECONDS);
+    scheduler.triggerActions();
+
+    assertThat(closed).isTrue();
   }
 
   private Collection<String> contentsOf(VirtualTerminal terminal) {

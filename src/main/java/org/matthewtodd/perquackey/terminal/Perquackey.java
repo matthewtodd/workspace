@@ -73,7 +73,7 @@ public class Perquackey {
 
     Flow.of(workflow.result())
         .onComplete(onComplete)
-        .subscribe(_ignored -> {});
+        .subscribe(_ignored -> ui.close());
   }
 
   static class Builder {
@@ -135,6 +135,15 @@ public class Perquackey {
         started = true;
       }
       window.setComponent(component);
+    }
+
+    void close() {
+      try {
+        window.getTextGUI().getScreen().stopScreen();
+        terminal.close();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     private void start() {
@@ -237,7 +246,8 @@ public class Perquackey {
         switch (keyStroke.getKeyType()) {
           case Character:
             return Character.isLowerCase(keyStroke.getCharacter())
-                || Character.isSpaceChar(keyStroke.getCharacter());
+                || Character.isSpaceChar(keyStroke.getCharacter())
+                || keyStroke.getCharacter().equals('Q');
           case Backspace:
             return true;
           case Enter:
@@ -279,6 +289,8 @@ public class Perquackey {
             invalidate();
           } else if (Character.isSpaceChar(keyStroke.getCharacter())) {
             listener.onSpace();
+          } else if (keyStroke.getCharacter().equals('Q')) {
+            listener.onQuit();
           } else {
             throw new IllegalStateException();
           }
@@ -303,10 +315,12 @@ public class Perquackey {
       Listener NONE = new Listener() {
         @Override public void onSpace() { }
         @Override public void onEnter(String command) { }
+        @Override public void onQuit() { }
       };
 
       void onSpace();
       void onEnter(String command);
+      void onQuit();
     }
   }
 }

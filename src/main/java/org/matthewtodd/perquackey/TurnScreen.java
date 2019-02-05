@@ -14,5 +14,7 @@ public class TurnScreen extends WorkflowScreen<Turn.Snapshot, TurnScreen.Events>
     void spell(String word);
 
     void toggleTimer();
+
+    void quit();
   }
 }

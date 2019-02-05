@@ -74,6 +74,10 @@ class TurnCoordinator implements Coordinator<Perquackey.TurnView>, Perquackey.Co
     screen.eventHandler.spell(word);
   }
 
+  @Override public void onQuit() {
+    screen.eventHandler.quit();
+  }
+
   @Override
   public TerminalSize getPreferredSize(Table<String> table, String label, int columnIndex) {
     return new TerminalSize(Integer.parseInt(label), 1);

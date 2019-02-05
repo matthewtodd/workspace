@@ -22,11 +22,10 @@ public class Turn {
     score = new AtomicInteger(0);
     snapshot = Flow.pipe();
 
-    Flow.of(timer.snapshot()).onComplete(snapshot::onComplete)
-        .subscribe(t -> {
-          timerSnapshot.set(t);
-          snapshot.onNext(takeSnapshot());
-        });
+    Flow.of(timer.snapshot()).subscribe(t -> {
+      timerSnapshot.set(t);
+      snapshot.onNext(takeSnapshot());
+    });
   }
 
   void spell(String word) {
@@ -37,6 +36,10 @@ public class Turn {
 
   void toggleTimer() {
     timer.toggle();
+  }
+
+  public void quit() {
+    snapshot.onComplete();
   }
 
   Publisher<Snapshot> snapshot() {

@@ -26,10 +26,6 @@ public class Flow {
     return BehaviorProcessor.createDefault(defaultValue);
   }
 
-  public static <T> Publisher<T> single(T item) {
-    return Flowable.just(item);
-  }
-
   public static final class Builder<T> {
     private final Flowable<T> source;
 
@@ -39,6 +35,10 @@ public class Flow {
 
     public <T2> Builder<T2> as(Function<T, T2> mapper) {
       return new Builder<>(source.map(mapper::apply));
+    }
+
+    public Builder<T> distinct() {
+      return new Builder<>(source.distinctUntilChanged());
     }
 
     public Builder<T> onComplete(Runnable onComplete) {
@@ -63,6 +63,10 @@ public class Flow {
 
         @Override public void onComplete() { }
       });
+    }
+
+    public Publisher<T> build() {
+      return source;
     }
   }
 
