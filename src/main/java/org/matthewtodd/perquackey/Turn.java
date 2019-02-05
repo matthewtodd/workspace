@@ -13,6 +13,7 @@ public class Turn {
   private final AtomicReference<WordList> words;
   private final AtomicInteger score;
   private final Processor<Snapshot, Snapshot> snapshot;
+  private final Scorer scorer;
 
   Turn(Timer timer) {
     this.timer = timer;
@@ -21,6 +22,7 @@ public class Turn {
     words = new AtomicReference<>(WordList.EMPTY);
     score = new AtomicInteger(0);
     snapshot = Flow.pipe();
+    scorer = new Scorer();
 
     Flow.of(timer.snapshot()).subscribe(t -> {
       timerSnapshot.set(t);
@@ -30,7 +32,7 @@ public class Turn {
 
   void spell(String word) {
     words.getAndUpdate(w -> w.add(word));
-    score.addAndGet(60); // TODO scoring!
+    score.set(scorer.score(words.get()));
     snapshot.onNext(takeSnapshot());
   }
 

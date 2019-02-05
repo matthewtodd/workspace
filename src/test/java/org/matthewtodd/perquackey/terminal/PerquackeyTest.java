@@ -109,7 +109,7 @@ public class PerquackeyTest {
     scheduler.triggerActions();
 
     assertThat(contentsOf(terminal)).containsExactly(
-        "60 points                                     3:00",
+        "200 points                                    3:00",
         "──────────────────────────────────────────────────",
         "3   4    5     6      7       8        9          ",
         "         apple                                    ",
