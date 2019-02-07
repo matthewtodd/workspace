@@ -9,6 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+// Thoughts?
+// - This group words into columns by length functionality is exactly what the scorer does.
+//   So, the scorer could use this class; or we could revert this to a simple collection.
 public class WordList implements Iterable<String> {
   static final WordList EMPTY = new WordList(Collections.emptySet());
 
