@@ -10,18 +10,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.TurnScreen;
-import org.matthewtodd.workflow.WorkflowScreen;
 
-class TurnCoordinator implements Coordinator<Perquackey.TurnView>, Perquackey.CommandLine.Listener,
-    TableHeaderRenderer<String> {
-   private final TurnScreen screen;
+class TurnCoordinator implements Coordinator<Perquackey.TurnView>, TableHeaderRenderer<String> {
+  private final TurnScreen screen;
 
-   TurnCoordinator(WorkflowScreen<?, ?> screen) {
-     this.screen = (TurnScreen) screen;
-   }
+  TurnCoordinator(TurnScreen screen) {
+    this.screen = screen;
+  }
 
   @Override public void attach(Perquackey.TurnView view) {
-    view.input.setListener(this);
+    view.setKeyPressListener(this::handleKeyPress);
+
+    view.input.setListener(screen.eventHandler::spell);
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
     view.words.setTableHeaderRenderer(this);
 
@@ -62,22 +62,6 @@ class TurnCoordinator implements Coordinator<Perquackey.TurnView>, Perquackey.Co
     view.input.takeFocus();
   }
 
-  @Override public void detach(Perquackey.TurnView view) {
-    view.input.setListener(null);
-  }
-
-  @Override public void onSpace() {
-    screen.eventHandler.toggleTimer();
-  }
-
-  @Override public void onEnter(String word) {
-    screen.eventHandler.spell(word);
-  }
-
-  @Override public void onQuit() {
-    screen.eventHandler.quit();
-  }
-
   @Override
   public TerminalSize getPreferredSize(Table<String> table, String label, int columnIndex) {
     return new TerminalSize(Integer.parseInt(label), 1);
@@ -86,5 +70,16 @@ class TurnCoordinator implements Coordinator<Perquackey.TurnView>, Perquackey.Co
   @Override
   public void drawHeader(Table<String> table, String label, int index, TextGUIGraphics graphics) {
     graphics.putString(TerminalPosition.TOP_LEFT_CORNER, label);
+  }
+
+  private void handleKeyPress(char c) {
+    switch (c) {
+      case ' ':
+        screen.eventHandler.toggleTimer();
+        break;
+      case 'Q':
+        screen.eventHandler.quit();
+        break;
+    }
   }
 }

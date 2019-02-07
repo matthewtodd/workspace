@@ -22,6 +22,7 @@ import com.googlecode.lanterna.gui2.TextGUIGraphics;
 import com.googlecode.lanterna.gui2.Window;
 import com.googlecode.lanterna.gui2.table.Table;
 import com.googlecode.lanterna.input.KeyStroke;
+import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.Terminal;
@@ -110,7 +111,7 @@ public class Perquackey {
   static class ViewFactory {
     Component buildView(WorkflowScreen<?, ?> screen) {
       if (TurnScreen.KEY.equals(screen.key)) {
-        return new TurnView(new TurnCoordinator(screen));
+        return new TurnView(new TurnCoordinator((TurnScreen) screen));
       }
       throw new IllegalStateException();
     }
@@ -186,6 +187,7 @@ public class Perquackey {
     final Table<String> words;
     final CommandLine input;
     private final Coordinator<TurnView> coordinator;
+    private Consumer<Character> keyPressListener = c -> {};
 
     TurnView(Coordinator<TurnView> coordinator) {
       this.coordinator = coordinator;
@@ -235,19 +237,30 @@ public class Perquackey {
       coordinator.detach(this);
       super.onRemoved(container);
     }
+
+    @Override public boolean handleInput(KeyStroke key) {
+      if (key.getKeyType().equals(KeyType.Character)) {
+        keyPressListener.accept(key.getCharacter());
+        return true;
+      } else {
+        return super.handleInput(key);
+      }
+    }
+
+    void setKeyPressListener(Consumer<Character> keyPressListener) {
+      this.keyPressListener = (keyPressListener != null) ? keyPressListener : c -> {};
+    }
   }
 
   static class CommandLine extends AbstractInteractableComponent<CommandLine> {
     private StringBuilder buffer = new StringBuilder();
-    private Listener listener = Listener.NONE;
+    private Consumer<String> listener = word -> {};
 
     CommandLine() {
       setInputFilter((component, keyStroke) -> {
         switch (keyStroke.getKeyType()) {
           case Character:
-            return Character.isLowerCase(keyStroke.getCharacter())
-                || Character.isSpaceChar(keyStroke.getCharacter())
-                || keyStroke.getCharacter().equals('Q');
+            return Character.isLowerCase(keyStroke.getCharacter());
           case Backspace:
             return true;
           case Enter:
@@ -259,8 +272,8 @@ public class Perquackey {
       invalidate();
     }
 
-    void setListener(Listener listener) {
-      this.listener = (listener != null) ? listener : Listener.NONE;
+    void setListener(Consumer<String> listener) {
+      this.listener = (listener != null) ? listener : word -> {};
     }
 
     @Override protected InteractableRenderer<CommandLine> createDefaultRenderer() {
@@ -287,10 +300,6 @@ public class Perquackey {
           if (Character.isLowerCase(keyStroke.getCharacter())) {
             buffer.append(keyStroke.getCharacter());
             invalidate();
-          } else if (Character.isSpaceChar(keyStroke.getCharacter())) {
-            listener.onSpace();
-          } else if (keyStroke.getCharacter().equals('Q')) {
-            listener.onQuit();
           } else {
             throw new IllegalStateException();
           }
@@ -300,7 +309,7 @@ public class Perquackey {
           invalidate();
           break;
         case Enter:
-          listener.onEnter(buffer.toString());
+          listener.accept(buffer.toString());
           buffer.setLength(0);
           invalidate();
           break;
@@ -309,18 +318,6 @@ public class Perquackey {
       }
 
       return Result.HANDLED;
-    }
-
-    interface Listener {
-      Listener NONE = new Listener() {
-        @Override public void onSpace() { }
-        @Override public void onEnter(String command) { }
-        @Override public void onQuit() { }
-      };
-
-      void onSpace();
-      void onEnter(String command);
-      void onQuit();
     }
   }
 }
