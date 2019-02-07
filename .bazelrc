@@ -1,4 +1,0 @@
-# https://github.com/bazelbuild/bazel/issues/6661
-# https://docs.google.com/document/d/11OGJ2QTjnZgxbkgVFrKa3eD2DQ68qnXws7UQ1czc-qQ/edit#
-# https://github.com/bazelbuild/bazel/pull/6216/files#diff-b53d77ce419e665f48b6c7bca4965357
-build --incompatible_use_remotejdk_as_host_javabase
