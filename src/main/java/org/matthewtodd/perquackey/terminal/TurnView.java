@@ -2,11 +2,8 @@ package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.gui2.AbstractComposite;
 import com.googlecode.lanterna.gui2.AbstractInteractableComponent;
 import com.googlecode.lanterna.gui2.BorderLayout;
-import com.googlecode.lanterna.gui2.ComponentRenderer;
-import com.googlecode.lanterna.gui2.Container;
 import com.googlecode.lanterna.gui2.Direction;
 import com.googlecode.lanterna.gui2.GridLayout;
 import com.googlecode.lanterna.gui2.InteractableRenderer;
@@ -19,9 +16,9 @@ import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import java.util.function.Consumer;
 import org.matthewtodd.terminal.Coordinator;
-import org.matthewtodd.terminal.CoordinatorView;
+import org.matthewtodd.terminal.View;
 
-class TurnView extends CoordinatorView<TurnView> {
+class TurnView extends View<TurnView> {
   final Label score;
   final Label timer;
   final Table<String> words;

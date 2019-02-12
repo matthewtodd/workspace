@@ -7,12 +7,10 @@ import com.googlecode.lanterna.gui2.Composite;
 import com.googlecode.lanterna.gui2.Container;
 import com.googlecode.lanterna.gui2.TextGUIGraphics;
 
-public abstract class CoordinatorView<SELF extends Container & Composite>
-    extends AbstractComposite<SELF> {
-
+public abstract class View<SELF extends Container & Composite> extends AbstractComposite<SELF> {
   private final Coordinator<SELF> coordinator;
 
-  public CoordinatorView(Coordinator<SELF> coordinator) {
+  public View(Coordinator<SELF> coordinator) {
     this.coordinator = coordinator;
   }
 
