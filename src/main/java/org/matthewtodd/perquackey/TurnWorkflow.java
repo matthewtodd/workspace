@@ -3,7 +3,6 @@ package org.matthewtodd.perquackey;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.workflow.Workflow;
 import org.matthewtodd.workflow.WorkflowScreen;
-import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
 public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.Events {
