@@ -2,7 +2,6 @@ package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.gui2.Component;
 import com.googlecode.lanterna.terminal.Terminal;
-import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
 import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.flow.Flow.Scheduler;
@@ -14,12 +13,10 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Perquackey {
-  public static void main(String[] args) throws Exception {
-    Terminal terminal = new UnixTerminal();
+  public static void main(String[] args) {
     Scheduler scheduler = Flow.newScheduler();
 
     Perquackey.newBuilder()
-        .terminal(terminal)
         .ticker(scheduler.ticking())
         .looper(scheduler::loop)
         .build()
@@ -40,32 +37,26 @@ public class Perquackey {
   }
 
   static class Builder {
-    private Terminal terminal;
-    private Publisher<Long> ticker;
-    private Consumer<Runnable> looper;
+    private final Application.Builder application =
+        Application.newBuilder().viewFactory(Perquackey::viewFactory);
 
     Builder terminal(Terminal terminal) {
-      this.terminal = terminal;
+      application.terminal(terminal);
       return this;
     }
 
     Builder ticker(Publisher<Long> ticker) {
-      this.ticker = ticker;
+      application.workflow(new TurnWorkflow(new Timer(180L, ticker)));
       return this;
     }
 
     Builder looper(Consumer<Runnable> looper) {
-      this.looper = looper;
+      application.looper(looper);
       return this;
     }
 
     Application build() {
-      return Application.newBuilder()
-          .workflow(new TurnWorkflow(new Timer(180L, ticker)))
-          .viewFactory(Perquackey::viewFactory)
-          .looper(looper)
-          .terminal(terminal)
-          .build();
+      return application.build();
     }
   }
 }

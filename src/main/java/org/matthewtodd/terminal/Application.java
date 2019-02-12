@@ -9,6 +9,7 @@ import com.googlecode.lanterna.gui2.Window;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.Terminal;
+import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Consumer;
@@ -31,6 +32,15 @@ public class Application {
     private Function<WorkflowScreen<?, ?>, Component> viewFactory;
     private Consumer<Runnable> looper;
     private Terminal terminal;
+
+    private Builder() {
+      // Default to the Terminal we'd always use in production.
+      try {
+        this.terminal = new UnixTerminal();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
 
     public Builder workflow(Workflow<?, ?> workflow) {
       this.workflow = workflow;
