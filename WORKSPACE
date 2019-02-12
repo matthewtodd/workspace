@@ -14,7 +14,7 @@ java_import_maven_jar(
   jar_sha256 = "0ca863b6c216099035c281743057b55f45bb435971a920270e5d29cbd093c0aa",
   srcjar_sha256 = "f75a891dff865d3464511f807a7950930d97f2d1e99595b89c80e2c565ee5161",
   visibility = [
-    "@//src/main/java/org/matthewtodd/perquackey/terminal:__pkg__",
+    "@//src/main/java/org/matthewtodd/terminal:__pkg__",
     "@//src/test/java/org/matthewtodd/perquackey/terminal:__pkg__",
   ],
 )

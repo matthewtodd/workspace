@@ -7,8 +7,8 @@ java_library(
     deps = [
         "//src/main/java/org/matthewtodd/flow",
         "//src/main/java/org/matthewtodd/perquackey",
+        "//src/main/java/org/matthewtodd/terminal",
         "//src/main/java/org/matthewtodd/workflow",
-        "@com_googlecode_lanterna_lanterna",
     ],
 )
 

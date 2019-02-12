@@ -10,15 +10,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.TurnScreen;
+import org.matthewtodd.terminal.Coordinator;
 
-class TurnCoordinator implements Coordinator<Perquackey.TurnView>, TableHeaderRenderer<String> {
+class TurnCoordinator implements Coordinator<TurnView>, TableHeaderRenderer<String> {
   private final TurnScreen screen;
 
   TurnCoordinator(TurnScreen screen) {
     this.screen = screen;
   }
 
-  @Override public void attach(Perquackey.TurnView view) {
+  @Override public void attach(TurnView view) {
     view.setKeyPressListener(this::handleKeyPress);
 
     view.input.setListener(screen.eventHandler::spell);
