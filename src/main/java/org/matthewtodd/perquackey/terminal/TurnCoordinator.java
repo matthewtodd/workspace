@@ -10,9 +10,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.TurnScreen;
+import org.matthewtodd.perquackey.WordList;
 import org.matthewtodd.terminal.Coordinator;
 
-class TurnCoordinator implements Coordinator<TurnView>, TableHeaderRenderer<String> {
+class TurnCoordinator implements Coordinator<TurnView> {
   private final TurnScreen screen;
 
   TurnCoordinator(TurnScreen screen) {
@@ -21,10 +22,14 @@ class TurnCoordinator implements Coordinator<TurnView>, TableHeaderRenderer<Stri
 
   @Override public void attach(TurnView view) {
     view.setKeyPressListener(this::handleKeyPress);
-
     view.input.setListener(screen.eventHandler::spell);
+
+    // TODO get rid of this setTableModel call.
+    // turn.words() should be able to provide column info.
+    // (especially once we handle vulnerable turns.)
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
-    view.words.setTableHeaderRenderer(this);
+    TableUpdater words = new TableUpdater(view.words.getTableModel());
+    view.words.setTableHeaderRenderer(words);
 
     Flow.of(screen.screenData).subscribe(turn -> {
       view.score.setText(String.format("%d points", turn.score()));
@@ -34,43 +39,10 @@ class TurnCoordinator implements Coordinator<TurnView>, TableHeaderRenderer<Stri
           turn.timer().remaining() / 60,
           turn.timer().remaining() % 60));
 
-      TableModel<String> table = view.words.getTableModel();
-
-      // update existing rows
-      for (int rowIndex = 0; rowIndex < table.getRowCount(); rowIndex++) {
-        for (int columnIndex = 0; columnIndex < table.getColumnCount(); columnIndex++) {
-          table.setCell(columnIndex, rowIndex,
-              turn.words().getWord(Integer.parseInt(table.getColumnLabel(columnIndex)), rowIndex));
-        }
-      }
-
-      // add new rows
-      while (table.getRowCount() < turn.words().rowCount()) {
-        int rowIndex = table.getRowCount();
-        Collection<String> row = new ArrayList<>(table.getColumnCount());
-        for (int i = 0; i < table.getColumnCount(); i++) {
-          row.add(turn.words().getWord(Integer.parseInt(table.getColumnLabel(i)), rowIndex));
-        }
-        table.addRow(row);
-      }
-
-      // remove unnecessary rows
-      while (turn.words().rowCount() < table.getRowCount()) {
-        table.removeRow(table.getRowCount() - 1);
-      }
+      words.update(turn.words());
     });
 
     view.input.takeFocus();
-  }
-
-  @Override
-  public TerminalSize getPreferredSize(Table<String> table, String label, int columnIndex) {
-    return new TerminalSize(Integer.parseInt(label), 1);
-  }
-
-  @Override
-  public void drawHeader(Table<String> table, String label, int index, TextGUIGraphics graphics) {
-    graphics.putString(TerminalPosition.TOP_LEFT_CORNER, label);
   }
 
   private void handleKeyPress(char c) {
@@ -81,6 +53,59 @@ class TurnCoordinator implements Coordinator<TurnView>, TableHeaderRenderer<Stri
       case 'Q':
         screen.eventHandler.quit();
         break;
+    }
+  }
+
+  // TODO the header/cell rendering might move back out (updating is complicated enough),
+  // but for now I want to keep the HACKs together.
+  static class TableUpdater implements TableHeaderRenderer<String> {
+    private final TableModel<String> table;
+
+    TableUpdater(TableModel<String> tableModel) {
+      table = tableModel;
+    }
+
+    @Override
+    public TerminalSize getPreferredSize(Table<String> table, String label, int columnIndex) {
+      // HACK HERE
+      return new TerminalSize(Integer.parseInt(label), 1);
+    }
+
+    @Override
+    public void drawHeader(Table<String> table, String label, int index, TextGUIGraphics graphics) {
+      graphics.putString(TerminalPosition.TOP_LEFT_CORNER, label);
+    }
+
+    // TODO rather than passing this object, can we pass access to the data we need?
+    // so, words::rowCount as a Supplier<Integer>, for example.
+    // But that's premature because I'm not sure how to think about the column headers being so overloaded.
+    void update(WordList words) {
+      // TODO handle adding/removing columns first
+
+      // update existing rows
+      for (int rowIndex = 0; rowIndex < table.getRowCount(); rowIndex++) {
+        for (int columnIndex = 0; columnIndex < table.getColumnCount(); columnIndex++) {
+          table.setCell(columnIndex, rowIndex,
+              // HACK HERE
+              words.getWord(Integer.parseInt(table.getColumnLabel(columnIndex)), rowIndex));
+        }
+      }
+
+      // add new rows
+      while (table.getRowCount() < words.rowCount()) {
+        int rowIndex = table.getRowCount();
+        Collection<String> row = new ArrayList<>(table.getColumnCount());
+        for (int i = 0; i < table.getColumnCount(); i++) {
+          // HACK HERE
+          row.add(words.getWord(Integer.parseInt(table.getColumnLabel(i)), rowIndex));
+        }
+        table.addRow(row);
+      }
+
+      // remove unnecessary rows
+      while (words.rowCount() < table.getRowCount()) {
+        table.removeRow(table.getRowCount() - 1);
+      }
     }
   }
 }
