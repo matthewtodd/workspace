@@ -14,23 +14,23 @@ public class TurnWorkflowTest {
 
     workflow.start(null);
 
-    workflow.on(TurnScreen.class, screen -> {
-      screen.assertThat(Turn.Snapshot::words).isEmpty();
-      screen.assertThat(Turn.Snapshot::score).isEqualTo(0);
-      screen.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(false);
-      screen.send().toggleTimer();
-      screen.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(true);
-      screen.send().spell("dog");
-      screen.assertThat(Turn.Snapshot::words).containsExactly("dog");
-      screen.assertThat(Turn.Snapshot::score).isEqualTo(60);
+    workflow.on(TurnScreen.class, (data, events) -> {
+      data.assertThat(Turn.Snapshot::words).isEmpty();
+      data.assertThat(Turn.Snapshot::score).isEqualTo(0);
+      data.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(false);
+      events.toggleTimer();
+      data.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(true);
+      events.spell("dog");
+      data.assertThat(Turn.Snapshot::words).containsExactly("dog");
+      data.assertThat(Turn.Snapshot::score).isEqualTo(60);
     });
 
     for (int i = 0; i < 180; i++) {
       ticker.onNext(1L);
     }
 
-    workflow.on(TurnScreen.class, screen -> {
-      screen.send().quit();
+    workflow.on(TurnScreen.class, (data, events) -> {
+      events.quit();
     });
 
     workflow.assertThat(Turn.Snapshot::score).isEqualTo(60);

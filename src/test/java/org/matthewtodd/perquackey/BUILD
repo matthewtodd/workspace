@@ -8,6 +8,7 @@ java_library(
     deps = [
         "//src/main/java/org/matthewtodd/perquackey",
         "//src/main/java/org/matthewtodd/workflow",
+        "//src/test/java/org/matthewtodd/flow",
         "//src/test/java/org/matthewtodd/workflow",
         "@io_reactivex_rxjava2_rxjava",
         "@junit_junit",
@@ -27,6 +28,14 @@ java_test(
 
 java_test(
     name = "TimerTest",
+    size = "small",
+    runtime_deps = [
+        ":perquackey",
+    ],
+)
+
+java_test(
+    name = "TurnTest",
     size = "small",
     runtime_deps = [
         ":perquackey",

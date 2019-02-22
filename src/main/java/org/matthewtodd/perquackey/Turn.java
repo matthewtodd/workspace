@@ -1,38 +1,43 @@
 package org.matthewtodd.perquackey;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import org.matthewtodd.flow.Flow;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
 // This class could offer a transformer from event to state.
 public class Turn {
+  private final Set<String> words = new LinkedHashSet<>();
+  private final Scorer scorer = new Scorer();
   private final Timer timer;
-  private final AtomicReference<Timer.Snapshot> timerSnapshot;
-  private final AtomicReference<WordList> words;
-  private final AtomicInteger score;
-  private final Processor<Snapshot, Snapshot> snapshot;
-  private final Scorer scorer;
+  private final Processor<Snapshot, Snapshot> snapshot = Flow.pipe();
+  private WordList wordsSnapshot = WordList.EMPTY;
+  private int scoreSnapshot = 0;
+  private Timer.Snapshot timerSnapshot;
 
   Turn(Timer timer) {
     this.timer = timer;
 
-    timerSnapshot = new AtomicReference<>();
-    words = new AtomicReference<>(WordList.EMPTY);
-    score = new AtomicInteger(0);
-    snapshot = Flow.pipe();
-    scorer = new Scorer();
-
     Flow.of(timer.snapshot()).subscribe(t -> {
-      timerSnapshot.set(t);
+      timerSnapshot = t;
       snapshot.onNext(takeSnapshot());
     });
   }
 
   void spell(String word) {
-    words.getAndUpdate(w -> w.add(word));
-    score.set(scorer.score(words.get()));
+    words.add(word);
+
+    if (word.endsWith("s")) {
+      String singular = word.substring(0, word.length() - 1);
+      words.remove(singular);
+    } else {
+      String plural = word + "s";
+      words.remove(plural);
+    }
+
+    wordsSnapshot = new WordList(words);
+    scoreSnapshot = scorer.score(wordsSnapshot);
     snapshot.onNext(takeSnapshot());
   }
 
@@ -49,7 +54,7 @@ public class Turn {
   }
 
   private Snapshot takeSnapshot() {
-    return new Snapshot(words.get(), score.get(), timerSnapshot.get());
+    return new Snapshot(wordsSnapshot, scoreSnapshot, timerSnapshot);
   }
 
   public static class Snapshot {

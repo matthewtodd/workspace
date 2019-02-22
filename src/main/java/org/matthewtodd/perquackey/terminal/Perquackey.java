@@ -37,8 +37,7 @@ public class Perquackey {
   }
 
   static class Builder {
-    private final Application.Builder application =
-        Application.newBuilder().viewFactory(Perquackey::viewFactory);
+    private final Application.Builder application = Application.newBuilder();
 
     Builder terminal(Terminal terminal) {
       application.terminal(terminal);
@@ -56,7 +55,9 @@ public class Perquackey {
     }
 
     Application build() {
-      return application.build();
+      return application
+          .viewFactory(Perquackey::viewFactory)
+          .build();
     }
   }
 }
