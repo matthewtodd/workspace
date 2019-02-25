@@ -25,6 +25,15 @@ public class Turn {
     });
   }
 
+  // What do we need?
+  // A way to keep a rejected word in the input field?
+  // An outgoing message? (Structured! So the UI can interpret it. Could become a more general command.)
+  //
+  // Dictionary: validation, suggestion
+  // Messaging
+  // Letters: auto-gathered, added in
+  //
+  // While-you-type suggestions need a letter-by-letter API...
   void spell(String word) {
     words.add(word);
 
