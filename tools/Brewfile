@@ -10,4 +10,4 @@ cask 'fluor'
 # `brew bundle` will automatically upgrade IntelliJ.
 # In the meantime, we also need to check `brew cask outdated --greedy` and
 # `brew cask upgrade intellij-idea-ce`.
-cask 'intellij-idea-ce', args: { greedy: true }
+cask 'intellij-idea-ce' #, args: { greedy: true }
