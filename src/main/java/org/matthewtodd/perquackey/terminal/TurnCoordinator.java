@@ -1,10 +1,5 @@
 package org.matthewtodd.perquackey.terminal;
 
-import com.googlecode.lanterna.TerminalPosition;
-import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.gui2.TextGUIGraphics;
-import com.googlecode.lanterna.gui2.table.Table;
-import com.googlecode.lanterna.gui2.table.TableHeaderRenderer;
 import com.googlecode.lanterna.gui2.table.TableModel;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,8 +23,6 @@ class TurnCoordinator implements Coordinator<TurnView> {
     // turn.words() should be able to provide column info.
     // (especially once we handle vulnerable turns.)
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
-    TableUpdater words = new TableUpdater(view.words.getTableModel());
-    view.words.setTableHeaderRenderer(words);
 
     Flow.of(screen.screenData).subscribe(turn -> {
       view.score.setText(String.format("%d points", turn.score()));
@@ -39,7 +32,7 @@ class TurnCoordinator implements Coordinator<TurnView> {
           turn.timer().remaining() / 60,
           turn.timer().remaining() % 60));
 
-      words.update(turn.words());
+      new TableUpdater(view.words.getTableModel()).update(turn.words());
     });
 
     view.input.takeFocus();
@@ -56,24 +49,11 @@ class TurnCoordinator implements Coordinator<TurnView> {
     }
   }
 
-  // TODO the header/cell rendering might move back out (updating is complicated enough),
-  // but for now I want to keep the HACKs together.
-  static class TableUpdater implements TableHeaderRenderer<String> {
+  static class TableUpdater {
     private final TableModel<String> table;
 
     TableUpdater(TableModel<String> tableModel) {
       table = tableModel;
-    }
-
-    @Override
-    public TerminalSize getPreferredSize(Table<String> table, String label, int columnIndex) {
-      // HACK HERE
-      return new TerminalSize(Integer.parseInt(label), 1);
-    }
-
-    @Override
-    public void drawHeader(Table<String> table, String label, int index, TextGUIGraphics graphics) {
-      graphics.putString(TerminalPosition.TOP_LEFT_CORNER, label);
     }
 
     // TODO rather than passing this object, can we pass access to the data we need?

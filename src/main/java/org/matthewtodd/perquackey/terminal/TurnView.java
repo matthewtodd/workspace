@@ -12,6 +12,7 @@ import com.googlecode.lanterna.gui2.Panel;
 import com.googlecode.lanterna.gui2.Separator;
 import com.googlecode.lanterna.gui2.TextGUIGraphics;
 import com.googlecode.lanterna.gui2.table.Table;
+import com.googlecode.lanterna.gui2.table.TableHeaderRenderer;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import java.util.function.Consumer;
@@ -30,7 +31,7 @@ class TurnView extends View<TurnView> {
 
     score = new Label("");
     timer = new Label("");
-    words = new Table<>("");
+    words = new Table<String>("").setTableHeaderRenderer(new LabelIsWidthRenderer());
     input = new CommandLine();
 
     Panel header = new Panel();
@@ -131,6 +132,18 @@ class TurnView extends View<TurnView> {
       }
 
       return Result.HANDLED;
+    }
+  }
+
+  private static class LabelIsWidthRenderer implements TableHeaderRenderer<String> {
+    @Override public TerminalSize getPreferredSize(Table<String> table, String label, int columnIndex) {
+      // HACK HERE
+      return new TerminalSize(Integer.parseInt(label), 1);
+    }
+
+    @Override
+    public void drawHeader(Table<String> table, String label, int index, TextGUIGraphics graphics) {
+      graphics.putString(TerminalPosition.TOP_LEFT_CORNER, label);
     }
   }
 }
