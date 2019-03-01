@@ -2,6 +2,8 @@ package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.gui2.Component;
 import com.googlecode.lanterna.terminal.Terminal;
+import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
+import java.io.IOException;
 import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.flow.Flow.Scheduler;
@@ -13,12 +15,13 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Perquackey {
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
     Scheduler scheduler = Flow.newScheduler();
 
     Perquackey.newBuilder()
         .ticker(scheduler.ticking())
         .looper(scheduler::loop)
+        .terminal(new UnixTerminal())
         .build()
         .start(scheduler::shutdown);
 
@@ -39,11 +42,6 @@ public class Perquackey {
   static class Builder {
     private final Application.Builder application = Application.newBuilder();
 
-    Builder terminal(Terminal terminal) {
-      application.terminal(terminal);
-      return this;
-    }
-
     Builder ticker(Publisher<Long> ticker) {
       application.workflow(new TurnWorkflow(new Timer(180L, ticker)));
       return this;
@@ -51,6 +49,11 @@ public class Perquackey {
 
     Builder looper(Consumer<Runnable> looper) {
       application.looper(looper);
+      return this;
+    }
+
+    Builder terminal(Terminal terminal) {
+      application.terminal(terminal);
       return this;
     }
 

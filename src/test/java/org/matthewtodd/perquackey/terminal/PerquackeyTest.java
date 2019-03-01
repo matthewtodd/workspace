@@ -45,9 +45,9 @@ public class PerquackeyTest {
     TestScheduler scheduler = new TestScheduler();
 
     Perquackey.newBuilder()
-        .terminal(terminal)
         .ticker(ticker)
         .looper(task -> scheduler.schedulePeriodicallyDirect(task, 0, 1, TimeUnit.MILLISECONDS))
+        .terminal(terminal)
         .build()
         .start(() -> {});
 
