@@ -3,115 +3,116 @@ package org.matthewtodd.perquackey.terminal;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
+import com.googlecode.lanterna.terminal.Terminal;
 import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import com.googlecode.lanterna.terminal.virtual.VirtualTerminal;
+import com.googlecode.lanterna.terminal.virtual.VirtualTerminalListener;
 import io.reactivex.processors.BehaviorProcessor;
-import io.reactivex.schedulers.TestScheduler;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.junit.Test;
-import org.matthewtodd.terminal.TerminalUI;
+import org.matthewtodd.terminal.Application;
+import org.matthewtodd.terminal.View;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class PerquackeyTest {
   @Test public void hookup() {
-    VirtualTerminal terminal = new DefaultVirtualTerminal(new TerminalSize(50, 10));
+    PerquackeyTester perquackey = new PerquackeyTester();
+    perquackey.start();
 
-    BehaviorProcessor<Long> ticker = BehaviorProcessor.create();
-    TestScheduler scheduler = new TestScheduler();
+    perquackey.on(TurnView.class, view -> {
+      assertThat(view.score.getText()).isEqualTo("0 points");
+      assertThat(view.timer.getText()).isEqualTo("[paused] 3:00");
+      assertThat(view.words.getTableModel().getColumnLabels())
+          .containsExactly("3", "4", "5", "6", "7", "8", "9");
+      assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
+      assertThat(view.input.getText()).isEqualTo("");
 
-    Perquackey.newBuilder()
-        .ticker(ticker)
-        .ui(new TerminalUI(terminal, task -> scheduler.schedulePeriodicallyDirect(task, 0, 1, TimeUnit.MILLISECONDS)))
-        .build()
-        .start(() -> {});
+      perquackey.type(' ');
+      assertThat(view.timer.getText()).isEqualTo("3:00");
 
-    scheduler.triggerActions();
+      perquackey.type("apple");
+      assertThat(view.score.getText()).isEqualTo("0 points");
+      assertThat(view.input.getText()).isEqualTo("apple");
 
-    assertThat(contentsOf(terminal)).containsExactly(
-        "0 points                             [paused] 3:00",
-        "──────────────────────────────────────────────────",
-        "3   4    5     6      7       8        9          ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "──────────────────────────────────────────────────",
-        ":                                                 "
-    );
+      perquackey.typeEnter();
+      assertThat(view.score.getText()).isEqualTo("200 points");
+      assertThat(view.words.getTableModel().getCell(2, 0)).isEqualTo("apple");
+      assertThat(view.input.getText()).isEqualTo("");
 
-    terminal.addInput(new KeyStroke(' ', false, false));
-    scheduler.advanceTimeBy(1, TimeUnit.MILLISECONDS);
-    scheduler.triggerActions();
+      perquackey.type('Q');
+    });
 
-    assertThat(contentsOf(terminal)).containsExactly(
-        "0 points                                      3:00",
-        "──────────────────────────────────────────────────",
-        "3   4    5     6      7       8        9          ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "──────────────────────────────────────────────────",
-        ":                                                 "
-    );
-
-    terminal.addInput(new KeyStroke('a', false, false));
-    terminal.addInput(new KeyStroke('p', false, false));
-    terminal.addInput(new KeyStroke('p', false, false));
-    terminal.addInput(new KeyStroke('l', false, false));
-    terminal.addInput(new KeyStroke('e', false, false));
-    scheduler.advanceTimeBy(1, TimeUnit.MILLISECONDS);
-    scheduler.triggerActions();
-
-    assertThat(contentsOf(terminal)).containsExactly(
-        "0 points                                      3:00",
-        "──────────────────────────────────────────────────",
-        "3   4    5     6      7       8        9          ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "──────────────────────────────────────────────────",
-        ":apple                                            "
-    );
-
-    terminal.addInput(new KeyStroke(KeyType.Enter));
-    scheduler.advanceTimeBy(1, TimeUnit.MILLISECONDS);
-    scheduler.triggerActions();
-
-    assertThat(contentsOf(terminal)).containsExactly(
-        "200 points                                    3:00",
-        "──────────────────────────────────────────────────",
-        "3   4    5     6      7       8        9          ",
-        "         apple                                    ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "                                                  ",
-        "──────────────────────────────────────────────────",
-        ":                                                 "
-    );
-
-    terminal.addInput(new KeyStroke('Q', false, false));
-    scheduler.advanceTimeBy(1, TimeUnit.MILLISECONDS);
-    scheduler.triggerActions();
+    assertThat(perquackey.closed()).isTrue();
   }
 
-  private Collection<String> contentsOf(VirtualTerminal terminal) {
-    Collection<String> contents = new ArrayList<>(terminal.getTerminalSize().getRows());
-    for (int r = 0; r < terminal.getTerminalSize().getRows(); r++) {
-      StringBuilder row = new StringBuilder();
-      for (int c = 0; c < terminal.getTerminalSize().getColumns(); c++) {
-        row.append(terminal.getCharacter(c, r).getCharacter());
-      }
-      contents.add(row.toString());
+  private static class PerquackeyTester {
+    private final BehaviorProcessor<Long> ticker;
+    private final VirtualTerminal terminal;
+    private final AtomicReference<Runnable> looper;
+    private final Application application;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    PerquackeyTester() {
+      ticker = BehaviorProcessor.create();
+      terminal = new DefaultVirtualTerminal();
+      terminal.addVirtualTerminalListener(new TerminalListener());
+      looper = new AtomicReference<>();
+      application = Perquackey.newBuilder()
+          .ticker(ticker)
+          .terminal(terminal)
+          .looper(looper::set)
+          .build();
     }
-    return contents;
+
+    void start() {
+      application.start(() -> {});
+    }
+
+    <T extends View> void on(Class<T> viewClass, Consumer<T> assertions) {
+      assertions.accept(application.currentView(viewClass));
+    }
+
+    void type(char c) {
+      type(new KeyStroke(c, false, false));
+    }
+
+    void type(String input) {
+      input.chars().forEachOrdered(c -> type((char) c));
+    }
+
+    void typeEnter() {
+      type(new KeyStroke(KeyType.Enter));
+    }
+
+    private void type(KeyStroke keyStroke) {
+      terminal.addInput(keyStroke);
+      looper.get().run();
+    }
+
+    boolean closed() {
+      return closed.get();
+    }
+
+    class TerminalListener implements VirtualTerminalListener {
+      @Override public void onFlush() {
+
+      }
+
+      @Override public void onBell() {
+
+      }
+
+      @Override public void onClose() {
+        closed.set(true);
+      }
+
+      @Override public void onResized(Terminal terminal, TerminalSize newSize) {
+
+      }
+    }
   }
 }

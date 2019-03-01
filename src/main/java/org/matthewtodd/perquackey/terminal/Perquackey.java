@@ -18,16 +18,13 @@ import org.reactivestreams.Publisher;
 public class Perquackey {
   public static void main(String[] args) throws IOException {
     Scheduler scheduler = Flow.newScheduler();
-    TerminalUI ui = new TerminalUI(new UnixTerminal(), scheduler::loop);
 
     Perquackey.newBuilder()
         .ticker(scheduler.ticking())
-        .ui(ui)
+        .terminal(new UnixTerminal())
+        .looper(scheduler::loop)
         .build()
-        .start(() -> {
-          scheduler.shutdown();
-          ui.close();
-        });
+        .start(scheduler::shutdown);
 
     scheduler.start();
   }
@@ -45,23 +42,21 @@ public class Perquackey {
 
   static class Builder {
     private Publisher<Long> ticker;
-    private Consumer<Component> ui;
+    private Terminal terminal;
+    private Consumer<Runnable> looper;
 
     Builder ticker(Publisher<Long> ticker) {
       this.ticker = ticker;
       return this;
     }
 
-    Builder looper(Consumer<Runnable> looper) {
-      return this;
-    }
-
     Builder terminal(Terminal terminal) {
+      this.terminal = terminal;
       return this;
     }
 
-    Builder ui(Consumer<Component> ui) {
-      this.ui = ui;
+    Builder looper(Consumer<Runnable> looper) {
+      this.looper = looper;
       return this;
     }
 
@@ -69,7 +64,7 @@ public class Perquackey {
       return new Application(
           new TurnWorkflow(new Timer(180L, ticker)),
           Perquackey::viewFactory,
-          ui);
+          new TerminalUI(terminal, looper));
     }
   }
 }

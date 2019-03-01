@@ -14,14 +14,14 @@ import java.util.Arrays;
 import java.util.function.Consumer;
 
 public class TerminalUI implements Consumer<Component> {
-  private final Consumer<Runnable> looper;
   private final Terminal terminal;
+  private final Consumer<Runnable> looper;
   private final Window window;
   private boolean started = false;
 
   public TerminalUI(Terminal terminal, Consumer<Runnable> looper) {
-    this.looper = looper;
     this.terminal = terminal;
+    this.looper = looper;
     window = new BasicWindow();
     window.setHints(Arrays.asList(Window.Hint.NO_DECORATIONS, Window.Hint.FULL_SCREEN));
   }
@@ -36,7 +36,11 @@ public class TerminalUI implements Consumer<Component> {
     window.setComponent(component);
   }
 
-  public void close() {
+  public Component getComponent() {
+    return window.getComponent();
+  }
+
+  void close() {
     try {
       window.getTextGUI().getScreen().stopScreen();
       terminal.close();

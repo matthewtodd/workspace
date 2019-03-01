@@ -133,6 +133,10 @@ class TurnView extends View<TurnView> {
 
       return Result.HANDLED;
     }
+
+    public String getText() {
+      return buffer.toString();
+    }
   }
 
   private static class LabelIsWidthRenderer implements TableHeaderRenderer<String> {
