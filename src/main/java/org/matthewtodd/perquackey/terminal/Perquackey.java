@@ -11,19 +11,23 @@ import org.matthewtodd.perquackey.Timer;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.terminal.Application;
+import org.matthewtodd.terminal.TerminalUI;
 import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
 public class Perquackey {
   public static void main(String[] args) throws IOException {
     Scheduler scheduler = Flow.newScheduler();
+    TerminalUI ui = new TerminalUI(new UnixTerminal(), scheduler::loop);
 
     Perquackey.newBuilder()
         .ticker(scheduler.ticking())
-        .looper(scheduler::loop)
-        .terminal(new UnixTerminal())
+        .ui(ui)
         .build()
-        .start(scheduler::shutdown);
+        .start(() -> {
+          scheduler.shutdown();
+          ui.close();
+        });
 
     scheduler.start();
   }
@@ -40,27 +44,32 @@ public class Perquackey {
   }
 
   static class Builder {
-    private final Application.Builder application = Application.newBuilder();
+    private Publisher<Long> ticker;
+    private Consumer<Component> ui;
 
     Builder ticker(Publisher<Long> ticker) {
-      application.workflow(new TurnWorkflow(new Timer(180L, ticker)));
+      this.ticker = ticker;
       return this;
     }
 
     Builder looper(Consumer<Runnable> looper) {
-      application.looper(looper);
       return this;
     }
 
     Builder terminal(Terminal terminal) {
-      application.terminal(terminal);
+      return this;
+    }
+
+    Builder ui(Consumer<Component> ui) {
+      this.ui = ui;
       return this;
     }
 
     Application build() {
-      return application
-          .viewFactory(Perquackey::viewFactory)
-          .build();
+      return new Application(
+          new TurnWorkflow(new Timer(180L, ticker)),
+          Perquackey::viewFactory,
+          ui);
     }
   }
 }
