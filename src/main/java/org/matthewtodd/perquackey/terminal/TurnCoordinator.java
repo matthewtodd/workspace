@@ -4,6 +4,7 @@ import com.googlecode.lanterna.gui2.table.TableModel;
 import java.util.ArrayList;
 import java.util.Collection;
 import org.matthewtodd.flow.Flow;
+import org.matthewtodd.perquackey.Turn;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.WordList;
 import org.matthewtodd.terminal.Coordinator;
@@ -16,7 +17,17 @@ class TurnCoordinator implements Coordinator<TurnView> {
   }
 
   @Override public void attach(TurnView view) {
-    view.setKeyPressListener(this::handleKeyPress);
+    view.setKeyPressListener(c -> {
+      switch (c) {
+        case ' ':
+          screen.eventHandler.toggleTimer();
+          break;
+        case 'Q':
+          screen.eventHandler.quit();
+          break;
+      }
+    });
+
     view.input.setListener(screen.eventHandler::spell);
 
     // TODO get rid of this setTableModel call.
@@ -25,6 +36,7 @@ class TurnCoordinator implements Coordinator<TurnView> {
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
 
     Flow.of(screen.screenData).subscribe(turn -> {
+      // TODO could push formatting up into the view widgets.
       view.score.setText(String.format("%d points", turn.score()));
 
       view.timer.setText(String.format("%s%d:%02d",
@@ -33,20 +45,13 @@ class TurnCoordinator implements Coordinator<TurnView> {
           turn.timer().remaining() % 60));
 
       new TableUpdater(view.words.getTableModel()).update(turn.words());
+
+      if (turn.event() == Turn.Event.ACCEPTED) {
+        view.input.clear();
+      }
     });
 
     view.input.takeFocus();
-  }
-
-  private void handleKeyPress(char c) {
-    switch (c) {
-      case ' ':
-        screen.eventHandler.toggleTimer();
-        break;
-      case 'Q':
-        screen.eventHandler.quit();
-        break;
-    }
   }
 
   static class TableUpdater {

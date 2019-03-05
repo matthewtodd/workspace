@@ -6,6 +6,17 @@ import org.junit.Test;
 import org.matthewtodd.workflow.WorkflowTester;
 
 public class TurnWorkflowTest {
+  // This test isn't all that interesting --
+  // terminal.PerquackeyTest does all the same things through the UI.
+  // TurnTest gets into the nitty gritty of a turn.
+  // What this all points to is that the TurnWorkflow is kind of anemic!
+  // It just has one screen.
+  // We will be growing it (and this test) to support playing through an entire game,
+  // renaming to GameWorkflow, and then it will have a place.
+  //
+  // Thinking again, though, *this* is the platform-agnostic application/domain layer.
+  // Maybe it's the best place to do most of our testing?
+  // So, which tests belong at app, workflow, lego layers? Pyramid?
   @Test public void playingATurn() {
     FlowableProcessor<Long> ticker = BehaviorProcessor.create();
 

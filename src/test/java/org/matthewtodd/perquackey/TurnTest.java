@@ -29,4 +29,12 @@ public class TurnTest {
     turn.spell("dog");
     snapshot.assertThat(Turn.Snapshot::words).containsExactly("dog");
   }
+
+  @Test public void rejectsWordsThatAreTooShort() {
+    AssertSubscriber<Turn.Snapshot> snapshot = AssertSubscriber.create();
+    Turn turn = new Turn(new Timer(180, BehaviorProcessor.create()));
+    turn.snapshot().subscribe(snapshot);
+    turn.spell("za");
+    snapshot.assertThat(Turn.Snapshot::words).isEmpty();
+  }
 }

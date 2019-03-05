@@ -2,6 +2,7 @@ package org.matthewtodd.perquackey;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import org.matthewtodd.flow.Flow;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -15,6 +16,7 @@ public class Turn {
   private WordList wordsSnapshot = WordList.EMPTY;
   private int scoreSnapshot = 0;
   private Timer.Snapshot timerSnapshot;
+  private AtomicReference<Event> eventSnapshot = new AtomicReference<>();
 
   Turn(Timer timer) {
     this.timer = timer;
@@ -35,6 +37,12 @@ public class Turn {
   //
   // While-you-type suggestions need a letter-by-letter API...
   void spell(String word) {
+    if (word.length() < 3) {
+      eventSnapshot.set(Event.REJECTED);
+      snapshot.onNext(takeSnapshot());
+      return;
+    }
+
     words.add(word);
 
     if (word.endsWith("s")) {
@@ -47,6 +55,7 @@ public class Turn {
 
     wordsSnapshot = new WordList(words);
     scoreSnapshot = scorer.score(wordsSnapshot);
+    eventSnapshot.set(Event.ACCEPTED);
     snapshot.onNext(takeSnapshot());
   }
 
@@ -63,18 +72,21 @@ public class Turn {
   }
 
   private Snapshot takeSnapshot() {
-    return new Snapshot(wordsSnapshot, scoreSnapshot, timerSnapshot);
+    return new Snapshot(wordsSnapshot, scoreSnapshot, timerSnapshot, eventSnapshot.getAndSet(null));
   }
 
   public static class Snapshot {
     private final WordList words;
     private final int score;
     private final Timer.Snapshot timer;
+    private final Event event;
 
-    Snapshot(WordList words, int score, Timer.Snapshot timer) {
+    Snapshot(WordList words, int score, Timer.Snapshot timer,
+        Event event) {
       this.words = words;
       this.score = score;
       this.timer = timer;
+      this.event = event;
     }
 
     public WordList words() {
@@ -88,5 +100,13 @@ public class Turn {
     public Timer.Snapshot timer() {
       return timer;
     }
+
+    public Event event() {
+      return event;
+    }
+  }
+
+  public enum Event {
+    ACCEPTED, REJECTED
   }
 }

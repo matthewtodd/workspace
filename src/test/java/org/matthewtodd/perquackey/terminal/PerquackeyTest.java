@@ -51,6 +51,38 @@ public class PerquackeyTest {
     });
   }
 
+  @Test public void inputRejected() {
+    perquackey.on(TurnView.class, view -> {
+      perquackey.type("za");
+      perquackey.typeEnter();
+      assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
+    });
+  }
+
+  @Test public void inputRejectedRemains() {
+    perquackey.on(TurnView.class, view -> {
+      perquackey.type("za");
+      perquackey.typeEnter();
+      assertThat(view.input.getText()).isEqualTo("za");
+    });
+  }
+
+  //@Test public void rejectedInputMessage() {
+  //  perquackey.on(TurnView.class, view -> {
+  //    perquackey.type("za");
+  //    perquackey.typeEnter();
+  //    assertThat(view.input.getText()).isEqualTo("za");
+  //  });
+  //}
+
+  //@Test public void rejectedInputBeep() {
+  //  perquackey.on(TurnView.class, view -> {
+  //    perquackey.type("za");
+  //    perquackey.typeEnter();
+  //    assertThat(view.input.getText()).isEqualTo("za");
+  //  });
+  //}
+
   @Test public void scoring() {
     perquackey.on(TurnView.class, view -> {
       assertThat(view.score.getText()).isEqualTo("0 points");

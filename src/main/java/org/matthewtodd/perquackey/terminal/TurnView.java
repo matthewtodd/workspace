@@ -124,7 +124,6 @@ class TurnView extends View<TurnView> {
           break;
         case Enter:
           listener.accept(buffer.toString());
-          buffer.setLength(0);
           invalidate();
           break;
         default:
@@ -136,6 +135,10 @@ class TurnView extends View<TurnView> {
 
     public String getText() {
       return buffer.toString();
+    }
+
+    public void clear() {
+      buffer.setLength(0);
     }
   }
 
