@@ -47,7 +47,10 @@ class TurnCoordinator implements Coordinator<TurnView> {
       new TableUpdater(view.words.getTableModel()).update(turn.words());
 
       if (turn.event() == Turn.Event.ACCEPTED) {
-        view.input.clear();
+        view.input.setText("");
+        view.message.setText("");
+      } else if (turn.event() == Turn.Event.REJECTED) {
+        view.message.setText("too short");
       }
     });
 

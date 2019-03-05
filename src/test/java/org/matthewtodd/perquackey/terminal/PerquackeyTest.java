@@ -43,11 +43,11 @@ public class PerquackeyTest {
 
   @Test public void input() {
     perquackey.on(TurnView.class, view -> {
-      assertThat(view.input.getText()).isEqualTo("");
+      assertThat(view.input.getText()).isEmpty();
       perquackey.type("apple");
       assertThat(view.input.getText()).isEqualTo("apple");
       perquackey.typeEnter();
-      assertThat(view.input.getText()).isEqualTo("");
+      assertThat(view.input.getText()).isEmpty();
     });
   }
 
@@ -67,13 +67,16 @@ public class PerquackeyTest {
     });
   }
 
-  //@Test public void rejectedInputMessage() {
-  //  perquackey.on(TurnView.class, view -> {
-  //    perquackey.type("za");
-  //    perquackey.typeEnter();
-  //    assertThat(view.input.getText()).isEqualTo("za");
-  //  });
-  //}
+  @Test public void rejectedInputMessage() {
+    perquackey.on(TurnView.class, view -> {
+      perquackey.type("za");
+      perquackey.typeEnter();
+      assertThat(view.message.getText()).isEqualTo("too short");
+      perquackey.type("p");
+      perquackey.typeEnter();
+      assertThat(view.message.getText()).isEmpty();
+    });
+  }
 
   //@Test public void rejectedInputBeep() {
   //  perquackey.on(TurnView.class, view -> {

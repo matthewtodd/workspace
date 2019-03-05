@@ -24,6 +24,7 @@ class TurnView extends View<TurnView> {
   final Label timer;
   final Table<String> words;
   final CommandLine input;
+  final Label message;
   private Consumer<Character> keyPressListener = c -> {};
 
   TurnView(Coordinator<TurnView> coordinator) {
@@ -33,6 +34,7 @@ class TurnView extends View<TurnView> {
     timer = new Label("");
     words = new Table<String>("").setTableHeaderRenderer(new LabelIsWidthRenderer());
     input = new CommandLine();
+    message = new Label("");
 
     Panel header = new Panel();
     header.setLayoutManager(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0));
@@ -45,11 +47,16 @@ class TurnView extends View<TurnView> {
     main.addComponent(words);
     main.addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.BOTTOM);
 
+    Panel footer = new Panel();
+    footer.setLayoutManager(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0));
+    footer.addComponent(input, GridLayout.createHorizontallyFilledLayoutData(1));
+    footer.addComponent(message, GridLayout.createHorizontallyEndAlignedLayoutData(1));
+
     Panel whole = new Panel();
     whole.setLayoutManager(new BorderLayout());
     whole.addComponent(header, BorderLayout.Location.TOP);
     whole.addComponent(main, BorderLayout.Location.CENTER);
-    whole.addComponent(input, BorderLayout.Location.BOTTOM);
+    whole.addComponent(footer, BorderLayout.Location.BOTTOM);
     setComponent(whole);
   }
 
@@ -93,7 +100,7 @@ class TurnView extends View<TurnView> {
     @Override protected InteractableRenderer<CommandLine> createDefaultRenderer() {
       return new InteractableRenderer<CommandLine>() {
         @Override public TerminalPosition getCursorLocation(CommandLine component) {
-          return component.getPosition().withRelativeColumn(buffer.length());
+          return component.getPosition().withRelativeColumn(buffer.length() + 1);
         }
 
         @Override public TerminalSize getPreferredSize(CommandLine component) {
@@ -137,8 +144,9 @@ class TurnView extends View<TurnView> {
       return buffer.toString();
     }
 
-    public void clear() {
+    public void setText(String text) {
       buffer.setLength(0);
+      buffer.append(text);
     }
   }
 

@@ -25,6 +25,8 @@ public class TurnViewTest {
     view.score.setText("1900 points");
     view.timer.setText("1:42");
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
+    view.input.setText("za");
+    view.message.setText("too short");
 
     looper.get().run();
 
@@ -38,7 +40,7 @@ public class TurnViewTest {
         "                                                  ",
         "                                                  ",
         "──────────────────────────────────────────────────",
-        ":                                                 "
+        ":za                                      too short"
     );
   }
 
