@@ -28,9 +28,7 @@ class TurnView extends View<TurnView> {
   final Label message;
   private Consumer<Character> keyPressListener = c -> {};
 
-  TurnView(Coordinator<TurnView> coordinator) {
-    super(coordinator);
-
+  TurnView() {
     score = new Label("");
     timer = new Label("");
     words = new Table<String>("").setTableHeaderRenderer(new LabelIsWidthRenderer());

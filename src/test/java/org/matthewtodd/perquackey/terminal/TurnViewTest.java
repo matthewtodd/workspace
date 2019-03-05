@@ -14,8 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class TurnViewTest {
   @Test public void hookup() {
-    // TODO here it's wonky that a view MUST have a coordinator.
-    TurnView view = new TurnView(component -> {});
+    TurnView view = new TurnView();
 
     VirtualTerminal terminal = new DefaultVirtualTerminal(new TerminalSize(50, 10));
     AtomicReference<Runnable> looper = new AtomicReference<>();

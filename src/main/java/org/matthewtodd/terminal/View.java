@@ -6,22 +6,28 @@ import com.googlecode.lanterna.gui2.ComponentRenderer;
 import com.googlecode.lanterna.gui2.Composite;
 import com.googlecode.lanterna.gui2.Container;
 import com.googlecode.lanterna.gui2.TextGUIGraphics;
+import java.util.function.Consumer;
 
 public abstract class View<SELF extends Container & Composite> extends AbstractComposite<SELF> {
-  private final Coordinator<SELF> coordinator;
-
-  public View(Coordinator<SELF> coordinator) {
-    this.coordinator = coordinator;
-  }
+  private Consumer<SELF> addedListener = self -> {};
+  private Consumer<SELF> removedListener = self -> {};
 
   @Override public synchronized void onAdded(Container container) {
     super.onAdded(container);
-    coordinator.attach(self());
+    addedListener.accept(self());
   }
 
   @Override public synchronized void onRemoved(Container container) {
-    coordinator.detach(self());
+    removedListener.accept(self());
     super.onRemoved(container);
+  }
+
+  public void setAddedListener(Consumer<SELF> addedListener) {
+    this.addedListener = addedListener;
+  }
+
+  public void setRemovedListener(Consumer<SELF> removedListener) {
+    this.removedListener = removedListener;
   }
 
   @Override protected ComponentRenderer<SELF> createDefaultRenderer() {

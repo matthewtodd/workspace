@@ -35,7 +35,11 @@ public class Perquackey {
 
   private static Component viewFactory(WorkflowScreen<?, ?> screen) {
     if (TurnScreen.KEY.equals(screen.key)) {
-      return new TurnView(new TurnCoordinator((TurnScreen) screen));
+      TurnCoordinator coordinator = new TurnCoordinator((TurnScreen) screen);
+      TurnView view = new TurnView();
+      view.setAddedListener(coordinator::attach);
+      view.setRemovedListener(coordinator::detach);
+      return view;
     }
     throw new IllegalStateException();
   }
