@@ -8,10 +8,10 @@ import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import com.googlecode.lanterna.terminal.virtual.VirtualTerminal;
 import com.googlecode.lanterna.terminal.virtual.VirtualTerminalListener;
 import io.reactivex.processors.BehaviorProcessor;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.junit.Before;
 import org.junit.Test;
 import org.matthewtodd.terminal.Application;
 import org.matthewtodd.terminal.View;
@@ -19,35 +19,63 @@ import org.matthewtodd.terminal.View;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class PerquackeyTest {
-  // TODO split this up into feature-level tests, maybe?
-  // i.e. clock pause/tick, spelling
+  private PerquackeyTester perquackey;
 
-  @Test public void hookup() {
-    PerquackeyTester perquackey = new PerquackeyTester();
+  @Before public void setUp() {
+    perquackey = new PerquackeyTester();
     perquackey.start();
+  }
 
+  @Test public void words() {
     perquackey.on(TurnView.class, view -> {
-      assertThat(view.score.getText()).isEqualTo("0 points");
-      assertThat(view.timer.getText()).isEqualTo("[paused] 3:00");
-      assertThat(view.words.getTableModel().getColumnLabels())
-          .containsExactly("3", "4", "5", "6", "7", "8", "9");
       assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
-      assertThat(view.input.getText()).isEqualTo("");
-
-      perquackey.type(' ');
-      assertThat(view.timer.getText()).isEqualTo("3:00");
-
       perquackey.type("apple");
-      assertThat(view.score.getText()).isEqualTo("0 points");
-      assertThat(view.input.getText()).isEqualTo("apple");
-
+      assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
       perquackey.typeEnter();
-      assertThat(view.score.getText()).isEqualTo("200 points");
       assertThat(view.words.getTableModel().getCell(2, 0)).isEqualTo("apple");
+    });
+  }
+
+  @Test public void columnHeaders() {
+    perquackey.on(TurnView.class, view -> assertThat(view.words.getTableModel().getColumnLabels())
+        .containsExactly("3", "4", "5", "6", "7", "8", "9"));
+  }
+
+  @Test public void input() {
+    perquackey.on(TurnView.class, view -> {
+      assertThat(view.input.getText()).isEqualTo("");
+      perquackey.type("apple");
+      assertThat(view.input.getText()).isEqualTo("apple");
+      perquackey.typeEnter();
       assertThat(view.input.getText()).isEqualTo("");
     });
+  }
 
-    perquackey.type('Q');
+  @Test public void scoring() {
+    perquackey.on(TurnView.class, view -> {
+      assertThat(view.score.getText()).isEqualTo("0 points");
+      perquackey.type("apple");
+      assertThat(view.score.getText()).isEqualTo("0 points");
+      perquackey.typeEnter();
+      assertThat(view.score.getText()).isEqualTo("200 points");
+    });
+  }
+
+  @Test public void timer() {
+    perquackey.on(TurnView.class, view -> {
+      assertThat(view.timer.getText()).isEqualTo("[paused] 3:00");
+      perquackey.timerTicks();
+      assertThat(view.timer.getText()).isEqualTo("[paused] 3:00");
+      perquackey.type(' ');
+      assertThat(view.timer.getText()).isEqualTo("3:00");
+      perquackey.timerTicks();
+      assertThat(view.timer.getText()).isEqualTo("2:59");
+    });
+  }
+
+  @Test public void quitting() {
+    assertThat(perquackey.closed()).isFalse();
+    perquackey.on(TurnView.class, view -> perquackey.type('Q'));
     assertThat(perquackey.closed()).isTrue();
   }
 
@@ -93,6 +121,10 @@ public class PerquackeyTest {
     private void type(KeyStroke keyStroke) {
       terminal.addInput(keyStroke);
       looper.get().run();
+    }
+
+    void timerTicks() {
+      ticker.onNext(0L);
     }
 
     boolean closed() {
