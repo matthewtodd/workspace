@@ -19,6 +19,9 @@ import org.matthewtodd.terminal.View;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class PerquackeyTest {
+  // TODO split this up into feature-level tests, maybe?
+  // i.e. clock pause/tick, spelling
+
   @Test public void hookup() {
     PerquackeyTester perquackey = new PerquackeyTester();
     perquackey.start();
@@ -42,10 +45,9 @@ public class PerquackeyTest {
       assertThat(view.score.getText()).isEqualTo("200 points");
       assertThat(view.words.getTableModel().getCell(2, 0)).isEqualTo("apple");
       assertThat(view.input.getText()).isEqualTo("");
-
-      perquackey.type('Q');
     });
 
+    perquackey.type('Q');
     assertThat(perquackey.closed()).isTrue();
   }
 
