@@ -67,7 +67,7 @@ public class PerquackeyTest {
     });
   }
 
-  @Test public void rejectedInputMessage() {
+  @Test public void inputRejectedMessage() {
     perquackey.on(TurnView.class, view -> {
       perquackey.type("za");
       perquackey.typeEnter();
@@ -77,14 +77,6 @@ public class PerquackeyTest {
       assertThat(view.message.getText()).isEmpty();
     });
   }
-
-  //@Test public void rejectedInputBeep() {
-  //  perquackey.on(TurnView.class, view -> {
-  //    perquackey.type("za");
-  //    perquackey.typeEnter();
-  //    assertThat(view.input.getText()).isEqualTo("za");
-  //  });
-  //}
 
   @Test public void scoring() {
     perquackey.on(TurnView.class, view -> {

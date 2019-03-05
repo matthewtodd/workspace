@@ -2,6 +2,7 @@ package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
+import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.AbstractInteractableComponent;
 import com.googlecode.lanterna.gui2.BorderLayout;
 import com.googlecode.lanterna.gui2.Direction;
@@ -34,7 +35,7 @@ class TurnView extends View<TurnView> {
     timer = new Label("");
     words = new Table<String>("").setTableHeaderRenderer(new LabelIsWidthRenderer());
     input = new CommandLine();
-    message = new Label("");
+    message = new Label("").setForegroundColor(TextColor.ANSI.RED);
 
     Panel header = new Panel();
     header.setLayoutManager(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0));
