@@ -17,18 +17,29 @@ class TurnCoordinator implements Coordinator<TurnView> {
   }
 
   @Override public void attach(TurnView view) {
-    view.setKeyPressListener(c -> {
-      switch (c) {
-        case ' ':
-          screen.eventHandler.toggleTimer();
+    view.setKeyPressListener(keyStroke -> {
+      switch (keyStroke.getKeyType()) {
+        case Character:
+          switch (keyStroke.getCharacter()) {
+            case ' ':
+              screen.eventHandler.toggleTimer();
+              break;
+            case 'Q':
+              screen.eventHandler.quit();
+              break;
+            default:
+              screen.eventHandler.letter(keyStroke.getCharacter());
+              break;
+          }
           break;
-        case 'Q':
-          screen.eventHandler.quit();
+        case Backspace:
+          screen.eventHandler.undoLetter();
+          break;
+        case Enter:
+          screen.eventHandler.word();
           break;
       }
     });
-
-    view.input.setListener(screen.eventHandler::spell);
 
     // TODO get rid of this setTableModel call.
     // turn.words() should be able to provide column info.
@@ -46,15 +57,9 @@ class TurnCoordinator implements Coordinator<TurnView> {
 
       new TableUpdater(view.words.getTableModel()).update(turn.words());
 
-      if (turn.event() == Turn.Event.ACCEPTED) {
-        view.input.setText("");
-        view.message.setText("");
-      } else if (turn.event() == Turn.Event.REJECTED) {
-        view.message.setText("too short");
-      }
+      view.input.setText(String.format(":%s", turn.input().value()));
+      view.message.setText(turn.input().message());
     });
-
-    view.input.takeFocus();
   }
 
   static class TableUpdater {

@@ -11,7 +11,11 @@ public class TurnScreen extends WorkflowScreen<Turn.Snapshot, TurnScreen.Events>
   }
 
   public interface Events {
-    void spell(String word);
+    void letter(char letter);
+
+    void undoLetter();
+
+    void word();
 
     void toggleTimer();
 

@@ -43,11 +43,11 @@ public class PerquackeyTest {
 
   @Test public void input() {
     perquackey.on(TurnView.class, view -> {
-      assertThat(view.input.getText()).isEmpty();
+      assertThat(view.input.getText()).isEqualTo(":");
       perquackey.type("apple");
-      assertThat(view.input.getText()).isEqualTo("apple");
+      assertThat(view.input.getText()).isEqualTo(":apple");
       perquackey.typeEnter();
-      assertThat(view.input.getText()).isEmpty();
+      assertThat(view.input.getText()).isEqualTo(":");
     });
   }
 
@@ -63,7 +63,7 @@ public class PerquackeyTest {
     perquackey.on(TurnView.class, view -> {
       perquackey.type("za");
       perquackey.typeEnter();
-      assertThat(view.input.getText()).isEqualTo("za");
+      assertThat(view.input.getText()).isEqualTo(":za");
     });
   }
 
@@ -73,7 +73,6 @@ public class PerquackeyTest {
       perquackey.typeEnter();
       assertThat(view.message.getText()).isEqualTo("too short");
       perquackey.type("p");
-      perquackey.typeEnter();
       assertThat(view.message.getText()).isEmpty();
     });
   }

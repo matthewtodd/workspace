@@ -2,7 +2,6 @@ package org.matthewtodd.perquackey;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import org.matthewtodd.flow.Flow;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -12,11 +11,11 @@ public class Turn {
   private final Set<String> words = new LinkedHashSet<>();
   private final Scorer scorer = new Scorer();
   private final Timer timer;
+  private final Input input = new Input();
   private final Processor<Snapshot, Snapshot> snapshot = Flow.pipe();
   private WordList wordsSnapshot = WordList.EMPTY;
   private int scoreSnapshot = 0;
   private Timer.Snapshot timerSnapshot;
-  private AtomicReference<Event> eventSnapshot = new AtomicReference<>();
 
   Turn(Timer timer) {
     this.timer = timer;
@@ -27,23 +26,29 @@ public class Turn {
     });
   }
 
-  // What do we need?
-  // A way to keep a rejected word in the input field?
-  // An outgoing message? (Structured! So the UI can interpret it. Could become a more general command.)
-  //
-  // Dictionary: validation, suggestion
-  // Messaging
-  // Letters: auto-gathered, added in
-  //
-  // While-you-type suggestions need a letter-by-letter API...
-  void spell(String word) {
-    if (word.length() < 3) {
-      eventSnapshot.set(Event.REJECTED);
+  void letter(char letter) {
+    input.append(letter);
+    if (input.length() >= 3) {
+      input.markValid();
+    }
+    snapshot.onNext(takeSnapshot());
+  }
+
+  void undoLetter() {
+    input.chop();
+    snapshot.onNext(takeSnapshot());
+  }
+
+  void word() {
+    if (input.length() < 3) {
+      input.markInvalid();
       snapshot.onNext(takeSnapshot());
       return;
     }
 
+    String word = input.value();
     words.add(word);
+    input.reset();
 
     if (word.endsWith("s")) {
       String singular = word.substring(0, word.length() - 1);
@@ -55,7 +60,6 @@ public class Turn {
 
     wordsSnapshot = new WordList(words);
     scoreSnapshot = scorer.score(wordsSnapshot);
-    eventSnapshot.set(Event.ACCEPTED);
     snapshot.onNext(takeSnapshot());
   }
 
@@ -63,7 +67,7 @@ public class Turn {
     timer.toggle();
   }
 
-  public void quit() {
+  void quit() {
     snapshot.onComplete();
   }
 
@@ -72,21 +76,20 @@ public class Turn {
   }
 
   private Snapshot takeSnapshot() {
-    return new Snapshot(wordsSnapshot, scoreSnapshot, timerSnapshot, eventSnapshot.getAndSet(null));
+    return new Snapshot(wordsSnapshot, scoreSnapshot, timerSnapshot, input.snapshot());
   }
 
   public static class Snapshot {
     private final WordList words;
     private final int score;
     private final Timer.Snapshot timer;
-    private final Event event;
+    private Input.Snapshot input;
 
-    Snapshot(WordList words, int score, Timer.Snapshot timer,
-        Event event) {
+    Snapshot(WordList words, int score, Timer.Snapshot timer, Input.Snapshot input) {
       this.words = words;
       this.score = score;
       this.timer = timer;
-      this.event = event;
+      this.input = input;
     }
 
     public WordList words() {
@@ -101,12 +104,64 @@ public class Turn {
       return timer;
     }
 
-    public Event event() {
-      return event;
+    public Input.Snapshot input() {
+      return input;
     }
   }
 
-  public enum Event {
-    ACCEPTED, REJECTED
+  public static class Input {
+    private final StringBuilder buffer = new StringBuilder();
+    private boolean valid = true;
+
+    void append(char letter) {
+      buffer.append(letter);
+    }
+
+    void chop() {
+      buffer.setLength(Math.max(0, buffer.length() - 1));
+    }
+
+    String value() {
+      return buffer.toString();
+    }
+
+    int length() {
+      return buffer.length();
+    }
+
+    void markInvalid() {
+      valid = false;
+    }
+
+    void markValid() {
+      valid = true;
+    }
+
+    void reset() {
+      buffer.setLength(0);
+      valid = true;
+    }
+
+    Snapshot snapshot() {
+      return new Snapshot(value(), valid ? "" : "too short");
+    }
+
+    public static class Snapshot {
+      private String value;
+      private String message;
+
+      Snapshot(String value, String message) {
+        this.value = value;
+        this.message = message;
+      }
+
+      public String value() {
+        return value;
+      }
+
+      public String message() {
+        return message;
+      }
+    }
   }
 }

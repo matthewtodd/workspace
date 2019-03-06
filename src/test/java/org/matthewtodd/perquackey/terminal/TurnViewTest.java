@@ -1,6 +1,8 @@
 package org.matthewtodd.perquackey.terminal;
 
+import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
+import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.table.TableModel;
 import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import com.googlecode.lanterna.terminal.virtual.VirtualTerminal;
@@ -18,13 +20,15 @@ public class TurnViewTest {
 
     VirtualTerminal terminal = new DefaultVirtualTerminal(new TerminalSize(50, 10));
     AtomicReference<Runnable> looper = new AtomicReference<>();
+    // TODO maybe it's wonky to reuse our (ill-named) TerminalUI here.
+    // Maybe something Lanterna-native instead?
     TerminalUI ui = new TerminalUI(terminal, looper::set);
     ui.accept(view);
 
     view.score.setText("1900 points");
     view.timer.setText("1:42");
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
-    view.input.setText("za");
+    view.input.setText(":za");
     view.message.setText("too short");
 
     looper.get().run();
@@ -41,6 +45,11 @@ public class TurnViewTest {
         "──────────────────────────────────────────────────",
         ":za                                      too short"
     );
+
+    assertThat(terminal.getCursorBufferPosition().getColumn()).isEqualTo(3);
+    assertThat(terminal.getCursorBufferPosition().getRow()).isEqualTo(9);
+
+    assertThat(terminal.getCharacter(0, 0).getBackgroundColor()).isEqualTo(TextColor.ANSI.DEFAULT);
   }
 
   private Collection<String> contentsOf(VirtualTerminal terminal) {

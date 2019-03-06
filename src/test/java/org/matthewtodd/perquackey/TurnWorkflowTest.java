@@ -31,7 +31,10 @@ public class TurnWorkflowTest {
       data.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(false);
       events.toggleTimer();
       data.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(true);
-      events.spell("dog");
+      events.letter('d');
+      events.letter('o');
+      events.letter('g');
+      events.word();
       data.assertThat(Turn.Snapshot::words).containsExactly("dog");
       data.assertThat(Turn.Snapshot::score).isEqualTo(60);
     });

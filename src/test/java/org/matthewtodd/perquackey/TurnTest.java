@@ -14,9 +14,16 @@ public class TurnTest {
     // TODO want to wrap timing around the turn after all, I think!
     Turn turn = new Turn(new Timer(180, BehaviorProcessor.create()));
     turn.snapshot().subscribe(snapshot);
-    turn.spell("dog");
+    turn.letter('d');
+    turn.letter('o');
+    turn.letter('g');
+    turn.word();
     snapshot.assertThat(Turn.Snapshot::words).containsExactly("dog");
-    turn.spell("dogs");
+    turn.letter('d');
+    turn.letter('o');
+    turn.letter('g');
+    turn.letter('s');
+    turn.word();
     snapshot.assertThat(Turn.Snapshot::words).containsExactly("dogs");
   }
 
@@ -24,9 +31,16 @@ public class TurnTest {
     AssertSubscriber<Turn.Snapshot> snapshot = AssertSubscriber.create();
     Turn turn = new Turn(new Timer(180, BehaviorProcessor.create()));
     turn.snapshot().subscribe(snapshot);
-    turn.spell("dogs");
+    turn.letter('d');
+    turn.letter('o');
+    turn.letter('g');
+    turn.letter('s');
+    turn.word();
     snapshot.assertThat(Turn.Snapshot::words).containsExactly("dogs");
-    turn.spell("dog");
+    turn.letter('d');
+    turn.letter('o');
+    turn.letter('g');
+    turn.word();
     snapshot.assertThat(Turn.Snapshot::words).containsExactly("dog");
   }
 
@@ -34,7 +48,9 @@ public class TurnTest {
     AssertSubscriber<Turn.Snapshot> snapshot = AssertSubscriber.create();
     Turn turn = new Turn(new Timer(180, BehaviorProcessor.create()));
     turn.snapshot().subscribe(snapshot);
-    turn.spell("za");
+    turn.letter('z');
+    turn.letter('a');
+    turn.word();
     snapshot.assertThat(Turn.Snapshot::words).isEmpty();
   }
 }

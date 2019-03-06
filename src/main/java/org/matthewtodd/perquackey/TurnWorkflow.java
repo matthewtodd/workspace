@@ -26,8 +26,16 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.E
     return Flow.of(turn.snapshot()).last();
   }
 
-  @Override public void spell(String word) {
-    turn.spell(word);
+  @Override public void letter(char letter) {
+    turn.letter(letter);
+  }
+
+  @Override public void undoLetter() {
+    turn.undoLetter();
+  }
+
+  @Override public void word() {
+    turn.word();
   }
 
   @Override public void toggleTimer() {
