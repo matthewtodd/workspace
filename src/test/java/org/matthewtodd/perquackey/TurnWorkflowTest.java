@@ -20,23 +20,23 @@ public class TurnWorkflowTest {
   @Test public void playingATurn() {
     FlowableProcessor<Long> ticker = BehaviorProcessor.create();
 
-    WorkflowTester<Void, Turn.Snapshot> workflow =
+    WorkflowTester<Void, TurnScreen.Data> workflow =
         new WorkflowTester<>(new TurnWorkflow(new Timer(180, ticker)));
 
     workflow.start(null);
 
     workflow.on(TurnScreen.class, (data, events) -> {
-      data.assertThat(Turn.Snapshot::words).isEmpty();
-      data.assertThat(Turn.Snapshot::score).isEqualTo(0);
-      data.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(false);
+      data.assertThat(TurnScreen.Data::words).isEmpty();
+      data.assertThat(TurnScreen.Data::score).isEqualTo(0);
+      data.assertThat(TurnScreen.Data::timer).extracting(Timer.Snapshot::running).containsExactly(false);
       events.toggleTimer();
-      data.assertThat(Turn.Snapshot::timer).extracting(Timer.Snapshot::running).containsExactly(true);
+      data.assertThat(TurnScreen.Data::timer).extracting(Timer.Snapshot::running).containsExactly(true);
       events.letter('d');
       events.letter('o');
       events.letter('g');
       events.word();
-      data.assertThat(Turn.Snapshot::words).containsExactly("dog");
-      data.assertThat(Turn.Snapshot::score).isEqualTo(60);
+      data.assertThat(TurnScreen.Data::words).containsExactly("dog");
+      data.assertThat(TurnScreen.Data::score).isEqualTo(60);
     });
 
     for (int i = 0; i < 180; i++) {
@@ -47,6 +47,6 @@ public class TurnWorkflowTest {
       events.quit();
     });
 
-    workflow.assertThat(Turn.Snapshot::score).isEqualTo(60);
+    workflow.assertThat(TurnScreen.Data::score).isEqualTo(60);
   }
 }

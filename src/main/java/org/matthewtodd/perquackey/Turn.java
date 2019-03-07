@@ -12,7 +12,7 @@ public class Turn {
   private final Scorer scorer = new Scorer();
   private final Timer timer;
   private final Input input = new Input();
-  private final Processor<Snapshot, Snapshot> snapshot = Flow.pipe();
+  private final Processor<TurnScreen.Data, TurnScreen.Data> snapshot = Flow.pipe();
   private WordList wordsSnapshot = WordList.EMPTY;
   private int scoreSnapshot = 0;
   private Timer.Snapshot timerSnapshot;
@@ -71,45 +71,15 @@ public class Turn {
     snapshot.onComplete();
   }
 
-  Publisher<Snapshot> snapshot() {
+  Publisher<TurnScreen.Data> snapshot() {
     return snapshot;
   }
 
-  private Snapshot takeSnapshot() {
-    return new Snapshot(wordsSnapshot, scoreSnapshot, timerSnapshot, input.snapshot());
+  private TurnScreen.Data takeSnapshot() {
+    return new TurnScreen.Data(wordsSnapshot, scoreSnapshot, timerSnapshot, input.snapshot());
   }
 
-  public static class Snapshot {
-    private final WordList words;
-    private final int score;
-    private final Timer.Snapshot timer;
-    private Input.Snapshot input;
-
-    Snapshot(WordList words, int score, Timer.Snapshot timer, Input.Snapshot input) {
-      this.words = words;
-      this.score = score;
-      this.timer = timer;
-      this.input = input;
-    }
-
-    public WordList words() {
-      return words;
-    }
-
-    public int score() {
-      return score;
-    }
-
-    public Timer.Snapshot timer() {
-      return timer;
-    }
-
-    public Input.Snapshot input() {
-      return input;
-    }
-  }
-
-  public static class Input {
+  static class Input {
     private final StringBuilder buffer = new StringBuilder();
     private boolean valid = true;
 

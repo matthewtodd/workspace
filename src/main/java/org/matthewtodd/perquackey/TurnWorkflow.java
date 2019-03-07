@@ -5,7 +5,7 @@ import org.matthewtodd.workflow.Workflow;
 import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
-public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.Events {
+public class TurnWorkflow implements Workflow<Void, TurnScreen.Data>, TurnScreen.Events {
   private final Turn turn;
 
   public TurnWorkflow(Timer timer) {
@@ -22,7 +22,7 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.E
         .build();
   }
 
-  @Override public Publisher<Turn.Snapshot> result() {
+  @Override public Publisher<TurnScreen.Data> result() {
     return Flow.of(turn.snapshot()).last();
   }
 
@@ -46,7 +46,7 @@ public class TurnWorkflow implements Workflow<Void, Turn.Snapshot>, TurnScreen.E
     turn.quit();
   }
 
-  private String screenKeyFor(Turn.Snapshot snapshot) {
+  private String screenKeyFor(TurnScreen.Data data) {
     return TurnScreen.KEY;
   }
 
