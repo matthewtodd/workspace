@@ -27,6 +27,9 @@ class TurnView extends View<TurnView> {
   final Label message = new Label("")
       .setForegroundColor(TextColor.ANSI.RED);
 
+  // TODO I don't like the mutability here.
+  // View just gives us listeners.
+  // If we had ids for components and a findById method, we wouldn't need to subclass View.
   TurnView() {
     setComponent(new Panel(new BorderLayout())
         .addComponent(new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
