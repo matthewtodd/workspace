@@ -43,6 +43,10 @@ public class AssertSubscriber<T> implements Subscriber<T> {
     delegate.assertNotComplete();
   }
 
+  public void assertEmpty() {
+    delegate.assertEmpty();
+  }
+
   public void assertValueCount(int i) {
     delegate.assertValueCount(i);
   }

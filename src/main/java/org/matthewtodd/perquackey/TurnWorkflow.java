@@ -8,24 +8,29 @@ import org.reactivestreams.Publisher;
 
 public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events {
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen;
+  private final Scorer scorer;
   private final Timer timer;
   private final Turn turn;
+  private final Input input;
+  private Publisher<Long> ticker;
 
-  public TurnWorkflow(Timer timer) {
-    this.screen = Flow.pipe();
-    this.timer = timer;
-    this.turn = new Turn();
+  public TurnWorkflow(Publisher<Long> ticker) {
+    this.ticker = ticker;
+
+    screen = Flow.pipe();
+    input = new Input();
+    scorer = new Scorer();
+    timer = new Timer(180L);
+    turn = new Turn();
   }
 
-  @Override public void start(Void input) {
-    Scorer scorer = new Scorer();
-    Publisher<Integer> score = Flow.of(turn.words()).as(scorer::score).build();
+  @Override public void start(Void ignored) {
+    Flow.of(ticker).subscribe(timer::tick);
+    Flow.of(input.words()).subscribe(turn::spell);
 
-    Publisher<TurnScreen.Data> data = Flow.of(turn.words(), score, timer.state(), turn.input())
-            .as(TurnScreen.Data::new)
-            .build();
-
-    screen.onNext(new TurnScreen(data, this));
+    screen.onNext(new TurnScreen(
+        Flow.of(turn.words(), Flow.of(turn.words()).as(scorer::score).build(), timer.state(),
+            input.state()).as(TurnScreen.Data::new).build(), this));
   }
 
   @Override public Publisher<? extends WorkflowScreen<?, ?>> screen() {
@@ -37,15 +42,15 @@ public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events
   }
 
   @Override public void letter(char letter) {
-    turn.letter(letter);
+    input.letter(letter);
   }
 
   @Override public void undoLetter() {
-    turn.undoLetter();
+    input.undoLetter();
   }
 
   @Override public void word() {
-    turn.word();
+    input.word();
   }
 
   @Override public void toggleTimer() {

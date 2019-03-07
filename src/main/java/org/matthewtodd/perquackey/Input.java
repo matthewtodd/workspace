@@ -6,49 +6,46 @@ import org.reactivestreams.Publisher;
 
 class Input {
   private final Processor<State, State> state = Flow.pipe(new State("", ""));
+  private final Processor<String, String> words = Flow.pipe();
   private final StringBuilder buffer = new StringBuilder();
   private boolean valid = true;
 
-  void append(char letter) {
+  void letter(char letter) {
     buffer.append(letter);
     state.onNext(snapshotState());
+    if (buffer.length() >= 3) {
+      valid = true;
+      state.onNext(snapshotState());
+    }
   }
 
-  void chop() {
+  void undoLetter() {
     buffer.setLength(Math.max(0, buffer.length() - 1));
     state.onNext(snapshotState());
   }
 
-  String value() {
-    return buffer.toString();
-  }
-
-  int length() {
-    return buffer.length();
-  }
-
-  void markInvalid() {
-    valid = false;
-    state.onNext(snapshotState());
-  }
-
-  void markValid() {
-    valid = true;
-    state.onNext(snapshotState());
-  }
-
-  void reset() {
-    buffer.setLength(0);
-    valid = true;
-    state.onNext(snapshotState());
+  void word() {
+    if (buffer.length() < 3) {
+      valid = false;
+      state.onNext(snapshotState());
+    } else {
+      words.onNext(buffer.toString());
+      buffer.setLength(0);
+      valid = true;
+      state.onNext(snapshotState());
+    }
   }
 
   Publisher<State> state() {
     return state;
   }
 
+  Publisher<String> words() {
+    return words;
+  }
+
   private State snapshotState() {
-    return new State(value(), valid ? "" : "too short");
+    return new State(buffer.toString(), valid ? "" : "too short");
   }
 
   public static class State {

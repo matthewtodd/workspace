@@ -19,6 +19,14 @@ java_library(
 )
 
 java_test(
+    name = "InputTest",
+    size = "small",
+    runtime_deps = [
+        ":perquackey",
+    ],
+)
+
+java_test(
     name = "ScorerTest",
     size = "small",
     runtime_deps = [

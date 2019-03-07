@@ -14,16 +14,9 @@ public class TurnTest {
     AssertSubscriber<WordList> words = AssertSubscriber.create();
     Turn turn = new Turn();
     turn.words().subscribe(words);
-    turn.letter('d');
-    turn.letter('o');
-    turn.letter('g');
-    turn.word();
+    turn.spell("dog");
     assertThat(words.get()).containsExactly("dog");
-    turn.letter('d');
-    turn.letter('o');
-    turn.letter('g');
-    turn.letter('s');
-    turn.word();
+    turn.spell("dogs");
     assertThat(words.get()).containsExactly("dogs");
   }
 
@@ -31,26 +24,9 @@ public class TurnTest {
     AssertSubscriber<WordList> words = AssertSubscriber.create();
     Turn turn = new Turn();
     turn.words().subscribe(words);
-    turn.letter('d');
-    turn.letter('o');
-    turn.letter('g');
-    turn.letter('s');
-    turn.word();
+    turn.spell("dogs");
     assertThat(words.get()).containsExactly("dogs");
-    turn.letter('d');
-    turn.letter('o');
-    turn.letter('g');
-    turn.word();
+    turn.spell("dog");
     assertThat(words.get()).containsExactly("dog");
-  }
-
-  @Test public void rejectsWordsThatAreTooShort() {
-    AssertSubscriber<WordList> words = AssertSubscriber.create();
-    Turn turn = new Turn();
-    turn.words().subscribe(words);
-    turn.letter('z');
-    turn.letter('a');
-    turn.word();
-    assertThat(words.get()).isEmpty();
   }
 }

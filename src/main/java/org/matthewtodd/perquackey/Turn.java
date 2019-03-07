@@ -9,30 +9,10 @@ import org.reactivestreams.Publisher;
 // This class could offer a transformer from event to state.
 public class Turn {
   private final Set<String> words = new LinkedHashSet<>();
-  private final Input input = new Input();
+  private final Processor<WordList, WordList> state = Flow.pipe(WordList.EMPTY);
 
-  private Processor<WordList, WordList> wordPipe = Flow.pipe(WordList.EMPTY);
-
-  void letter(char letter) {
-    input.append(letter);
-    if (input.length() >= 3) {
-      input.markValid();
-    }
-  }
-
-  void undoLetter() {
-    input.chop();
-  }
-
-  void word() {
-    if (input.length() < 3) {
-      input.markInvalid();
-      return;
-    }
-
-    String word = input.value();
+  void spell(String word) {
     words.add(word);
-    input.reset();
 
     if (word.endsWith("s")) {
       String singular = word.substring(0, word.length() - 1);
@@ -42,18 +22,14 @@ public class Turn {
       words.remove(plural);
     }
 
-    wordPipe.onNext(new WordList(words));
-  }
-
-  void quit() {
-    wordPipe.onComplete();
+    state.onNext(new WordList(words));
   }
 
   Publisher<WordList> words() {
-    return wordPipe;
+    return state;
   }
 
-  Publisher<Input.State> input() {
-    return input.state();
+  void quit() {
+    state.onComplete();
   }
 }

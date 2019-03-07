@@ -14,32 +14,32 @@ public class Timer {
   private final Processor<State, State> state;
 
   // TODO caller should subscribe the timer to the ticker!
-  public Timer(long total, Publisher<Long> ticker) {
+  Timer(long total) {
     this.total = total;
-    this.state = Flow.pipe(takeSnapshot());
+    this.state = Flow.pipe(snapshotState());
+  }
 
-    Flow.of(ticker).subscribe(t -> {
-      if (!done.get() && running.get()) {
-        elapsed.incrementAndGet();
-        state.onNext(takeSnapshot());
-        if (elapsed.get() == this.total) {
-          done.set(true);
-          state.onComplete();
-        }
+  void tick(long tick) {
+    if (!done.get() && running.get()) {
+      elapsed.incrementAndGet();
+      state.onNext(snapshotState());
+      if (elapsed.get() == this.total) {
+        done.set(true);
+        state.onComplete();
       }
-    });
+    }
   }
 
   void toggle() {
     running.set(!running.get());
-    state.onNext(takeSnapshot());
+    state.onNext(snapshotState());
   }
 
   Publisher<State> state() {
     return state;
   }
 
-  private State takeSnapshot() {
+  private State snapshotState() {
     return new State(total, elapsed.get(), running.get());
   }
 
@@ -60,10 +60,6 @@ public class Timer {
 
     public boolean running() {
       return running;
-    }
-
-    @Override public String toString() {
-      return String.format("Timer %d/%d [%s]", remaining(), total, running ? "running" : "paused");
     }
   }
 }

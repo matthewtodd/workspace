@@ -1,7 +1,6 @@
 package org.matthewtodd.perquackey;
 
 import io.reactivex.Flowable;
-import io.reactivex.processors.BehaviorProcessor;
 import io.reactivex.subscribers.TestSubscriber;
 import org.assertj.core.api.ObjectAssert;
 import org.junit.Test;
@@ -36,17 +35,16 @@ public class TimerTest {
   }
 
   @Test public void multipleSubscribers() {
-    BehaviorProcessor<Long> ticker = BehaviorProcessor.create();
-    Timer timer = new Timer(180L, ticker);
+    Timer timer = new Timer(180L);
     Flowable<Long> flowable = Flowable.fromPublisher(timer.state())
         .map(Timer.State::remaining);
 
     timer.toggle();
     TestSubscriber<Long> one = flowable.test();
     one.assertValues(180L);
-    ticker.onNext(1L);
+    timer.tick(1);
     one.assertValues(180L, 179L);
-    ticker.onNext(1L);
+    timer.tick(1);
     one.assertValues(180L, 179L, 178L);
 
     TestSubscriber<Long> two = flowable.test();
@@ -55,7 +53,6 @@ public class TimerTest {
 
   static class TimerTester {
     private final Timer timer;
-    private final BehaviorProcessor<Long> ticker;
     private final TestSubscriber<Timer.State> subscriber;
     private int index = 0;
     private int toggleCalls = 0;
@@ -66,8 +63,7 @@ public class TimerTest {
     }
 
     private TimerTester(long total) {
-      ticker = BehaviorProcessor.create();
-      timer = new Timer(total, ticker);
+      timer = new Timer(total);
       subscriber = Flowable.fromPublisher(timer.state()).test();
     }
 
@@ -83,7 +79,7 @@ public class TimerTest {
 
     TimerTester tick() {
       checkForUnseenValues("tick", ++tickCalls);
-      ticker.onNext(1L);
+      timer.tick(1);
       return this;
     }
 

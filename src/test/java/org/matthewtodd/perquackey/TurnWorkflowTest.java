@@ -22,8 +22,7 @@ public class TurnWorkflowTest {
   @Test public void playingATurn() {
     FlowableProcessor<Long> ticker = BehaviorProcessor.create();
 
-    WorkflowTester<Void, WordList> workflow =
-        new WorkflowTester<>(new TurnWorkflow(new Timer(180, ticker)));
+    WorkflowTester<Void, WordList> workflow = new WorkflowTester<>(new TurnWorkflow(ticker));
 
     workflow.start(null);
 
@@ -41,7 +40,7 @@ public class TurnWorkflowTest {
       assertThat(data.get().score()).isEqualTo(60);
     });
 
-    for (int i = 0; i < 180; i++) {
+    for (int i = 0; i < 300; i++) {
       ticker.onNext(1L);
     }
 

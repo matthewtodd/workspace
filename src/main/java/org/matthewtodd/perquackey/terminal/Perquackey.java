@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.flow.Flow.Scheduler;
-import org.matthewtodd.perquackey.Timer;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.terminal.Application;
@@ -66,7 +65,7 @@ public class Perquackey {
 
     Application build() {
       return new Application(
-          new TurnWorkflow(new Timer(180L, ticker)),
+          new TurnWorkflow(ticker),
           Perquackey::viewFactory,
           new TerminalUI(terminal, looper));
     }
