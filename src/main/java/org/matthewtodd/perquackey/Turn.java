@@ -9,11 +9,9 @@ import org.reactivestreams.Publisher;
 // This class could offer a transformer from event to state.
 public class Turn {
   private final Set<String> words = new LinkedHashSet<>();
-  private final Scorer scorer = new Scorer();
   private final Input input = new Input();
 
   private Processor<WordList, WordList> wordPipe = Flow.pipe(WordList.EMPTY);
-  private Processor<Integer, Integer> scorePipe = Flow.pipe(0);
 
   void letter(char letter) {
     input.append(letter);
@@ -45,7 +43,6 @@ public class Turn {
     }
 
     wordPipe.onNext(new WordList(words));
-    scorePipe.onNext(scorer.score(words));
   }
 
   void quit() {
@@ -54,10 +51,6 @@ public class Turn {
 
   Publisher<WordList> words() {
     return wordPipe;
-  }
-
-  Publisher<Integer> score() {
-    return scorePipe;
   }
 
   Publisher<Input.State> input() {

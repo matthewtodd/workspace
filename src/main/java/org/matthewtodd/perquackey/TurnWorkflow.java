@@ -18,8 +18,10 @@ public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events
   }
 
   @Override public void start(Void input) {
-    Publisher<TurnScreen.Data> data =
-        Flow.of(turn.words(), turn.score(), timer.state(), turn.input())
+    Scorer scorer = new Scorer();
+    Publisher<Integer> score = Flow.of(turn.words()).as(scorer::score).build();
+
+    Publisher<TurnScreen.Data> data = Flow.of(turn.words(), score, timer.state(), turn.input())
             .as(TurnScreen.Data::new)
             .build();
 
