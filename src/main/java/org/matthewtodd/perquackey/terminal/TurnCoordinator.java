@@ -4,7 +4,6 @@ import com.googlecode.lanterna.gui2.table.TableModel;
 import java.util.ArrayList;
 import java.util.Collection;
 import org.matthewtodd.flow.Flow;
-import org.matthewtodd.perquackey.Turn;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.WordList;
 import org.matthewtodd.terminal.Coordinator;
@@ -17,7 +16,7 @@ class TurnCoordinator implements Coordinator<TurnView> {
   }
 
   @Override public void attach(TurnView view) {
-    view.setKeyPressListener(keyStroke -> {
+    view.input.setKeyPressListener(keyStroke -> {
       switch (keyStroke.getKeyType()) {
         case Character:
           switch (keyStroke.getCharacter()) {
@@ -60,6 +59,8 @@ class TurnCoordinator implements Coordinator<TurnView> {
       view.input.setText(String.format(":%s", turn.input().value()));
       view.message.setText(turn.input().message());
     });
+
+    view.input.takeFocus();
   }
 
   static class TableUpdater {

@@ -3,9 +3,11 @@ package org.matthewtodd.perquackey.terminal;
 import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.TextColor;
+import com.googlecode.lanterna.gui2.AbstractInteractableComponent;
 import com.googlecode.lanterna.gui2.BorderLayout;
 import com.googlecode.lanterna.gui2.Direction;
 import com.googlecode.lanterna.gui2.GridLayout;
+import com.googlecode.lanterna.gui2.InteractableRenderer;
 import com.googlecode.lanterna.gui2.Label;
 import com.googlecode.lanterna.gui2.Panel;
 import com.googlecode.lanterna.gui2.Separator;
@@ -21,43 +23,64 @@ class TurnView extends View<TurnView> {
   final Label timer = new Label("");
   final Table<String> words = new Table<String>("")
       .setTableHeaderRenderer(new LabelIsWidthRenderer());
-  final Label input = new Label("");
+  final Input input = new Input();
   final Label message = new Label("")
       .setForegroundColor(TextColor.ANSI.RED);
 
-  private Consumer<KeyStroke> keyPressListener = c -> { };
-
   TurnView() {
-    super(new BorderLayout());
-
-    addComponent(BorderLayout.Location.TOP,
-        new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
+    setComponent(new Panel(new BorderLayout())
+        .addComponent(new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
             .addComponent(score, GridLayout.createHorizontallyFilledLayoutData(1))
-            .addComponent(timer, GridLayout.createHorizontallyEndAlignedLayoutData(1)));
-    addComponent(BorderLayout.Location.CENTER,
-        new Panel(new BorderLayout())
+            .addComponent(timer, GridLayout.createHorizontallyEndAlignedLayoutData(1))
+            .setLayoutData(BorderLayout.Location.TOP))
+        .addComponent(new Panel(new BorderLayout())
             .addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.TOP)
             .addComponent(words)
-            .addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.BOTTOM));
-    addComponent(BorderLayout.Location.BOTTOM,
-        new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
+            .addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.BOTTOM)
+            .setLayoutData(BorderLayout.Location.CENTER))
+        .addComponent(new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
             .addComponent(input, GridLayout.createHorizontallyFilledLayoutData(1))
-            .addComponent(message, GridLayout.createHorizontallyEndAlignedLayoutData(1)));
+            .addComponent(message, GridLayout.createHorizontallyEndAlignedLayoutData(1))
+            .setLayoutData(BorderLayout.Location.BOTTOM)));
   }
 
-  @Override public TerminalPosition getCursorLocation() {
-    int column = input.getText().length();
-    int row = getPanel().getSize().getRows() - 1;
-    return new TerminalPosition(column, row);
-  }
+  static class Input extends AbstractInteractableComponent<Input> {
+    private Consumer<KeyStroke> keyPressListener = c -> { };
+    private String text = "";
 
-  @Override protected Result handleKeyStroke(KeyStroke key) {
-    keyPressListener.accept(key);
-    return Result.HANDLED;
-  }
+    String getText() {
+      return text;
+    }
 
-  void setKeyPressListener(Consumer<KeyStroke> keyPressListener) {
-    this.keyPressListener = (keyPressListener != null) ? keyPressListener : c -> { };
+    void setText(String text) {
+      this.text = text;
+    }
+
+    @Override protected Result handleKeyStroke(KeyStroke key) {
+      keyPressListener.accept(key);
+      return Result.HANDLED;
+    }
+
+    void setKeyPressListener(Consumer<KeyStroke> keyPressListener) {
+      this.keyPressListener = (keyPressListener != null) ? keyPressListener : c -> { };
+    }
+
+    @Override protected InteractableRenderer<Input> createDefaultRenderer() {
+      return new InteractableRenderer<Input>() {
+        @Override public TerminalPosition getCursorLocation(Input input) {
+          return input.getPosition().withRelativeColumn(input.getText().length());
+        }
+
+        @Override public TerminalSize getPreferredSize(Input input) {
+          return TerminalSize.ONE.withRelativeColumns(input.getText().length());
+        }
+
+        @Override
+        public void drawComponent(TextGUIGraphics textGUIGraphics, Input input) {
+          textGUIGraphics.putString(TerminalPosition.TOP_LEFT_CORNER, input.getText());
+        }
+      };
+    }
   }
 
   private static class LabelIsWidthRenderer implements TableHeaderRenderer<String> {

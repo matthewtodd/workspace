@@ -1,8 +1,6 @@
 package org.matthewtodd.perquackey.terminal;
 
-import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.table.TableModel;
 import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import com.googlecode.lanterna.terminal.virtual.VirtualTerminal;
@@ -45,11 +43,6 @@ public class TurnViewTest {
         "──────────────────────────────────────────────────",
         ":za                                      too short"
     );
-
-    assertThat(terminal.getCursorBufferPosition().getColumn()).isEqualTo(3);
-    assertThat(terminal.getCursorBufferPosition().getRow()).isEqualTo(9);
-
-    assertThat(terminal.getCharacter(0, 0).getBackgroundColor()).isEqualTo(TextColor.ANSI.DEFAULT);
   }
 
   private Collection<String> contentsOf(VirtualTerminal terminal) {
