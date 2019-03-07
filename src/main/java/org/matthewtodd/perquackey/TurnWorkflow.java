@@ -3,27 +3,35 @@ package org.matthewtodd.perquackey;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.workflow.Workflow;
 import org.matthewtodd.workflow.WorkflowScreen;
+import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
-public class TurnWorkflow implements Workflow<Void, TurnScreen.Data>, TurnScreen.Events {
+public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events {
+  private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen;
+  private final Timer timer;
   private final Turn turn;
 
   public TurnWorkflow(Timer timer) {
-    turn = new Turn(timer);
+    this.screen = Flow.pipe();
+    this.timer = timer;
+    this.turn = new Turn();
   }
 
-  @Override public void start(Void input) { }
+  @Override public void start(Void input) {
+    Publisher<TurnScreen.Data> data =
+        Flow.of(turn.words(), turn.score(), timer.state(), turn.input())
+            .as(TurnScreen.Data::new)
+            .build();
+
+    screen.onNext(new TurnScreen(data, this));
+  }
 
   @Override public Publisher<? extends WorkflowScreen<?, ?>> screen() {
-    return Flow.of(turn.snapshot())
-        .as(this::screenKeyFor)
-        .distinct()
-        .as(this::screenFor)
-        .build();
+    return screen;
   }
 
-  @Override public Publisher<TurnScreen.Data> result() {
-    return Flow.of(turn.snapshot()).last();
+  @Override public Publisher<WordList> result() {
+    return Flow.of(turn.words()).last();
   }
 
   @Override public void letter(char letter) {
@@ -39,18 +47,11 @@ public class TurnWorkflow implements Workflow<Void, TurnScreen.Data>, TurnScreen
   }
 
   @Override public void toggleTimer() {
-    turn.toggleTimer();
+    timer.toggle();
   }
 
   @Override public void quit() {
     turn.quit();
-  }
-
-  private String screenKeyFor(TurnScreen.Data data) {
-    return TurnScreen.KEY;
-  }
-
-  private WorkflowScreen<?, ?> screenFor(String key) {
-    return new TurnScreen(turn.snapshot(), this);
+    screen.onComplete();
   }
 }

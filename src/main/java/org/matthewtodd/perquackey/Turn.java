@@ -10,39 +10,25 @@ import org.reactivestreams.Publisher;
 public class Turn {
   private final Set<String> words = new LinkedHashSet<>();
   private final Scorer scorer = new Scorer();
-  private final Timer timer;
   private final Input input = new Input();
-  private final Processor<TurnScreen.Data, TurnScreen.Data> snapshot = Flow.pipe();
-  private WordList wordsSnapshot = WordList.EMPTY;
-  private int scoreSnapshot = 0;
-  private Timer.Snapshot timerSnapshot;
 
-  Turn(Timer timer) {
-    this.timer = timer;
-
-    Flow.of(timer.snapshot()).subscribe(t -> {
-      timerSnapshot = t;
-      snapshot.onNext(takeSnapshot());
-    });
-  }
+  private Processor<WordList, WordList> wordPipe = Flow.pipe(WordList.EMPTY);
+  private Processor<Integer, Integer> scorePipe = Flow.pipe(0);
 
   void letter(char letter) {
     input.append(letter);
     if (input.length() >= 3) {
       input.markValid();
     }
-    snapshot.onNext(takeSnapshot());
   }
 
   void undoLetter() {
     input.chop();
-    snapshot.onNext(takeSnapshot());
   }
 
   void word() {
     if (input.length() < 3) {
       input.markInvalid();
-      snapshot.onNext(takeSnapshot());
       return;
     }
 
@@ -58,80 +44,23 @@ public class Turn {
       words.remove(plural);
     }
 
-    wordsSnapshot = new WordList(words);
-    scoreSnapshot = scorer.score(wordsSnapshot);
-    snapshot.onNext(takeSnapshot());
-  }
-
-  void toggleTimer() {
-    timer.toggle();
+    wordPipe.onNext(new WordList(words));
+    scorePipe.onNext(scorer.score(words));
   }
 
   void quit() {
-    snapshot.onComplete();
+    wordPipe.onComplete();
   }
 
-  Publisher<TurnScreen.Data> snapshot() {
-    return snapshot;
+  Publisher<WordList> words() {
+    return wordPipe;
   }
 
-  private TurnScreen.Data takeSnapshot() {
-    return new TurnScreen.Data(wordsSnapshot, scoreSnapshot, timerSnapshot, input.snapshot());
+  Publisher<Integer> score() {
+    return scorePipe;
   }
 
-  static class Input {
-    private final StringBuilder buffer = new StringBuilder();
-    private boolean valid = true;
-
-    void append(char letter) {
-      buffer.append(letter);
-    }
-
-    void chop() {
-      buffer.setLength(Math.max(0, buffer.length() - 1));
-    }
-
-    String value() {
-      return buffer.toString();
-    }
-
-    int length() {
-      return buffer.length();
-    }
-
-    void markInvalid() {
-      valid = false;
-    }
-
-    void markValid() {
-      valid = true;
-    }
-
-    void reset() {
-      buffer.setLength(0);
-      valid = true;
-    }
-
-    Snapshot snapshot() {
-      return new Snapshot(value(), valid ? "" : "too short");
-    }
-
-    public static class Snapshot {
-      private String value;
-      private String message;
-
-      Snapshot(String value, String message) {
-        this.value = value;
-        this.message = message;
-      }
-
-      public String value() {
-        return value;
-      }
-
-      public String message() {
-        return message;
-      }
-    }
+  Publisher<Input.State> input() {
+    return input.state();
   }
 }

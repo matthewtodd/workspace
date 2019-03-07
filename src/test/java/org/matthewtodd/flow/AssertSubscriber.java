@@ -1,11 +1,6 @@
 package org.matthewtodd.flow;
 
 import io.reactivex.subscribers.TestSubscriber;
-import java.util.function.Function;
-import java.util.function.ToIntFunction;
-import org.assertj.core.api.IntegerAssert;
-import org.assertj.core.api.IterableAssert;
-import org.assertj.core.api.ObjectAssert;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -36,20 +31,8 @@ public class AssertSubscriber<T> implements Subscriber<T> {
     delegate.onComplete();
   }
 
-  public T currentValue() {
+  public T get() {
     return delegate.values().get(delegate.values().size() - 1);
-  }
-
-  public IntegerAssert assertThat(ToIntFunction<T> extractor) {
-    return new IntegerAssert(extractor.applyAsInt(currentValue()));
-  }
-
-  public <U> IterableAssert<U> assertThat(ToIterableFunction<T, U> extractor) {
-    return new IterableAssert<>(extractor.apply(currentValue()));
-  }
-
-  public <U> ObjectAssert<U> assertThat(Function<T, U> extractor) {
-    return new ObjectAssert<>(extractor.apply(currentValue()));
   }
 
   public void assertComplete() {
@@ -62,9 +45,5 @@ public class AssertSubscriber<T> implements Subscriber<T> {
 
   public void assertValueCount(int i) {
     delegate.assertValueCount(i);
-  }
-
-  public interface ToIterableFunction<T, U> {
-    Iterable<U> apply(T value);
   }
 }

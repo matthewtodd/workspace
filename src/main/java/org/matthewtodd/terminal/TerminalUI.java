@@ -20,6 +20,8 @@ public class TerminalUI implements Consumer<Component> {
   private boolean started = false;
 
   public TerminalUI(Terminal terminal, Consumer<Runnable> looper) {
+    // Grrr, why, Why, WHY?
+    System.setProperty("java.awt.headless", "true");
     this.terminal = terminal;
     this.looper = looper;
     window = new BasicWindow();
@@ -50,7 +52,6 @@ public class TerminalUI implements Consumer<Component> {
   }
 
   private void start() {
-    System.setProperty("java.awt.headless", "true");
     Screen screen;
 
     try {

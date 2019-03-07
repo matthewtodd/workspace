@@ -30,5 +30,7 @@ public class Application {
     Flow.of(workflow.result())
         .onComplete(onComplete)
         .subscribe(_ignored -> ui.close());
+
+    workflow.start(null);
   }
 }

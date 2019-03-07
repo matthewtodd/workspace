@@ -38,8 +38,8 @@ public class TimerTest {
   @Test public void multipleSubscribers() {
     BehaviorProcessor<Long> ticker = BehaviorProcessor.create();
     Timer timer = new Timer(180L, ticker);
-    Flowable<Long> flowable = Flowable.fromPublisher(timer.snapshot())
-        .map(Timer.Snapshot::remaining);
+    Flowable<Long> flowable = Flowable.fromPublisher(timer.state())
+        .map(Timer.State::remaining);
 
     timer.toggle();
     TestSubscriber<Long> one = flowable.test();
@@ -56,7 +56,7 @@ public class TimerTest {
   static class TimerTester {
     private final Timer timer;
     private final BehaviorProcessor<Long> ticker;
-    private final TestSubscriber<Timer.Snapshot> subscriber;
+    private final TestSubscriber<Timer.State> subscriber;
     private int index = 0;
     private int toggleCalls = 0;
     private int tickCalls = 0;
@@ -68,7 +68,7 @@ public class TimerTest {
     private TimerTester(long total) {
       ticker = BehaviorProcessor.create();
       timer = new Timer(total, ticker);
-      subscriber = Flowable.fromPublisher(timer.snapshot()).test();
+      subscriber = Flowable.fromPublisher(timer.state()).test();
     }
 
     TimerTester toggle() {
@@ -101,7 +101,7 @@ public class TimerTest {
 
     private TimerTester see(long remaining, boolean running) {
       new ObjectAssert<>(subscriber.values().get(index++))
-          .extracting(Timer.Snapshot::remaining, Timer.Snapshot::running)
+          .extracting(Timer.State::remaining, Timer.State::running)
           .containsExactly(remaining, running);
       return this;
     }

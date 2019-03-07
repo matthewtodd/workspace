@@ -5,6 +5,8 @@ import io.reactivex.processors.FlowableProcessor;
 import org.junit.Test;
 import org.matthewtodd.workflow.WorkflowTester;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class TurnWorkflowTest {
   // This test isn't all that interesting --
   // terminal.PerquackeyTest does all the same things through the UI.
@@ -20,33 +22,31 @@ public class TurnWorkflowTest {
   @Test public void playingATurn() {
     FlowableProcessor<Long> ticker = BehaviorProcessor.create();
 
-    WorkflowTester<Void, TurnScreen.Data> workflow =
+    WorkflowTester<Void, WordList> workflow =
         new WorkflowTester<>(new TurnWorkflow(new Timer(180, ticker)));
 
     workflow.start(null);
 
     workflow.on(TurnScreen.class, (data, events) -> {
-      data.assertThat(TurnScreen.Data::words).isEmpty();
-      data.assertThat(TurnScreen.Data::score).isEqualTo(0);
-      data.assertThat(TurnScreen.Data::timer).extracting(Timer.Snapshot::running).containsExactly(false);
+      assertThat(data.get().words()).isEmpty();
+      assertThat(data.get().score()).isEqualTo(0);
+      assertThat(data.get().timer().running()).isFalse();
       events.toggleTimer();
-      data.assertThat(TurnScreen.Data::timer).extracting(Timer.Snapshot::running).containsExactly(true);
+      assertThat(data.get().timer().running()).isTrue();
       events.letter('d');
       events.letter('o');
       events.letter('g');
       events.word();
-      data.assertThat(TurnScreen.Data::words).containsExactly("dog");
-      data.assertThat(TurnScreen.Data::score).isEqualTo(60);
+      assertThat(data.get().words()).containsExactly("dog");
+      assertThat(data.get().score()).isEqualTo(60);
     });
 
     for (int i = 0; i < 180; i++) {
       ticker.onNext(1L);
     }
 
-    workflow.on(TurnScreen.class, (data, events) -> {
-      events.quit();
-    });
+    workflow.on(TurnScreen.class, (data, events) -> events.quit());
 
-    workflow.assertThat(TurnScreen.Data::score).isEqualTo(60);
+    assertThat(workflow.result()).containsExactly("dog");
   }
 }
