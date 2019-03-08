@@ -13,7 +13,6 @@ public class Timer {
   private final AtomicBoolean done = new AtomicBoolean(false);
   private final Processor<State, State> state;
 
-  // TODO caller should subscribe the timer to the ticker!
   Timer(long total) {
     this.total = total;
     this.state = Flow.pipe(snapshotState());
@@ -23,7 +22,7 @@ public class Timer {
     if (!done.get() && running.get()) {
       elapsed.incrementAndGet();
       state.onNext(snapshotState());
-      if (elapsed.get() == this.total) {
+      if (elapsed.get() == total) {
         done.set(true);
         state.onComplete();
       }
@@ -40,22 +39,20 @@ public class Timer {
   }
 
   private State snapshotState() {
-    return new State(total, elapsed.get(), running.get());
+    return new State(total - elapsed.get(), running.get());
   }
 
   public static final class State {
-    private final long total;
-    private final long elapsed;
     private final boolean running;
+    private long remaining;
 
-    State(long total, long elapsed, boolean running) {
-      this.total = total;
-      this.elapsed = elapsed;
+    State(long remaining, boolean running) {
+      this.remaining = remaining;
       this.running = running;
     }
 
     public long remaining() {
-      return total - elapsed;
+      return remaining;
     }
 
     public boolean running() {

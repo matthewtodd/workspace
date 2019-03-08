@@ -43,7 +43,7 @@ java_test(
 )
 
 java_test(
-    name = "TurnTest",
+    name = "WordsTest",
     size = "small",
     runtime_deps = [
         ":perquackey",

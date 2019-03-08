@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.TurnScreen;
-import org.matthewtodd.perquackey.WordList;
+import org.matthewtodd.perquackey.Words;
 import org.matthewtodd.terminal.Coordinator;
 
 class TurnCoordinator implements Coordinator<TurnView> {
@@ -73,7 +73,7 @@ class TurnCoordinator implements Coordinator<TurnView> {
     // TODO rather than passing this object, can we pass access to the data we need?
     // so, words::rowCount as a Supplier<Integer>, for example.
     // But that's premature because I'm not sure how to think about the column headers being so overloaded.
-    void update(WordList words) {
+    void update(Words.State words) {
       // TODO handle adding/removing columns first
 
       // update existing rows

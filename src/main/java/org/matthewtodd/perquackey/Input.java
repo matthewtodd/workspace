@@ -6,7 +6,7 @@ import org.reactivestreams.Publisher;
 
 class Input {
   private final Processor<State, State> state = Flow.pipe(new State("", ""));
-  private final Processor<String, String> words = Flow.pipe();
+  private final Processor<String, String> entries = Flow.pipe();
   private final StringBuilder buffer = new StringBuilder();
   private boolean valid = true;
 
@@ -24,12 +24,12 @@ class Input {
     state.onNext(snapshotState());
   }
 
-  void word() {
+  void enter() {
     if (buffer.length() < 3) {
       valid = false;
       state.onNext(snapshotState());
     } else {
-      words.onNext(buffer.toString());
+      entries.onNext(buffer.toString());
       buffer.setLength(0);
       valid = true;
       state.onNext(snapshotState());
@@ -40,8 +40,8 @@ class Input {
     return state;
   }
 
-  Publisher<String> words() {
-    return words;
+  Publisher<String> entries() {
+    return entries;
   }
 
   private State snapshotState() {

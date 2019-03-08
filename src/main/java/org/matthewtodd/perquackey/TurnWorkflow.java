@@ -6,11 +6,11 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
-public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events {
+public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Events {
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen;
   private final Scorer scorer;
   private final Timer timer;
-  private final Turn turn;
+  private final Words words;
   private final Input input;
   private Publisher<Long> ticker;
 
@@ -21,15 +21,15 @@ public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events
     input = new Input();
     scorer = new Scorer();
     timer = new Timer(180L);
-    turn = new Turn();
+    words = new Words();
   }
 
   @Override public void start(Void ignored) {
     Flow.of(ticker).subscribe(timer::tick);
-    Flow.of(input.words()).subscribe(turn::spell);
+    Flow.of(input.entries()).subscribe(words::spell);
 
     screen.onNext(new TurnScreen(
-        Flow.of(turn.words(), Flow.of(turn.words()).as(scorer::score).build(), timer.state(),
+        Flow.of(words.state(), Flow.of(words.state()).as(scorer::score).build(), timer.state(),
             input.state()).as(TurnScreen.Data::new).build(), this));
   }
 
@@ -37,8 +37,8 @@ public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events
     return screen;
   }
 
-  @Override public Publisher<WordList> result() {
-    return Flow.of(turn.words()).last();
+  @Override public Publisher<Words.State> result() {
+    return Flow.of(words.state()).last();
   }
 
   @Override public void letter(char letter) {
@@ -50,7 +50,7 @@ public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events
   }
 
   @Override public void word() {
-    input.word();
+    input.enter();
   }
 
   @Override public void toggleTimer() {
@@ -58,7 +58,7 @@ public class TurnWorkflow implements Workflow<Void, WordList>, TurnScreen.Events
   }
 
   @Override public void quit() {
-    turn.quit();
+    words.quit();
     screen.onComplete();
   }
 }

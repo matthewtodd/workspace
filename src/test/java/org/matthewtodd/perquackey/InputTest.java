@@ -5,12 +5,12 @@ import org.matthewtodd.flow.AssertSubscriber;
 
 public class InputTest {
   @Test public void rejectsWordsThatAreTooShort() {
-    AssertSubscriber<String> words = AssertSubscriber.create();
+    AssertSubscriber<String> entries = AssertSubscriber.create();
     Input input = new Input();
-    input.words().subscribe(words);
+    input.entries().subscribe(entries);
     input.letter('z');
     input.letter('a');
-    input.word();
-    words.assertEmpty();
+    input.enter();
+    entries.assertEmpty();
   }
 }

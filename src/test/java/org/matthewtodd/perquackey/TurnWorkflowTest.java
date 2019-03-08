@@ -22,7 +22,7 @@ public class TurnWorkflowTest {
   @Test public void playingATurn() {
     FlowableProcessor<Long> ticker = BehaviorProcessor.create();
 
-    WorkflowTester<Void, WordList> workflow = new WorkflowTester<>(new TurnWorkflow(ticker));
+    WorkflowTester<Void, Words.State> workflow = new WorkflowTester<>(new TurnWorkflow(ticker));
 
     workflow.start(null);
 
