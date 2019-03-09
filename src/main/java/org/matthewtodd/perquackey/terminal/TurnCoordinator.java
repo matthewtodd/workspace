@@ -16,7 +16,7 @@ class TurnCoordinator implements Coordinator<TurnView> {
   }
 
   @Override public void attach(TurnView view) {
-    view.input.setKeyPressListener(keyStroke -> {
+    view.commandLine.setKeyPressListener(keyStroke -> {
       switch (keyStroke.getKeyType()) {
         case Character:
           switch (keyStroke.getCharacter()) {
@@ -56,10 +56,10 @@ class TurnCoordinator implements Coordinator<TurnView> {
 
       new TableUpdater(view.words.getTableModel()).update(turn.words());
 
-      view.input.setText(String.format(":%s", turn.input()));
+      view.commandLine.setText(String.format(":%s", turn.input()));
     });
 
-    view.input.takeFocus();
+    view.commandLine.takeFocus();
   }
 
   static class TableUpdater {

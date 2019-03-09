@@ -6,8 +6,6 @@ import com.googlecode.lanterna.gui2.AbstractInteractableComponent;
 import com.googlecode.lanterna.gui2.BorderLayout;
 import com.googlecode.lanterna.gui2.Direction;
 import com.googlecode.lanterna.gui2.GridLayout;
-import com.googlecode.lanterna.gui2.InputFilter;
-import com.googlecode.lanterna.gui2.Interactable;
 import com.googlecode.lanterna.gui2.InteractableRenderer;
 import com.googlecode.lanterna.gui2.Label;
 import com.googlecode.lanterna.gui2.Panel;
@@ -24,7 +22,7 @@ class TurnView extends View<TurnView> {
   final Label timer = new Label("");
   final Table<String> words = new Table<String>("")
       .setTableHeaderRenderer(new LabelIsWidthRenderer());
-  final Input input = new Input();
+  final CommandLine commandLine = new CommandLine();
 
   // TODO I don't like the mutability here.
   // View just gives us listeners.
@@ -40,10 +38,10 @@ class TurnView extends View<TurnView> {
             .addComponent(words)
             .addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.BOTTOM)
             .setLayoutData(BorderLayout.Location.CENTER))
-        .addComponent(input, BorderLayout.Location.BOTTOM));
+        .addComponent(commandLine, BorderLayout.Location.BOTTOM));
   }
 
-  static class Input extends AbstractInteractableComponent<Input> {
+  static class CommandLine extends AbstractInteractableComponent<CommandLine> {
     private Consumer<KeyStroke> keyPressListener = c -> { };
     private String text = "";
 
@@ -64,19 +62,19 @@ class TurnView extends View<TurnView> {
       this.keyPressListener = (keyPressListener != null) ? keyPressListener : c -> { };
     }
 
-    @Override protected InteractableRenderer<Input> createDefaultRenderer() {
-      return new InteractableRenderer<Input>() {
-        @Override public TerminalPosition getCursorLocation(Input input) {
-          return TerminalPosition.TOP_LEFT_CORNER.withRelativeColumn(input.getText().length());
+    @Override protected InteractableRenderer<CommandLine> createDefaultRenderer() {
+      return new InteractableRenderer<CommandLine>() {
+        @Override public TerminalPosition getCursorLocation(CommandLine commandLine) {
+          return TerminalPosition.TOP_LEFT_CORNER.withRelativeColumn(commandLine.getText().length());
         }
 
-        @Override public TerminalSize getPreferredSize(Input input) {
-          return TerminalSize.ONE.withRelativeColumns(input.getText().length());
+        @Override public TerminalSize getPreferredSize(CommandLine commandLine) {
+          return TerminalSize.ONE.withRelativeColumns(commandLine.getText().length());
         }
 
         @Override
-        public void drawComponent(TextGUIGraphics textGUIGraphics, Input input) {
-          textGUIGraphics.putString(TerminalPosition.TOP_LEFT_CORNER, input.getText());
+        public void drawComponent(TextGUIGraphics textGUIGraphics, CommandLine commandLine) {
+          textGUIGraphics.putString(TerminalPosition.TOP_LEFT_CORNER, commandLine.getText());
         }
       };
     }

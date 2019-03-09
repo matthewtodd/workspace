@@ -50,4 +50,8 @@ public class AssertSubscriber<T> implements Subscriber<T> {
   public void assertValueCount(int i) {
     delegate.assertValueCount(i);
   }
+
+  @SafeVarargs public final void assertValues(T... values) {
+    delegate.assertValues(values);
+  }
 }

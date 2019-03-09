@@ -26,8 +26,8 @@ public class TurnViewTest {
     view.score.setText("1900 points");
     view.timer.setText("1:42");
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
-    view.input.setText(":za");
-    view.input.takeFocus();
+    view.commandLine.setText(":za");
+    view.commandLine.takeFocus();
 
     looper.get().run();
 

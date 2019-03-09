@@ -1,5 +1,6 @@
 package org.matthewtodd.perquackey;
 
+import java.util.function.Predicate;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.workflow.Workflow;
 import org.matthewtodd.workflow.WorkflowScreen;
@@ -12,13 +13,15 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
   private final Timer timer;
   private final Words words;
   private final Input input;
-  private Publisher<Long> ticker;
+  private final Publisher<Long> ticker;
+  private final Predicate<String> dictionary;
 
   public TurnWorkflow(Publisher<Long> ticker) {
     this.ticker = ticker;
 
     screen = Flow.pipe();
-    input = new Input();
+    dictionary = word -> word.length() >= 3;
+    input = new Input(dictionary);
     scorer = new Scorer();
     timer = new Timer(180L);
     words = new Words();

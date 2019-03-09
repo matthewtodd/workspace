@@ -43,11 +43,11 @@ public class PerquackeyTest {
 
   @Test public void input() {
     perquackey.on(TurnView.class, view -> {
-      assertThat(view.input.getText()).isEqualTo(":");
+      assertThat(view.commandLine.getText()).isEqualTo(":");
       perquackey.type("apple");
-      assertThat(view.input.getText()).isEqualTo(":apple");
+      assertThat(view.commandLine.getText()).isEqualTo(":apple");
       perquackey.typeEnter();
-      assertThat(view.input.getText()).isEqualTo(":");
+      assertThat(view.commandLine.getText()).isEqualTo(":");
     });
   }
 
@@ -63,7 +63,7 @@ public class PerquackeyTest {
     perquackey.on(TurnView.class, view -> {
       perquackey.type("za");
       perquackey.typeEnter();
-      assertThat(view.input.getText()).isEqualTo(":za");
+      assertThat(view.commandLine.getText()).isEqualTo(":za");
     });
   }
 
