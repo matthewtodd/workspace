@@ -14,9 +14,9 @@ public class TurnScreen extends WorkflowScreen<TurnScreen.Data, TurnScreen.Event
     private final Words.State words;
     private final int score;
     private final Timer.State timer;
-    private Input.State input;
+    private final String input;
 
-    Data(Words.State words, int score, Timer.State timer, Input.State input) {
+    Data(Words.State words, int score, Timer.State timer, String input) {
       this.words = words;
       this.score = score;
       this.timer = timer;
@@ -35,7 +35,7 @@ public class TurnScreen extends WorkflowScreen<TurnScreen.Data, TurnScreen.Event
       return timer;
     }
 
-    public Input.State input() {
+    public String input() {
       return input;
     }
   }

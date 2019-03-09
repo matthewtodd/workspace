@@ -67,16 +67,6 @@ public class PerquackeyTest {
     });
   }
 
-  @Test public void inputRejectedMessage() {
-    perquackey.on(TurnView.class, view -> {
-      perquackey.type("za");
-      perquackey.typeEnter();
-      assertThat(view.message.getText()).isEqualTo("too short");
-      perquackey.type("p");
-      assertThat(view.message.getText()).isEmpty();
-    });
-  }
-
   @Test public void scoring() {
     perquackey.on(TurnView.class, view -> {
       assertThat(view.score.getText()).isEqualTo("0 points");

@@ -38,7 +38,7 @@ public class TerminalUI implements Consumer<Component> {
     window.setComponent(component);
   }
 
-  public Component getComponent() {
+  Component getComponent() {
     return window.getComponent();
   }
 

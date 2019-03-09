@@ -2,11 +2,12 @@ package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.AbstractInteractableComponent;
 import com.googlecode.lanterna.gui2.BorderLayout;
 import com.googlecode.lanterna.gui2.Direction;
 import com.googlecode.lanterna.gui2.GridLayout;
+import com.googlecode.lanterna.gui2.InputFilter;
+import com.googlecode.lanterna.gui2.Interactable;
 import com.googlecode.lanterna.gui2.InteractableRenderer;
 import com.googlecode.lanterna.gui2.Label;
 import com.googlecode.lanterna.gui2.Panel;
@@ -24,8 +25,6 @@ class TurnView extends View<TurnView> {
   final Table<String> words = new Table<String>("")
       .setTableHeaderRenderer(new LabelIsWidthRenderer());
   final Input input = new Input();
-  final Label message = new Label("")
-      .setForegroundColor(TextColor.ANSI.RED);
 
   // TODO I don't like the mutability here.
   // View just gives us listeners.
@@ -41,10 +40,7 @@ class TurnView extends View<TurnView> {
             .addComponent(words)
             .addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.BOTTOM)
             .setLayoutData(BorderLayout.Location.CENTER))
-        .addComponent(new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
-            .addComponent(input, GridLayout.createHorizontallyFilledLayoutData(1))
-            .addComponent(message, GridLayout.createHorizontallyEndAlignedLayoutData(1))
-            .setLayoutData(BorderLayout.Location.BOTTOM)));
+        .addComponent(input, BorderLayout.Location.BOTTOM));
   }
 
   static class Input extends AbstractInteractableComponent<Input> {
@@ -71,7 +67,7 @@ class TurnView extends View<TurnView> {
     @Override protected InteractableRenderer<Input> createDefaultRenderer() {
       return new InteractableRenderer<Input>() {
         @Override public TerminalPosition getCursorLocation(Input input) {
-          return input.getPosition().withRelativeColumn(input.getText().length());
+          return TerminalPosition.TOP_LEFT_CORNER.withRelativeColumn(input.getText().length());
         }
 
         @Override public TerminalSize getPreferredSize(Input input) {

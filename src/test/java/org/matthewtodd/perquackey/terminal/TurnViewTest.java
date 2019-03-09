@@ -27,7 +27,7 @@ public class TurnViewTest {
     view.timer.setText("1:42");
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
     view.input.setText(":za");
-    view.message.setText("too short");
+    view.input.takeFocus();
 
     looper.get().run();
 
@@ -41,8 +41,12 @@ public class TurnViewTest {
         "                                                  ",
         "                                                  ",
         "──────────────────────────────────────────────────",
-        ":za                                      too short"
+        ":za                                               "
     );
+
+    assertThat(terminal.getCursorBufferPosition().getColumn()).isEqualTo(3);
+    assertThat(terminal.getCursorBufferPosition().getRow()).isEqualTo(9);
+    assertThat(terminal.isCursorVisible()).isTrue();
   }
 
   private Collection<String> contentsOf(VirtualTerminal terminal) {
