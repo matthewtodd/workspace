@@ -1,13 +1,19 @@
 package org.matthewtodd.perquackey.terminal;
 
+import com.googlecode.lanterna.SGR;
+import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
+import com.googlecode.lanterna.TextColor;
+import com.googlecode.lanterna.graphics.TextGraphics;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.terminal.Terminal;
-import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
-import com.googlecode.lanterna.terminal.virtual.VirtualTerminal;
-import com.googlecode.lanterna.terminal.virtual.VirtualTerminalListener;
+import com.googlecode.lanterna.terminal.TerminalResizeListener;
 import io.reactivex.processors.BehaviorProcessor;
+import java.io.IOException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -97,15 +103,13 @@ public class PerquackeyTest {
 
   private static class PerquackeyTester {
     private final BehaviorProcessor<Long> ticker;
-    private final VirtualTerminal terminal;
+    private final NullTerminal terminal;
     private final AtomicReference<Runnable> looper;
     private final Application application;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     PerquackeyTester() {
       ticker = BehaviorProcessor.create();
-      terminal = new DefaultVirtualTerminal();
-      terminal.addVirtualTerminalListener(new TerminalListener());
+      terminal = new NullTerminal();
       looper = new AtomicReference<>();
       application = Perquackey.newBuilder()
           .ticker(ticker)
@@ -144,24 +148,122 @@ public class PerquackeyTest {
     }
 
     boolean closed() {
+      return terminal.closed();
+    }
+  }
+
+  // Just a little lighter than a real terminal. Seems to help with test time!
+  private static class NullTerminal implements Terminal {
+    private final BlockingQueue<KeyStroke> input;
+    private final AtomicBoolean closed;
+
+    NullTerminal() {
+      this.input = new LinkedBlockingQueue<>();
+      this.closed = new AtomicBoolean(false);
+    }
+
+    void addInput(KeyStroke keyStroke) {
+      input.add(keyStroke);
+    }
+
+    boolean closed() {
       return closed.get();
     }
 
-    class TerminalListener implements VirtualTerminalListener {
-      @Override public void onFlush() {
+    @Override public void enterPrivateMode() throws IOException {
 
-      }
+    }
 
-      @Override public void onBell() {
+    @Override public void exitPrivateMode() throws IOException {
 
-      }
+    }
 
-      @Override public void onClose() {
-        closed.set(true);
-      }
+    @Override public void clearScreen() throws IOException {
 
-      @Override public void onResized(Terminal terminal, TerminalSize newSize) {
+    }
 
+    @Override public void setCursorPosition(int i, int i1) throws IOException {
+
+    }
+
+    @Override public void setCursorPosition(TerminalPosition terminalPosition)
+        throws IOException {
+
+    }
+
+    @Override public TerminalPosition getCursorPosition() throws IOException {
+      return null;
+    }
+
+    @Override public void setCursorVisible(boolean b) throws IOException {
+
+    }
+
+    @Override public void putCharacter(char c) throws IOException {
+
+    }
+
+    @Override public TextGraphics newTextGraphics() throws IOException {
+      return null;
+    }
+
+    @Override public void enableSGR(SGR sgr) throws IOException {
+
+    }
+
+    @Override public void disableSGR(SGR sgr) throws IOException {
+
+    }
+
+    @Override public void resetColorAndSGR() throws IOException {
+
+    }
+
+    @Override public void setForegroundColor(TextColor textColor) throws IOException {
+
+    }
+
+    @Override public void setBackgroundColor(TextColor textColor) throws IOException {
+
+    }
+
+    @Override public void addResizeListener(TerminalResizeListener terminalResizeListener) {
+
+    }
+
+    @Override public void removeResizeListener(TerminalResizeListener terminalResizeListener) {
+
+    }
+
+    @Override public TerminalSize getTerminalSize() throws IOException {
+      return TerminalSize.ONE;
+    }
+
+    @Override public byte[] enquireTerminal(int i, TimeUnit timeUnit) throws IOException {
+      return new byte[0];
+    }
+
+    @Override public void bell() throws IOException {
+
+    }
+
+    @Override public void flush() throws IOException {
+
+    }
+
+    @Override public void close() throws IOException {
+      closed.set(true);
+    }
+
+    @Override public KeyStroke pollInput() throws IOException {
+      return input.poll();
+    }
+
+    @Override public KeyStroke readInput() throws IOException {
+      try {
+        return input.take();
+      } catch (InterruptedException e) {
+        throw new IOException(e);
       }
     }
   }
