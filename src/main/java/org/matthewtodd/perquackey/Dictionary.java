@@ -12,9 +12,7 @@ class Dictionary {
   private final Set<String> words = new LinkedHashSet<>();
 
   Dictionary(Reader source) {
-    new BufferedReader(source).lines()
-        .filter(word -> word.length() <= 13)
-        .forEach(words::add);
+    new BufferedReader(source).lines().forEach(words::add);
   }
 
   public static Dictionary standard() {

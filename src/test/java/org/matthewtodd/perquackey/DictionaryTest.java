@@ -35,14 +35,11 @@ public class DictionaryTest {
         entry(10, 22326),
         entry(11, 16165),
         entry(12, 11417),
-        entry(13, 7750) //,
-        //entry(15, 3157)
+        entry(13, 7750)
     );
   }
 
   @Test public void memory() {
-    // Save 120Kb / 7.5% of memory by stripping 14- and 15-letter words.
-    //assertThat(Dictionary.standard().memory()).isEqualTo(1584476);
     assertThat(Dictionary.standard().memory()).isEqualTo(1466093);
   }
 }
