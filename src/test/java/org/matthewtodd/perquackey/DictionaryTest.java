@@ -16,12 +16,6 @@ public class DictionaryTest {
     assertThat(new Dictionary(new StringReader("foo\nbar")).contains("foo")).isTrue();
   }
 
-  @Test public void skipsFourteenLetterWords() {
-    Dictionary dictionary = new Dictionary(new StringReader("aaaaaaaaaaaaa\naaaaaaaaaaaaaa"));
-    assertThat(dictionary.contains("aaaaaaaaaaaaa")).isTrue();
-    assertThat(dictionary.contains("aaaaaaaaaaaaaa")).isFalse();
-  }
-
   @Test public void standard() {
     Dictionary dictionary = Dictionary.standard();
     assertThat(dictionary.contains("foo")).isFalse();
@@ -42,7 +36,6 @@ public class DictionaryTest {
         entry(11, 16165),
         entry(12, 11417),
         entry(13, 7750) //,
-        //entry(14, 5059),
         //entry(15, 3157)
     );
   }
