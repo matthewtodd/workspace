@@ -20,7 +20,7 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
     this.ticker = ticker;
 
     screen = Flow.pipe();
-    dictionary = word -> word.length() >= 3;
+    dictionary = Dictionary.standard()::contains;
     input = new Input(dictionary);
     scorer = new Scorer();
     timer = new Timer(180L);

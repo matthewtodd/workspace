@@ -1,5 +1,6 @@
 directories:
   src/main/java
+  src/main/resources
   src/test/java
 
 test_sources:
