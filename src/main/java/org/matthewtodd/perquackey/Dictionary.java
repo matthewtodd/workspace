@@ -13,7 +13,6 @@ class Dictionary {
 
   Dictionary(Reader source) {
     new BufferedReader(source).lines()
-        .filter(word -> word.length() >= 3)
         .filter(word -> word.length() <= 13)
         .forEach(words::add);
   }

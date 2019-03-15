@@ -16,12 +16,6 @@ public class DictionaryTest {
     assertThat(new Dictionary(new StringReader("foo\nbar")).contains("foo")).isTrue();
   }
 
-  @Test public void skipsTwoLetterWords() {
-    Dictionary dictionary = new Dictionary(new StringReader("of\noft"));
-    assertThat(dictionary.contains("of")).isFalse();
-    assertThat(dictionary.contains("oft")).isTrue();
-  }
-
   @Test public void skipsFourteenLetterWords() {
     Dictionary dictionary = new Dictionary(new StringReader("aaaaaaaaaaaaa\naaaaaaaaaaaaaa"));
     assertThat(dictionary.contains("aaaaaaaaaaaaa")).isTrue();
@@ -37,7 +31,6 @@ public class DictionaryTest {
   @Test public void stats() {
     Map<Integer, Integer> stats = Dictionary.standard().stats();
     assertThat(stats.entrySet()).containsExactly(
-        //entry(2, 101),
         entry(3, 1015),
         entry(4, 4030),
         entry(5, 8938),
