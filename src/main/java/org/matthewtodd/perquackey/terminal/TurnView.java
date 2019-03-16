@@ -23,6 +23,7 @@ class TurnView extends View<TurnView> {
   final Table<String> words = new Table<String>("")
       .setTableHeaderRenderer(new LabelIsWidthRenderer());
   final CommandLine commandLine = new CommandLine();
+  final Label letters = new Label("");
 
   // TODO I don't like the mutability here.
   // View just gives us listeners.
@@ -38,7 +39,10 @@ class TurnView extends View<TurnView> {
             .addComponent(words)
             .addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.BOTTOM)
             .setLayoutData(BorderLayout.Location.CENTER))
-        .addComponent(commandLine, BorderLayout.Location.BOTTOM));
+        .addComponent(new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
+            .addComponent(commandLine, GridLayout.createHorizontallyFilledLayoutData(1))
+            .addComponent(letters, GridLayout.createHorizontallyEndAlignedLayoutData(1))
+            .setLayoutData(BorderLayout.Location.BOTTOM)));
   }
 
   static class CommandLine extends AbstractInteractableComponent<CommandLine> {

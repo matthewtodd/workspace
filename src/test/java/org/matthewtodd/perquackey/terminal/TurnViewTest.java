@@ -28,6 +28,7 @@ public class TurnViewTest {
     view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
     view.commandLine.setText(":za");
     view.commandLine.takeFocus();
+    view.letters.setText("abc");
 
     looper.get().run();
 
@@ -41,7 +42,7 @@ public class TurnViewTest {
         "                                                  ",
         "                                                  ",
         "──────────────────────────────────────────────────",
-        ":za                                               "
+        ":za                                            abc"
     );
 
     assertThat(terminal.getCursorBufferPosition().getColumn()).isEqualTo(3);
