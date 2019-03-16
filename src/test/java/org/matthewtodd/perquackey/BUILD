@@ -35,6 +35,14 @@ java_test(
 )
 
 java_test(
+    name = "LettersTest",
+    size = "small",
+    runtime_deps = [
+        ":perquackey",
+    ],
+)
+
+java_test(
     name = "ScorerTest",
     size = "small",
     runtime_deps = [

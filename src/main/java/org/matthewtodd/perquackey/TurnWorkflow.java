@@ -15,6 +15,7 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
   private final Input input;
   private final Publisher<Long> ticker;
   private final Predicate<String> dictionary;
+  private final Letters letters;
 
   public TurnWorkflow(Publisher<Long> ticker) {
     this.ticker = ticker;
@@ -22,6 +23,7 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
     screen = Flow.pipe();
     dictionary = Dictionary.standard()::contains;
     input = new Input(dictionary);
+    letters = new Letters();
     scorer = new Scorer();
     timer = new Timer(180L);
     words = new Words();
@@ -31,9 +33,13 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
     Flow.of(ticker).subscribe(timer::tick);
     Flow.of(input.entries()).subscribe(words::spell);
 
-    screen.onNext(new TurnScreen(
-        Flow.of(words.state(), Flow.of(words.state()).as(scorer::score).build(), timer.state(),
-            input.state()).as(TurnScreen.Data::new).build(), this));
+    screen.onNext(new TurnScreen(Flow.of(
+        words.state(),
+        Flow.of(words.state()).as(scorer::score).build(),
+        Flow.of(words.state()).as(letters::glean).build(),
+        timer.state(),
+        input.state()
+    ).as(TurnScreen.Data::new).build(), this));
   }
 
   @Override public Publisher<? extends WorkflowScreen<?, ?>> screen() {

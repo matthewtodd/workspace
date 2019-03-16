@@ -19,10 +19,10 @@ public class Flow {
     return new Builder<>(fromPublisher(source));
   }
 
-  public static <T1, T2, T3, T4> Builder4<T1, T2, T3, T4> of(Publisher<T1> source1,
-      Publisher<T2> source2, Publisher<T3> source3, Publisher<T4> source4) {
-    return new Builder4<>(fromPublisher(source1), fromPublisher(source2), fromPublisher(source3),
-        fromPublisher(source4));
+  public static <T1, T2, T3, T4, T5> Builder5<T1, T2, T3, T4, T5> of(Publisher<T1> source1,
+      Publisher<T2> source2, Publisher<T3> source3, Publisher<T4> source4, Publisher<T5> source5) {
+    return new Builder5<>(fromPublisher(source1), fromPublisher(source2), fromPublisher(source3),
+        fromPublisher(source4), fromPublisher(source5));
   }
 
   public static <T> Processor<T, T> pipe() {
@@ -73,26 +73,29 @@ public class Flow {
     }
   }
 
-  public static final class Builder4<T1, T2, T3, T4> {
+  public static final class Builder5<T1, T2, T3, T4, T5> {
     private final Flowable<T1> source1;
     private final Flowable<T2> source2;
     private final Flowable<T3> source3;
     private final Flowable<T4> source4;
+    private final Flowable<T5> source5;
 
-    private Builder4(Flowable<T1> source1, Flowable<T2> source2, Flowable<T3> source3,
-        Flowable<T4> source4) {
+    private Builder5(Flowable<T1> source1, Flowable<T2> source2, Flowable<T3> source3,
+        Flowable<T4> source4, Flowable<T5> source5) {
       this.source1 = source1;
       this.source2 = source2;
       this.source3 = source3;
       this.source4 = source4;
+      this.source5 = source5;
     }
 
-    public <T> Builder<T> as(Function4<T1, T2, T3, T4, T> combiner) {
-      return new Builder<>(combineLatest(source1, source2, source3, source4, combiner::apply));
+    public <T> Builder<T> as(Function5<T1, T2, T3, T4, T5, T> combiner) {
+      return new Builder<>(
+          combineLatest(source1, source2, source3, source4, source5, combiner::apply));
     }
 
-    public interface Function4<T1, T2, T3, T4, T> {
-      T apply(T1 t1, T2 t2, T3 t3, T4 t4);
+    public interface Function5<T1, T2, T3, T4, T5, T> {
+      T apply(T1 t1, T2 t2, T3 t3, T4 t4, T5 t5);
     }
   }
 

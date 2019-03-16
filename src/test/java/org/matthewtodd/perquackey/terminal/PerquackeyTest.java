@@ -42,6 +42,16 @@ public class PerquackeyTest {
     });
   }
 
+  @Test public void letters() {
+    perquackey.on(TurnView.class, view -> {
+      assertThat(view.letters.getText()).isEmpty();
+      perquackey.type("apple");
+      assertThat(view.letters.getText()).isEmpty();
+      perquackey.typeEnter();
+      assertThat(view.letters.getText()).isEqualTo("aelpp");
+    });
+  }
+
   @Test public void columnHeaders() {
     perquackey.on(TurnView.class, view -> assertThat(view.words.getTableModel().getColumnLabels())
         .containsExactly("3", "4", "5", "6", "7", "8", "9"));
