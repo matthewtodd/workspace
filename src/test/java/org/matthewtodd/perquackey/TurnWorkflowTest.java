@@ -71,12 +71,13 @@ public class TurnWorkflowTest {
     });
   }
 
-  @Test @Ignore("WIP") public void inputRejected_impossibleToSpell() {
+  @Test public void inputRejected_impossibleToSpell() {
     // aiejoottuy
     workflow.onTurnScreen(screen -> {
       screen.type("tout").enter(); // ottu
       screen.type("tie").enter(); // eiottu
       screen.type("joy").enter(); // eijottuy
+      screen.assertThatWords().containsExactly("tout", "tie", "joy");
       screen.type("ran").enter(); // ! only 2 unknown letters left; "ran" needs 3
       screen.assertThatWords().doesNotContain("ran");
     });
