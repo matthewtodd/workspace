@@ -24,6 +24,10 @@ import org.matthewtodd.terminal.View;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// This test shows the UI wired up to the application.
+// Just a few simple connections will suffice.
+// More logic tests should go around the workflow.
+// The view tests show what's on the screen.
 public class PerquackeyTest {
   private PerquackeyTester perquackey;
 
@@ -35,9 +39,7 @@ public class PerquackeyTest {
   @Test public void words() {
     perquackey.on(TurnView.class, view -> {
       assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
-      perquackey.type("apple");
-      assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
-      perquackey.typeEnter();
+      perquackey.type("apple").typeEnter();
       assertThat(view.words.getTableModel().getCell(2, 0)).isEqualTo("apple");
     });
   }
@@ -45,9 +47,7 @@ public class PerquackeyTest {
   @Test public void letters() {
     perquackey.on(TurnView.class, view -> {
       assertThat(view.letters.getText()).isEmpty();
-      perquackey.type("apple");
-      assertThat(view.letters.getText()).isEmpty();
-      perquackey.typeEnter();
+      perquackey.type("apple").typeEnter();
       assertThat(view.letters.getText()).isEqualTo("aelpp");
     });
   }
@@ -69,16 +69,14 @@ public class PerquackeyTest {
 
   @Test public void inputRejected() {
     perquackey.on(TurnView.class, view -> {
-      perquackey.type("za");
-      perquackey.typeEnter();
+      perquackey.type("za").typeEnter();
       assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
     });
   }
 
   @Test public void inputRejectedRemains() {
     perquackey.on(TurnView.class, view -> {
-      perquackey.type("za");
-      perquackey.typeEnter();
+      perquackey.type("za").typeEnter();
       assertThat(view.commandLine.getText()).isEqualTo(":za");
     });
   }
@@ -86,9 +84,7 @@ public class PerquackeyTest {
   @Test public void scoring() {
     perquackey.on(TurnView.class, view -> {
       assertThat(view.score.getText()).isEqualTo("0 points");
-      perquackey.type("apple");
-      assertThat(view.score.getText()).isEqualTo("0 points");
-      perquackey.typeEnter();
+      perquackey.type("apple").typeEnter();
       assertThat(view.score.getText()).isEqualTo("200 points");
     });
   }
@@ -140,8 +136,9 @@ public class PerquackeyTest {
       type(new KeyStroke(c, false, false));
     }
 
-    void type(String input) {
+    PerquackeyTester type(String input) {
       input.chars().forEachOrdered(c -> type((char) c));
+      return this;
     }
 
     void typeEnter() {
