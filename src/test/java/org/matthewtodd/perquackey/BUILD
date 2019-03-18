@@ -27,7 +27,7 @@ java_test(
 )
 
 java_test(
-    name = "InputTest",
+    name = "DiceTest",
     size = "small",
     runtime_deps = [
         ":perquackey",
@@ -35,7 +35,7 @@ java_test(
 )
 
 java_test(
-    name = "LettersTest",
+    name = "InputTest",
     size = "small",
     runtime_deps = [
         ":perquackey",

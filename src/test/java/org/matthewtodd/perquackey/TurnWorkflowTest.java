@@ -7,6 +7,7 @@ import org.assertj.core.api.AbstractIntegerAssert;
 import org.assertj.core.api.AbstractLongAssert;
 import org.assertj.core.api.IterableAssert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.matthewtodd.flow.AssertSubscriber;
 import org.matthewtodd.workflow.WorkflowTester;
@@ -50,10 +51,34 @@ public class TurnWorkflowTest {
 
   @Test public void inputRejected() {
     workflow.onTurnScreen(screen -> {
-      screen.assertThatInput().isEmpty();
+      screen.type("a").enter();
+      screen.assertThatInput().isEqualTo("a");
+      screen.assertThatWords().doesNotContain("a");
+    });
+  }
+
+  @Test public void inputRejected_tooShort() {
+    workflow.onTurnScreen(screen -> {
       screen.type("do").enter();
-      screen.assertThatInput().isEqualTo("do");
-      screen.assertThatWords().isEmpty();
+      screen.assertThatWords().doesNotContain("do");
+    });
+  }
+
+  @Test public void inputRejected_notInDictionary() {
+    workflow.onTurnScreen(screen -> {
+      screen.type("glarb").enter();
+      screen.assertThatWords().doesNotContain("glarb");
+    });
+  }
+
+  @Test @Ignore("WIP") public void inputRejected_impossibleToSpell() {
+    // aiejoottuy
+    workflow.onTurnScreen(screen -> {
+      screen.type("tout").enter(); // ottu
+      screen.type("tie").enter(); // eiottu
+      screen.type("joy").enter(); // eijottuy
+      screen.type("ran").enter(); // ! only 2 unknown letters left; "ran" needs 3
+      screen.assertThatWords().doesNotContain("ran");
     });
   }
 
