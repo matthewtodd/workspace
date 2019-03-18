@@ -1,51 +1,161 @@
 package org.matthewtodd.perquackey;
 
 import io.reactivex.processors.BehaviorProcessor;
-import io.reactivex.processors.FlowableProcessor;
+import java.util.function.Consumer;
+import org.assertj.core.api.AbstractCharSequenceAssert;
+import org.assertj.core.api.AbstractIntegerAssert;
+import org.assertj.core.api.AbstractLongAssert;
+import org.assertj.core.api.IterableAssert;
+import org.junit.Before;
 import org.junit.Test;
+import org.matthewtodd.flow.AssertSubscriber;
 import org.matthewtodd.workflow.WorkflowTester;
+import org.reactivestreams.Subscriber;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TurnWorkflowTest {
-  // This test isn't all that interesting --
-  // terminal.PerquackeyTest does all the same things through the UI.
-  // TurnTest gets into the nitty gritty of a turn.
-  // What this all points to is that the TurnWorkflow is kind of anemic!
-  // It just has one screen.
-  // We will be growing it (and this test) to support playing through an entire game,
-  // renaming to GameWorkflow, and then it will have a place.
-  //
-  // Thinking again, though, *this* is the platform-agnostic application/domain layer.
-  // Maybe it's the best place to do most of our testing?
-  // So, which tests belong at app, workflow, lego layers? Pyramid?
-  @Test public void playingATurn() {
-    FlowableProcessor<Long> ticker = BehaviorProcessor.create();
+  private TurnWorkflowTester workflow;
 
-    WorkflowTester<Void, Words.State> workflow = new WorkflowTester<>(new TurnWorkflow(ticker));
+  @Before public void setUp() {
+    workflow = new TurnWorkflowTester();
+    workflow.start();
+  }
 
-    workflow.start(null);
-
-    workflow.on(TurnScreen.class, (data, events) -> {
-      assertThat(data.get().words()).isEmpty();
-      assertThat(data.get().score()).isEqualTo(0);
-      assertThat(data.get().timer().running()).isFalse();
-      events.toggleTimer();
-      assertThat(data.get().timer().running()).isTrue();
-      events.letter('d');
-      events.letter('o');
-      events.letter('g');
-      events.word();
-      assertThat(data.get().words()).containsExactly("dog");
-      assertThat(data.get().score()).isEqualTo(60);
+  @Test public void words() {
+    workflow.onTurnScreen(screen -> {
+      screen.assertThatWords().isEmpty();
+      screen.type("dog").enter();
+      screen.assertThatWords().containsExactly("dog");
     });
+  }
 
-    for (int i = 0; i < 300; i++) {
-      ticker.onNext(1L);
+  @Test public void letters() {
+    workflow.onTurnScreen(screen -> {
+      screen.assertThatLetters().isEmpty();
+      screen.type("dog").enter();
+      screen.assertThatLetters().isEqualTo("dgo");
+    });
+  }
+
+  @Test public void input() {
+    workflow.onTurnScreen(screen -> {
+      screen.assertThatInput().isEmpty();
+      screen.type("dog");
+      screen.assertThatInput().isEqualTo("dog");
+      screen.enter();
+      screen.assertThatInput().isEmpty();
+    });
+  }
+
+  @Test public void inputRejected() {
+    workflow.onTurnScreen(screen -> {
+      screen.assertThatInput().isEmpty();
+      screen.type("do").enter();
+      screen.assertThatInput().isEqualTo("do");
+      screen.assertThatWords().isEmpty();
+    });
+  }
+
+  @Test public void score() {
+    workflow.onTurnScreen(screen -> {
+      screen.assertThatScore().isZero();
+      screen.type("dog").enter();
+      screen.assertThatScore().isEqualTo(60);
+    });
+  }
+
+  @Test public void timer() {
+    workflow.onTurnScreen(screen -> {
+      screen.assertThatTimeRemaining().isEqualTo(180);
+      screen.tick();
+      screen.assertThatTimeRemaining().isEqualTo(180);
+      screen.toggleTimer();
+      screen.assertThatTimeRemaining().isEqualTo(180);
+      screen.tick();
+      screen.assertThatTimeRemaining().isEqualTo(179);
+    });
+  }
+
+  @Test public void quitting() {
+    workflow.onTurnScreen(TurnScreenTester::quit);
+    workflow.assertThatResult().isEmpty();
+  }
+
+  private static class TurnWorkflowTester {
+    private final BehaviorProcessor<Long> ticker;
+    private final WorkflowTester<Void, Words.State> workflow;
+
+    TurnWorkflowTester() {
+      ticker = BehaviorProcessor.create();
+      workflow = new WorkflowTester<>(new TurnWorkflow(ticker));
     }
 
-    workflow.on(TurnScreen.class, (data, events) -> events.quit());
+    void start() {
+      workflow.start(null);
+    }
 
-    assertThat(workflow.result()).containsExactly("dog");
+    void onTurnScreen(Consumer<TurnScreenTester> assertions) {
+      workflow.on(TurnScreen.class,
+          (data, events) -> assertions.accept(new TurnScreenTester(data, events, ticker)));
+    }
+
+    IterableAssert<String> assertThatResult() {
+      return assertThat(workflow.result());
+    }
+  }
+
+  private static class TurnScreenTester {
+    private final AssertSubscriber<TurnScreen.Data> data;
+    private final TurnScreen.Events events;
+    private final Subscriber<Long> ticker;
+
+    TurnScreenTester(AssertSubscriber<TurnScreen.Data> data, TurnScreen.Events events,
+        Subscriber<Long> ticker) {
+      this.data = data;
+      this.events = events;
+      this.ticker = ticker;
+    }
+
+    AbstractCharSequenceAssert<?, String> assertThatInput() {
+      return assertThat(data.get().input());
+    }
+
+    AbstractCharSequenceAssert<?, String> assertThatLetters() {
+      return assertThat(data.get().letters());
+    }
+
+    AbstractIntegerAssert<?> assertThatScore() {
+      return assertThat(data.get().score());
+    }
+
+    AbstractLongAssert<?> assertThatTimeRemaining() {
+      return assertThat(data.get().timer().remaining());
+    }
+
+    IterableAssert<String> assertThatWords() {
+      return assertThat(data.get().words());
+    }
+
+    void enter() {
+      events.word();
+    }
+
+    void quit() {
+      events.quit();
+    }
+
+    void tick() {
+      ticker.onNext(0L);
+    }
+
+    void toggleTimer() {
+      events.toggleTimer();
+    }
+
+    TurnScreenTester type(String word) {
+      word.chars().forEach(c -> events.letter((char) c));
+      return this;
+    }
   }
 }

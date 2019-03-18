@@ -67,20 +67,6 @@ public class PerquackeyTest {
     });
   }
 
-  @Test public void inputRejected() {
-    perquackey.on(TurnView.class, view -> {
-      perquackey.type("za").typeEnter();
-      assertThat(view.words.getTableModel().getRowCount()).isEqualTo(0);
-    });
-  }
-
-  @Test public void inputRejectedRemains() {
-    perquackey.on(TurnView.class, view -> {
-      perquackey.type("za").typeEnter();
-      assertThat(view.commandLine.getText()).isEqualTo(":za");
-    });
-  }
-
   @Test public void scoring() {
     perquackey.on(TurnView.class, view -> {
       assertThat(view.score.getText()).isEqualTo("0 points");
