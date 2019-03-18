@@ -31,8 +31,8 @@ class TurnView extends View<TurnView> {
   TurnView() {
     setComponent(new Panel(new BorderLayout())
         .addComponent(new Panel(new GridLayout(2).setLeftMarginSize(0).setRightMarginSize(0))
-            .addComponent(score, GridLayout.createHorizontallyFilledLayoutData(1))
-            .addComponent(timer, GridLayout.createHorizontallyEndAlignedLayoutData(1))
+            .addComponent(timer, GridLayout.createHorizontallyFilledLayoutData(1))
+            .addComponent(score, GridLayout.createHorizontallyEndAlignedLayoutData(1))
             .setLayoutData(BorderLayout.Location.TOP))
         .addComponent(new Panel(new BorderLayout())
             .addComponent(new Separator(Direction.HORIZONTAL), BorderLayout.Location.TOP)

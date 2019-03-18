@@ -49,10 +49,10 @@ class TurnCoordinator implements Coordinator<TurnView> {
       // TODO could push formatting up into the view widgets.
       view.score.setText(String.format("%d points", turn.score()));
 
-      view.timer.setText(String.format("%s%d:%02d",
-          turn.timer().running() ? "" : "[paused] ",
+      view.timer.setText(String.format("%d:%02d%s",
           turn.timer().remaining() / 60,
-          turn.timer().remaining() % 60));
+          turn.timer().remaining() % 60,
+          turn.timer().running() ? "" : " [paused]"));
 
       new TableUpdater(view.words.getTableModel()).update(turn.words());
 

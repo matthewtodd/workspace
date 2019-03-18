@@ -95,9 +95,9 @@ public class PerquackeyTest {
 
   @Test public void timer() {
     perquackey.on(TurnView.class, view -> {
-      assertThat(view.timer.getText()).isEqualTo("[paused] 3:00");
+      assertThat(view.timer.getText()).isEqualTo("3:00 [paused]");
       perquackey.timerTicks();
-      assertThat(view.timer.getText()).isEqualTo("[paused] 3:00");
+      assertThat(view.timer.getText()).isEqualTo("3:00 [paused]");
       perquackey.type(' ');
       assertThat(view.timer.getText()).isEqualTo("3:00");
       perquackey.timerTicks();
