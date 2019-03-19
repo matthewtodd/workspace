@@ -41,17 +41,21 @@ class Dice {
   }
 
   public void observe(Iterable<String> words) {
+    // TODO ertain a Letters object, not the string.
     letters = StreamSupport.stream(words.spliterator(), true)
         .map(word -> word.chars().collect(Letters::new, Letters::add, Letters::addAll))
         .reduce(new Letters(), Letters::max)
         .toString();
     scenarios.clear();
+    // TODO pass a Letters object
     scenarios.addAll(calculateScenarios(letters, singletonList(baseScenario())));
+    // TODO emit letters.toString();
     state.onNext(letters);
   }
 
   boolean couldSpell(String word) {
     // TODO could short circuit. It's unnecessary here to find all the scenarios, just one.
+    // TODO make letters.without(), except the name is wrong.
     return !calculateScenarios(without(letters, word), scenarios).isEmpty();
   }
 
