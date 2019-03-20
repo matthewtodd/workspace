@@ -33,33 +33,29 @@ class Dice {
 
   private final Collection<BitSet> scenarios;
   private final Processor<String, String> state = Flow.pipe("");
-  private String letters = "";
+  private Letters letters = new Letters();
 
   Dice() {
     scenarios = new ArrayList<>();
     scenarios.add(baseScenario());
   }
 
-  public void observe(Iterable<String> words) {
-    // TODO ertain a Letters object, not the string.
+  void observe(Iterable<String> words) {
     letters = StreamSupport.stream(words.spliterator(), true)
         .map(word -> word.chars().collect(Letters::new, Letters::add, Letters::addAll))
-        .reduce(new Letters(), Letters::max)
-        .toString();
+        .reduce(new Letters(), Letters::max);
     scenarios.clear();
     // TODO pass a Letters object
-    scenarios.addAll(calculateScenarios(letters, singletonList(baseScenario())));
-    // TODO emit letters.toString();
-    state.onNext(letters);
+    scenarios.addAll(calculateScenarios(letters.toString(), singletonList(baseScenario())));
+    state.onNext(letters.toString());
   }
 
   boolean couldSpell(String word) {
     // TODO could short circuit. It's unnecessary here to find all the scenarios, just one.
-    // TODO make letters.without(), except the name is wrong.
-    return !calculateScenarios(without(letters, word), scenarios).isEmpty();
+    return !calculateScenarios(letters.newLettersIn(word).toString(), scenarios).isEmpty();
   }
 
-  public Publisher<String> state() {
+  Publisher<String> state() {
     return state;
   }
 
@@ -90,23 +86,6 @@ class Dice {
     }
 
     return calculateScenarios(letters.substring(1), layer);
-  }
-
-  private static String without(String letters, String word) {
-    StringBuilder mutableLetters = new StringBuilder(letters);
-    StringBuilder result = new StringBuilder();
-
-    for (int i = 0; i < word.length(); i++) {
-      String letter = word.substring(i, i + 1);
-      int index = mutableLetters.indexOf(letter);
-      if (index >= 0) {
-        mutableLetters.setCharAt(index, '!');
-      } else {
-        result.append(letter);
-      }
-    }
-
-    return result.toString();
   }
 
   private static class Die {
@@ -157,6 +136,23 @@ class Dice {
         buckets[i] = (byte) Math.max(this.buckets[i], other.buckets[i]);
       }
       return new Letters(buckets);
+    }
+
+    Letters newLettersIn(String word) {
+      byte[] mutableBuckets = new byte[26];
+      System.arraycopy(buckets, 0, mutableBuckets, 0, 26);
+      Letters result = new Letters();
+
+      for (int i = 0; i < word.length(); i++) {
+        char letter = word.charAt(i);
+        if (mutableBuckets[letter - 'a'] > 0) {
+          mutableBuckets[letter - 'a']--;
+        } else {
+          result.add(letter);
+        }
+      }
+
+      return result;
     }
 
     @Override public String toString() {
