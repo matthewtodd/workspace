@@ -3,6 +3,7 @@ package org.matthewtodd.perquackey;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import org.matthewtodd.flow.Flow;
@@ -10,6 +11,7 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
 import static java.util.Arrays.asList;
+import static java.util.Arrays.copyOf;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
 
@@ -43,16 +45,16 @@ class Dice {
   void observe(Iterable<String> words) {
     letters = StreamSupport.stream(words.spliterator(), true)
         .map(word -> word.chars().collect(Letters::new, Letters::add, Letters::addAll))
-        .reduce(new Letters(), Letters::max);
+        .reduce(new Letters(), Letters::union);
     scenarios.clear();
     // TODO pass a Letters object
-    scenarios.addAll(calculateScenarios(letters.toString(), singletonList(baseScenario())));
+    scenarios.addAll(calculateScenarios(letters, singletonList(baseScenario())));
     state.onNext(letters.toString());
   }
 
   boolean couldSpell(String word) {
     // TODO could short circuit. It's unnecessary here to find all the scenarios, just one.
-    return !calculateScenarios(letters.newLettersIn(word).toString(), scenarios).isEmpty();
+    return !calculateScenarios(letters.newLettersIn(word), scenarios).isEmpty();
   }
 
   Publisher<String> state() {
@@ -65,13 +67,13 @@ class Dice {
     return scenario;
   }
 
-  private static Collection<BitSet> calculateScenarios(String letters,
+  private static Collection<BitSet> calculateScenarios(Letters letters,
       Collection<BitSet> scenarios) {
-    if (letters.isEmpty()) {
+    if (letters.toString().isEmpty()) {
       return scenarios;
     }
 
-    char letter = letters.charAt(0);
+    char letter = letters.toString().charAt(0);
     Collection<BitSet> layer = new ArrayList<>();
 
     for (BitSet scenario : scenarios) {
@@ -85,7 +87,7 @@ class Dice {
       }
     }
 
-    return calculateScenarios(letters.substring(1), layer);
+    return calculateScenarios(letters.tail(), layer);
   }
 
   private static class Die {
@@ -109,7 +111,7 @@ class Dice {
     }
   }
 
-  private static class Letters {
+  private static class Letters implements Iterable<Character> {
     private final byte[] buckets;
 
     private Letters() {
@@ -120,34 +122,70 @@ class Dice {
       this.buckets = buckets;
     }
 
+    private Letters copy() {
+      return new Letters(copyOf(buckets, buckets.length));
+    }
+
+    public Iterator<Character> iterator() {
+      return new LettersIterator();
+    }
+
+    private class LettersIterator implements Iterator<Character> {
+      private int index = 0;
+      private int count = 0;
+
+      @Override public boolean hasNext() {
+        for (; index < buckets.length; index++) {
+          if (count < buckets[index]) {
+            count++;
+            return true;
+          } else {
+            count = 0;
+          }
+        }
+        return false;
+      }
+
+      @Override public Character next() {
+        return (char) (index + 'a');
+      }
+    }
+
     void add(int letter) {
       buckets[letter - 'a']++;
     }
 
     void addAll(Letters other) {
-      for (int i = 0; i < other.buckets.length; i++) {
-        buckets[i] += other.buckets[i];
+      other.forEach(this::add);
+    }
+
+    boolean remove(int letter) {
+      if (buckets[letter - 'a'] > 0) {
+        buckets[letter - 'a']--;
+        return true;
+      } else {
+        return false;
       }
     }
 
-    Letters max(Letters other) {
-      byte[] buckets = new byte[26];
-      for (int i = 0; i < buckets.length; i++) {
-        buckets[i] = (byte) Math.max(this.buckets[i], other.buckets[i]);
-      }
-      return new Letters(buckets);
+    Letters union(Letters other) {
+      Letters result = copy();
+      Letters scratchpad = copy();
+      other.forEach(letter -> {
+        if (!scratchpad.remove(letter)) {
+          result.add(letter);
+        }
+      });
+      return result;
     }
 
     Letters newLettersIn(String word) {
-      byte[] mutableBuckets = new byte[26];
-      System.arraycopy(buckets, 0, mutableBuckets, 0, 26);
       Letters result = new Letters();
+      Letters scratchpad = copy();
 
       for (int i = 0; i < word.length(); i++) {
         char letter = word.charAt(i);
-        if (mutableBuckets[letter - 'a'] > 0) {
-          mutableBuckets[letter - 'a']--;
-        } else {
+        if (!scratchpad.remove(letter)) {
           result.add(letter);
         }
       }
@@ -155,13 +193,24 @@ class Dice {
       return result;
     }
 
+    int head() {
+      Iterator<Character> iterator = iterator();
+      if (iterator.hasNext()) {
+        return iterator.next();
+      } else {
+        throw new IllegalStateException();
+      }
+    }
+
+    Letters tail() {
+      Letters tail = copy();
+      tail.remove(head());
+      return tail;
+    }
+
     @Override public String toString() {
       StringBuilder result = new StringBuilder();
-      for (int i = 0; i < buckets.length; i++) {
-        for (int j = 0; j < buckets[i]; j++) {
-          result.append((char) ('a' + i));
-        }
-      }
+      forEach(result::append);
       return result.toString();
     }
   }
