@@ -16,54 +16,85 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
 
 class Dice {
-  private static final List<Die> dice = unmodifiableList(asList(
-      Die.of("aaaeee"),
-      Die.of("aaaeee"),
-      Die.of("bhikrt"),
-      Die.of("bloowy"),
-      Die.of("cmoopw"),
-      Die.of("dlnort"),
-      Die.of("ejqvxz"),
-      Die.of("fhirsu"),
-      Die.of("finptu"),
-      Die.of("gimrsu"),
-      // vulnerable:
-      Die.of("bfhlnp"),
-      Die.of("cdgjkm"),
-      Die.of("qssvwy")
-  ));
-
-  private final Collection<BitSet> possibleRolls;
   private final Processor<String, String> state = Flow.pipe("");
   private Letters letters = new Letters();
-
-  Dice() {
-    possibleRolls = new ArrayList<>();
-    possibleRolls.add(noDiceSpokenFor());
-  }
+  private PossibleRolls possibleRolls = new PossibleRolls();
 
   void observe(Iterable<String> words) {
     letters = StreamSupport.stream(words.spliterator(), true)
         .map(word -> word.chars().collect(Letters::new, Letters::add, Letters::addAll))
         .reduce(new Letters(), Letters::union);
-    possibleRolls.clear();
-    possibleRolls.addAll(letters.possibleRollsFrom(singletonList(noDiceSpokenFor())));
+    possibleRolls = new PossibleRolls(letters);
     state.onNext(letters.toString());
   }
 
   boolean couldSpell(String word) {
-    // TODO could short circuit. It's unnecessary here to find all the scenarios, just one.
-    return !letters.newLettersIn(word).possibleRollsFrom(possibleRolls).isEmpty();
+    return possibleRolls.couldDiceBeAvailableFor(letters.newLettersIn(word));
   }
 
   Publisher<String> state() {
     return state;
   }
 
-  private static BitSet noDiceSpokenFor() {
-    BitSet scenario = new BitSet(10); // TODO increase to 13 for vulnerable turns
-    scenario.set(0, 10);
-    return scenario;
+  private static class PossibleRolls {
+    private static final List<Die> dice = unmodifiableList(asList(
+        Die.of("aaaeee"),
+        Die.of("aaaeee"),
+        Die.of("bhikrt"),
+        Die.of("bloowy"),
+        Die.of("cmoopw"),
+        Die.of("dlnort"),
+        Die.of("ejqvxz"),
+        Die.of("fhirsu"),
+        Die.of("finptu"),
+        Die.of("gimrsu"),
+        // vulnerable:
+        Die.of("bfhlnp"),
+        Die.of("cdgjkm"),
+        Die.of("qssvwy")
+    ));
+
+    private final Collection<BitSet> rolls;
+
+    PossibleRolls() {
+      this(new Letters());
+    }
+
+    PossibleRolls(Letters letters) {
+      rolls = new ArrayList<>();
+      rolls.addAll(possibleRollsFrom(letters, singletonList(noDiceSpokenFor())));
+    }
+
+    boolean couldDiceBeAvailableFor(Letters additionalLetters) {
+      return !possibleRollsFrom(additionalLetters, rolls).isEmpty();
+    }
+
+    private static BitSet noDiceSpokenFor() {
+      BitSet scenario = new BitSet(10); // TODO increase to 13 for vulnerable turns
+      scenario.set(0, 10);
+      return scenario;
+    }
+
+    private static Collection<BitSet> possibleRollsFrom(Letters letters, Collection<BitSet> possibleRolls) {
+      if (letters.isEmpty()) {
+        return possibleRolls;
+      }
+
+      char letter = letters.head();
+      Collection<BitSet> layer = new ArrayList<>();
+
+      for (BitSet roll : possibleRolls) {
+        for (int i = roll.nextSetBit(0); 0 <= i && i < roll.length(); i = roll.nextSetBit(i + 1)) {
+          if (dice.get(i).couldProvide(letter)) {
+            BitSet validRoll = (BitSet) roll.clone();
+            validRoll.clear(i);
+            layer.add(validRoll);
+          }
+        }
+      }
+
+      return possibleRollsFrom(letters.tail(), layer);
+    }
   }
 
   private static class Die {
@@ -96,27 +127,6 @@ class Dice {
 
     private Letters(byte[] buckets) {
       this.buckets = buckets;
-    }
-
-    Collection<BitSet> possibleRollsFrom(Collection<BitSet> possibleRolls) {
-      if (isEmpty()) {
-        return possibleRolls;
-      }
-
-      char letter = head();
-      Collection<BitSet> layer = new ArrayList<>();
-
-      for (BitSet roll : possibleRolls) {
-        for (int i = roll.nextSetBit(0); 0 <= i && i < roll.length(); i = roll.nextSetBit(i + 1)) {
-          if (dice.get(i).couldProvide(letter)) {
-            BitSet validRoll = (BitSet) roll.clone();
-            validRoll.clear(i);
-            layer.add(validRoll);
-          }
-        }
-      }
-
-      return tail().possibleRollsFrom(layer);
     }
 
     private Letters copy() {
