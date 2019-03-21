@@ -30,27 +30,27 @@ public class DiceTest {
   }
 
   @Test public void state() {
-    dice.assertThatState().isEqualTo("");
+    dice.assertThatKnownLetters().isEqualTo("");
   }
 
   @Test public void state_simple() {
     dice.observe("cat");
-    dice.assertThatState().isEqualTo("act");
+    dice.assertThatKnownLetters().isEqualTo("act");
   }
 
   @Test public void state_reuseAcrossWords() {
     dice.observe("cat", "tack");
-    dice.assertThatState().isEqualTo("ackt");
+    dice.assertThatKnownLetters().isEqualTo("ackt");
   }
 
   @Test public void state_reuseWithinWords() {
     dice.observe("attack", "cat");
-    dice.assertThatState().isEqualTo("aacktt");
+    dice.assertThatKnownLetters().isEqualTo("aacktt");
   }
 
   static class DiceTester {
     private final Dice dice;
-    private final AssertSubscriber<String> state;
+    private final AssertSubscriber<Dice.State> state;
 
     DiceTester() {
       dice = new Dice();
@@ -74,8 +74,8 @@ public class DiceTest {
       dice.observe(Arrays.asList(words));
     }
 
-    AbstractCharSequenceAssert<?, String> assertThatState() {
-      return assertThat(state.get());
+    AbstractCharSequenceAssert<?, String> assertThatKnownLetters() {
+      return assertThat(state.get().known());
     }
   }
 }

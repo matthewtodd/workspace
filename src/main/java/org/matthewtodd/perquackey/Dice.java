@@ -3,8 +3,10 @@ package org.matthewtodd.perquackey;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 import org.matthewtodd.flow.Flow;
 import org.reactivestreams.Processor;
@@ -16,24 +18,48 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
 
 class Dice {
-  private final Processor<String, String> state = Flow.pipe("");
-  private Letters letters = new Letters();
-  private PossibleRolls possibleRolls = new PossibleRolls();
+  private final Processor<State, State> state;
+  private Letters letters;
+  private PossibleRolls possibleRolls;
+
+  Dice() {
+    letters = new Letters();
+    possibleRolls = new PossibleRolls();
+    state = Flow.pipe(new State(letters.toString(), possibleRolls.unknownLetters().toString()));
+  }
 
   void observe(Iterable<String> words) {
     letters = StreamSupport.stream(words.spliterator(), true)
         .map(word -> word.chars().collect(Letters::new, Letters::add, Letters::addAll))
         .reduce(new Letters(), Letters::union);
     possibleRolls = new PossibleRolls(letters);
-    state.onNext(letters.toString());
+    state.onNext(new State(letters.toString(), possibleRolls.unknownLetters().toString()));
   }
 
   boolean couldSpell(String word) {
     return possibleRolls.couldDiceBeAvailableFor(letters.newLettersIn(word));
   }
 
-  Publisher<String> state() {
+  Publisher<State> state() {
     return state;
+  }
+
+  static class State {
+    private final String known;
+    private final String unknown;
+
+    State(String known, String unknown) {
+      this.known = known;
+      this.unknown = unknown;
+    }
+
+    String known() {
+      return known;
+    }
+
+    String unknown() {
+      return unknown;
+    }
   }
 
   private static class PossibleRolls {
@@ -67,6 +93,18 @@ class Dice {
 
     boolean couldDiceBeAvailableFor(Letters additionalLetters) {
       return !possibleRollsFrom(additionalLetters, rolls).isEmpty();
+    }
+
+    Letters unknownLetters() {
+      Letters result = new Letters();
+
+      for (BitSet roll : rolls) {
+        for (int i = roll.nextSetBit(0); 0 <= i && i < roll.length(); i = roll.nextSetBit(i + 1)) {
+          result = result.union(dice.get(i).letters());
+        }
+      }
+
+      return result;
     }
 
     private static BitSet noDiceSpokenFor() {
@@ -115,6 +153,17 @@ class Dice {
         }
       }
       return false;
+    }
+
+    public Letters letters() {
+      Letters result = new Letters();
+      Set<Integer> uniqueValues = new HashSet<>();
+      for (int i : faces) {
+        if (uniqueValues.add(i)) {
+          result.add(i);
+        }
+      }
+      return result;
     }
   }
 

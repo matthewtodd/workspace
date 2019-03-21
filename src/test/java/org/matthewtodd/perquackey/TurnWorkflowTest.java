@@ -7,7 +7,6 @@ import org.assertj.core.api.AbstractIntegerAssert;
 import org.assertj.core.api.AbstractLongAssert;
 import org.assertj.core.api.IterableAssert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.matthewtodd.flow.AssertSubscriber;
 import org.matthewtodd.workflow.WorkflowTester;
@@ -148,7 +147,7 @@ public class TurnWorkflowTest {
     }
 
     AbstractCharSequenceAssert<?, String> assertThatLetters() {
-      return assertThat(data.get().letters());
+      return assertThat(data.get().knownLetters());
     }
 
     AbstractIntegerAssert<?> assertThatScore() {

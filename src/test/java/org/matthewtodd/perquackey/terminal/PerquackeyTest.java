@@ -46,9 +46,9 @@ public class PerquackeyTest {
 
   @Test public void letters() {
     perquackey.on(TurnView.class, view -> {
-      assertThat(view.letters.getText()).isEmpty();
+      assertThat(view.letters.getText()).isEqualTo(":ABCDEFGHIJKLMNOPQRSTUVWXYZ");
       perquackey.type("apple").typeEnter();
-      assertThat(view.letters.getText()).isEqualTo("aelpp");
+      assertThat(view.letters.getText()).isEqualTo("aelpp:ABDEFGHIJKLMNOQRSTUVWXYZ");
     });
   }
 
