@@ -18,7 +18,7 @@ maven_install(
         "com.googlecode.lanterna:lanterna:3.0.1",
         "io.reactivex.rxjava2:rxjava:2.2.7",
         "junit:junit:4.12",
-        "org.assertj:assertj-core:3.9.1",
+        "org.assertj:assertj-core:3.12.2",
         "org.reactivestreams:reactive-streams:1.0.2",
     ],
     repositories = [
