@@ -7,11 +7,11 @@ java_library(
     ],
     exports = [
         "//src/main/java/org/matthewtodd/workflow",
-        "@com_googlecode_lanterna_lanterna",
+        "@maven//:com_googlecode_lanterna_lanterna",
     ],
     deps = [
         "//src/main/java/org/matthewtodd/flow",
         "//src/main/java/org/matthewtodd/workflow",
-        "@com_googlecode_lanterna_lanterna",
+        "@maven//:com_googlecode_lanterna_lanterna",
     ],
 )

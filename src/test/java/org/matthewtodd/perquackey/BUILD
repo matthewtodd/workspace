@@ -10,11 +10,11 @@ java_library(
         "//src/main/java/org/matthewtodd/workflow",
         "//src/test/java/org/matthewtodd/flow",
         "//src/test/java/org/matthewtodd/workflow",
-        "@io_reactivex_rxjava2_rxjava",
-        "@junit_junit",
-        "@org_assertj_assertj_core",
-        "@org_hamcrest_hamcrest_core",
-        "@org_reactivestreams_reactive_streams",
+        "@maven//:io_reactivex_rxjava2_rxjava",
+        "@maven//:junit_junit",
+        "@maven//:org_assertj_assertj_core",
+        "@maven//:org_hamcrest_hamcrest_core",
+        "@maven//:org_reactivestreams_reactive_streams",
     ],
 )
 

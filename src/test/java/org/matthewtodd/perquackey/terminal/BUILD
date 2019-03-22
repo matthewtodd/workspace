@@ -5,12 +5,12 @@ java_library(
     deps = [
         "//src/main/java/org/matthewtodd/perquackey/terminal",
         "//src/main/java/org/matthewtodd/terminal",
-        "@com_googlecode_lanterna_lanterna",
-        "@io_reactivex_rxjava2_rxjava",
-        "@junit_junit",
-        "@org_assertj_assertj_core",
-        "@org_hamcrest_hamcrest_core",
-        "@org_reactivestreams_reactive_streams",
+        "@maven//:com_googlecode_lanterna_lanterna",
+        "@maven//:io_reactivex_rxjava2_rxjava",
+        "@maven//:junit_junit",
+        "@maven//:org_assertj_assertj_core",
+        "@maven//:org_hamcrest_hamcrest_core",
+        "@maven//:org_reactivestreams_reactive_streams",
     ],
 )
 

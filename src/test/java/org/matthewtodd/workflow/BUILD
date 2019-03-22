@@ -8,8 +8,8 @@ java_library(
     deps = [
         "//src/main/java/org/matthewtodd/workflow",
         "//src/test/java/org/matthewtodd/flow",
-        "@io_reactivex_rxjava2_rxjava",
-        "@org_assertj_assertj_core",
-        "@org_reactivestreams_reactive_streams",
+        "@maven//:io_reactivex_rxjava2_rxjava",
+        "@maven//:org_assertj_assertj_core",
+        "@maven//:org_reactivestreams_reactive_streams",
     ],
 )
