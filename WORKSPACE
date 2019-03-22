@@ -14,7 +14,7 @@ load("@rules_jvm_external//:defs.bzl", "maven_install")
 
 maven_install(
     artifacts = [
-        "com.github.akarnokd:rxjava2-extensions:0.20.3",
+        "com.github.akarnokd:rxjava2-extensions:0.20.8",
         "com.googlecode.lanterna:lanterna:3.0.1",
         "io.reactivex.rxjava2:rxjava:2.1.13",
         "junit:junit:4.12",
