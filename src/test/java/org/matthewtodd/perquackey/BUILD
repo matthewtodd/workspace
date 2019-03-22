@@ -13,7 +13,6 @@ java_library(
         "@maven//:io_reactivex_rxjava2_rxjava",
         "@maven//:junit_junit",
         "@maven//:org_assertj_assertj_core",
-        "@maven//:org_hamcrest_hamcrest_core",
         "@maven//:org_reactivestreams_reactive_streams",
     ],
 )

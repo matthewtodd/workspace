@@ -19,11 +19,10 @@ maven_install(
         "io.reactivex.rxjava2:rxjava:2.1.13",
         "junit:junit:4.12",
         "org.assertj:assertj-core:3.9.1",
-        "org.hamcrest:hamcrest-core:1.3",
         "org.reactivestreams:reactive-streams:1.0.2",
     ],
     repositories = [
         "https://repo1.maven.org/maven2",
     ],
     fetch_sources = True,
-
+)
