@@ -13,6 +13,7 @@ http_archive(
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
 maven_install(
+    # Check for updates by pasting coordinates at https://search.maven.org
     artifacts = [
         "com.github.akarnokd:rxjava2-extensions:0.20.8",
         "com.googlecode.lanterna:lanterna:3.0.1",
