@@ -1,11 +1,14 @@
 package org.matthewtodd.perquackey;
 
 import io.reactivex.processors.BehaviorProcessor;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import org.assertj.core.api.AbstractCharSequenceAssert;
 import org.assertj.core.api.AbstractIntegerAssert;
 import org.assertj.core.api.AbstractLongAssert;
 import org.assertj.core.api.IterableAssert;
+import org.assertj.core.api.ListAssert;
 import org.junit.Before;
 import org.junit.Test;
 import org.matthewtodd.flow.AssertSubscriber;
@@ -102,6 +105,16 @@ public class TurnWorkflowTest {
     });
   }
 
+  @Test public void timeAnnouncement() {
+    workflow.onTurnScreen(screen -> {
+      screen.toggleTimer();
+      screen.tick(179);
+      workflow.assertThatAnnouncements().isEmpty();
+      screen.tick();
+      workflow.assertThatAnnouncements().containsExactly("time's up");
+    });
+  }
+
   @Test public void quitting() {
     workflow.onTurnScreen(TurnScreenTester::quit);
     workflow.assertThatResult().isEmpty();
@@ -110,10 +123,12 @@ public class TurnWorkflowTest {
   private static class TurnWorkflowTester {
     private final BehaviorProcessor<Long> ticker;
     private final WorkflowTester<Void, Words.State> workflow;
+    private final List<String> announcements;
 
     TurnWorkflowTester() {
       ticker = BehaviorProcessor.create();
-      workflow = new WorkflowTester<>(new TurnWorkflow(ticker));
+      announcements = new ArrayList<>();
+      workflow = new WorkflowTester<>(new TurnWorkflow(ticker, announcements::add));
     }
 
     void start() {
@@ -127,6 +142,10 @@ public class TurnWorkflowTest {
 
     IterableAssert<String> assertThatResult() {
       return assertThat(workflow.result());
+    }
+
+    ListAssert<String> assertThatAnnouncements() {
+      return assertThat(announcements);
     }
   }
 
@@ -172,6 +191,12 @@ public class TurnWorkflowTest {
 
     void tick() {
       ticker.onNext(0L);
+    }
+
+    void tick(int times) {
+      for (int i = 0; i < times; i++) {
+        tick();
+      }
     }
 
     void toggleTimer() {

@@ -105,6 +105,7 @@ public class PerquackeyTest {
       looper = new AtomicReference<>();
       application = Perquackey.newBuilder()
           .ticker(ticker)
+          .announcer(message -> {})
           .terminal(terminal)
           .looper(looper::set)
           .build();

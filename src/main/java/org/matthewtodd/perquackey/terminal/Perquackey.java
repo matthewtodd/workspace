@@ -20,6 +20,7 @@ public class Perquackey {
 
     Perquackey.newBuilder()
         .ticker(scheduler.ticking())
+        .announcer(new SayAnnouncer())
         .terminal(new UnixTerminal())
         .looper(scheduler::loop)
         .build()
@@ -45,11 +46,17 @@ public class Perquackey {
 
   static class Builder {
     private Publisher<Long> ticker;
+    private Consumer<String> announcer;
     private Terminal terminal;
     private Consumer<Runnable> looper;
 
     Builder ticker(Publisher<Long> ticker) {
       this.ticker = ticker;
+      return this;
+    }
+
+    Builder announcer(Consumer<String> announcer) {
+      this.announcer = announcer;
       return this;
     }
 
@@ -65,9 +72,19 @@ public class Perquackey {
 
     Application build() {
       return new Application(
-          new TurnWorkflow(ticker),
+          new TurnWorkflow(ticker, announcer),
           Perquackey::viewFactory,
           new TerminalUI(terminal, looper));
+    }
+  }
+
+  static class SayAnnouncer implements Consumer<String> {
+    @Override public void accept(String announcement) {
+      try {
+        new ProcessBuilder("say", "-v", "Alex", "-r", "260", announcement).start();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 }
