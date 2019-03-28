@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.flow.Flow.Scheduler;
+import org.matthewtodd.perquackey.Announcement;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.terminal.Application;
@@ -46,7 +47,7 @@ public class Perquackey {
 
   static class Builder {
     private Publisher<Long> ticker;
-    private Consumer<String> announcer;
+    private Consumer<Announcement> announcer;
     private Terminal terminal;
     private Consumer<Runnable> looper;
 
@@ -55,7 +56,7 @@ public class Perquackey {
       return this;
     }
 
-    Builder announcer(Consumer<String> announcer) {
+    Builder announcer(Consumer<Announcement> announcer) {
       this.announcer = announcer;
       return this;
     }
@@ -78,12 +79,24 @@ public class Perquackey {
     }
   }
 
-  static class SayAnnouncer implements Consumer<String> {
-    @Override public void accept(String announcement) {
+  static class SayAnnouncer implements Consumer<Announcement> {
+    @Override public void accept(Announcement announcement) {
+      say(messageFor(announcement));
+    }
+
+    private void say(String message) {
       try {
-        new ProcessBuilder("say", "-v", "Alex", "-r", "260", announcement).start();
+        new ProcessBuilder("say", "-v", "Alex", "-r", "260", message).start();
       } catch (IOException e) {
         throw new RuntimeException(e);
+      }
+    }
+
+    private String messageFor(Announcement announcement) {
+      if (announcement == Announcement.TimeIsUp) {
+        return "Time's up!";
+      } else {
+        throw new IllegalStateException("Unexpected announcement.");
       }
     }
   }

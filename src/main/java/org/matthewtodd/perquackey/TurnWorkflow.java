@@ -7,6 +7,8 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
+import static org.matthewtodd.perquackey.Announcement.TimeIsUp;
+
 public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Events {
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen;
   private final Scorer scorer;
@@ -14,11 +16,11 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
   private final Words words;
   private final Input input;
   private final Publisher<Long> ticker;
-  private final Consumer<String> announcer;
+  private final Consumer<Announcement> announcer;
   private final Dictionary dictionary;
   private final Dice dice;
 
-  public TurnWorkflow(Publisher<Long> ticker, Consumer<String> announcer) {
+  public TurnWorkflow(Publisher<Long> ticker, Consumer<Announcement> announcer) {
     this.ticker = ticker;
     this.announcer = announcer;
 
@@ -35,7 +37,7 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
     Flow.of(ticker).subscribe(timer::tick);
     Flow.of(input.entries()).subscribe(words::spell);
     Flow.of(words.state()).subscribe(dice::observe);
-    Flow.of(Flow.of(timer.state()).last()).subscribe(s -> announcer.accept("time's up"));
+    Flow.of(Flow.of(timer.state()).last()).subscribe(s -> announcer.accept(TimeIsUp));
 
     screen.onNext(new TurnScreen(Flow.of(
         words.state(),

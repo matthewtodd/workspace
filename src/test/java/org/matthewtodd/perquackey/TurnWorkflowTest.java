@@ -16,6 +16,7 @@ import org.matthewtodd.workflow.WorkflowTester;
 import org.reactivestreams.Subscriber;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.matthewtodd.perquackey.Announcement.TimeIsUp;
 
 public class TurnWorkflowTest {
   private TurnWorkflowTester workflow;
@@ -111,7 +112,7 @@ public class TurnWorkflowTest {
       screen.tick(179);
       workflow.assertThatAnnouncements().isEmpty();
       screen.tick();
-      workflow.assertThatAnnouncements().containsExactly("time's up");
+      workflow.assertThatAnnouncements().containsExactly(TimeIsUp);
     });
   }
 
@@ -123,7 +124,7 @@ public class TurnWorkflowTest {
   private static class TurnWorkflowTester {
     private final BehaviorProcessor<Long> ticker;
     private final WorkflowTester<Void, Words.State> workflow;
-    private final List<String> announcements;
+    private final List<Announcement> announcements;
 
     TurnWorkflowTester() {
       ticker = BehaviorProcessor.create();
@@ -144,7 +145,7 @@ public class TurnWorkflowTest {
       return assertThat(workflow.result());
     }
 
-    ListAssert<String> assertThatAnnouncements() {
+    ListAssert<Announcement> assertThatAnnouncements() {
       return assertThat(announcements);
     }
   }
