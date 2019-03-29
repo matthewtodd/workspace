@@ -29,4 +29,22 @@ public class WordsTest {
     turn.spell("dog");
     assertThat(words.get()).containsExactly("dog");
   }
+
+  @Test public void lengthOkay() {
+    Words words = new Words();
+    words.setVulnerable(false);
+    assertThat(words.lengthOkay("do")).isFalse();
+    assertThat(words.lengthOkay("dog")).isTrue();
+    assertThat(words.lengthOkay("dogcatcher")).isTrue();
+    assertThat(words.lengthOkay("dogcatchers")).isFalse();
+  }
+
+  @Test public void lengthOkay_vulnerable() {
+    Words words = new Words();
+    words.setVulnerable(true);
+    assertThat(words.lengthOkay("dog")).isFalse();
+    assertThat(words.lengthOkay("dogs")).isTrue();
+    assertThat(words.lengthOkay("dogmatization")).isTrue();
+    assertThat(words.lengthOkay("dogmaticalness")).isFalse();
+  }
 }

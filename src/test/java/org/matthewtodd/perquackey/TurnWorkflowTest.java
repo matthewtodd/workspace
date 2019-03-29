@@ -23,11 +23,10 @@ public class TurnWorkflowTest {
 
   @Before public void setUp() {
     workflow = new TurnWorkflowTester();
-    workflow.start();
   }
 
   @Test public void words() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.assertThatWords().isEmpty();
       screen.type("dog").enter();
       screen.assertThatWords().containsExactly("dog");
@@ -35,15 +34,15 @@ public class TurnWorkflowTest {
   }
 
   @Test public void letters() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.assertThatLetters().isEmpty();
       screen.type("dog").enter();
       screen.assertThatLetters().isEqualTo("dgo");
     });
   }
 
-  @Test public void input() {
-    workflow.onTurnScreen(screen -> {
+  @Test public void inputMinLength() {
+    workflow.turn(screen -> {
       screen.assertThatInput().isEmpty();
       screen.type("dog");
       screen.assertThatInput().isEqualTo("dog");
@@ -52,31 +51,45 @@ public class TurnWorkflowTest {
     });
   }
 
+  @Test public void inputMinLength_vulnerable() {
+    workflow.vulnerableTurn(screen -> {
+      screen.type("dogs").enter();
+      screen.assertThatWords().isNotEmpty();
+    });
+  }
+
   @Test public void inputRejected() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.type("a").enter();
       screen.assertThatInput().isEqualTo("a");
-      screen.assertThatWords().doesNotContain("a");
+      screen.assertThatWords().isEmpty();
     });
   }
 
   @Test public void inputRejected_tooShort() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.type("do").enter();
-      screen.assertThatWords().doesNotContain("do");
+      screen.assertThatWords().isEmpty();
+    });
+  }
+
+  @Test public void inputRejected_tooShort_vulnerable() {
+    workflow.vulnerableTurn(screen -> {
+      screen.type("dog").enter();
+      screen.assertThatWords().isEmpty();
     });
   }
 
   @Test public void inputRejected_notInDictionary() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.type("glarb").enter();
-      screen.assertThatWords().doesNotContain("glarb");
+      screen.assertThatWords().isEmpty();
     });
   }
 
   @Test public void inputRejected_impossibleToSpell() {
     // aiejoottuy
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.type("tout").enter(); // ottu
       screen.type("tie").enter(); // eiottu
       screen.type("joy").enter(); // eijottuy
@@ -87,7 +100,7 @@ public class TurnWorkflowTest {
   }
 
   @Test public void score() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.assertThatScore().isZero();
       screen.type("dog").enter();
       screen.assertThatScore().isEqualTo(60);
@@ -95,7 +108,7 @@ public class TurnWorkflowTest {
   }
 
   @Test public void timer() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.assertThatTimeRemaining().isEqualTo(180);
       screen.tick();
       screen.assertThatTimeRemaining().isEqualTo(180);
@@ -107,7 +120,7 @@ public class TurnWorkflowTest {
   }
 
   @Test public void timeAnnouncement() {
-    workflow.onTurnScreen(screen -> {
+    workflow.turn(screen -> {
       screen.toggleTimer();
       screen.tick(179);
       workflow.assertThatAnnouncements().isEmpty();
@@ -117,13 +130,13 @@ public class TurnWorkflowTest {
   }
 
   @Test public void quitting() {
-    workflow.onTurnScreen(TurnScreenTester::quit);
+    workflow.turn(TurnScreenTester::quit);
     workflow.assertThatResult().isEmpty();
   }
 
   private static class TurnWorkflowTester {
     private final BehaviorProcessor<Long> ticker;
-    private final WorkflowTester<Void, Words.State> workflow;
+    private final WorkflowTester<Boolean, Words.State> workflow;
     private final List<Announcement> announcements;
 
     TurnWorkflowTester() {
@@ -132,11 +145,14 @@ public class TurnWorkflowTest {
       workflow = new WorkflowTester<>(new TurnWorkflow(ticker, announcements::add));
     }
 
-    void start() {
-      workflow.start(null);
+    void turn(Consumer<TurnScreenTester> assertions) {
+      workflow.start(false);
+      workflow.on(TurnScreen.class,
+          (data, events) -> assertions.accept(new TurnScreenTester(data, events, ticker)));
     }
 
-    void onTurnScreen(Consumer<TurnScreenTester> assertions) {
+    void vulnerableTurn(Consumer<TurnScreenTester> assertions) {
+      workflow.start(true);
       workflow.on(TurnScreen.class,
           (data, events) -> assertions.accept(new TurnScreenTester(data, events, ticker)));
     }

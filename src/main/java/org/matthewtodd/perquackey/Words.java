@@ -1,5 +1,6 @@
 package org.matthewtodd.perquackey;
 
+import java.time.temporal.ValueRange;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -16,6 +17,15 @@ import org.reactivestreams.Publisher;
 public class Words {
   private final Set<String> words = new LinkedHashSet<>();
   private final Processor<State, State> state = Flow.pipe(State.EMPTY);
+  private ValueRange lengthValidator = ValueRange.of(3, 10);
+
+  void setVulnerable(Boolean vulnerable) {
+    lengthValidator = vulnerable ? ValueRange.of(4, 13) : ValueRange.of(3, 10);
+  }
+
+  boolean lengthOkay(String word) {
+    return lengthValidator.isValidValue(word.length());
+  }
 
   void spell(String word) {
     words.add(word);

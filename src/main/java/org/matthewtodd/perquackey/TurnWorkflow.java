@@ -9,7 +9,7 @@ import org.reactivestreams.Publisher;
 
 import static org.matthewtodd.perquackey.Announcement.TimeIsUp;
 
-public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Events {
+public class TurnWorkflow implements Workflow<Boolean, Words.State>, TurnScreen.Events {
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen;
   private final Scorer scorer;
   private final Timer timer;
@@ -27,13 +27,21 @@ public class TurnWorkflow implements Workflow<Void, Words.State>, TurnScreen.Eve
     screen = Flow.pipe();
     dice = new Dice();
     dictionary = Dictionary.standard();
-    input = new Input(word -> dice.couldSpell(word) && dictionary.contains(word));
     scorer = new Scorer();
     timer = new Timer(180L);
     words = new Words();
+    input = new Input(word ->
+        words.lengthOkay(word) && dice.couldSpell(word) && dictionary.contains(word));
   }
 
-  @Override public void start(Void ignored) {
+  @Override public void start(Boolean vulnerable) {
+    // HACK get rid of this null fill
+    if (vulnerable == null) {
+      vulnerable = false;
+    }
+
+    words.setVulnerable(vulnerable);
+
     Flow.of(ticker).subscribe(timer::tick);
     Flow.of(input.entries()).subscribe(words::spell);
     Flow.of(words.state()).subscribe(dice::observe);
