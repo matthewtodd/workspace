@@ -88,14 +88,26 @@ public class TurnWorkflowTest {
   }
 
   @Test public void inputRejected_impossibleToSpell() {
-    // aiejoottuy
+    // ieejosttuy
     workflow.turn(screen -> {
-      screen.type("tout").enter(); // ottu
-      screen.type("tie").enter(); // eiottu
-      screen.type("joy").enter(); // eijottuy
-      screen.assertThatWords().containsExactly("tout", "tie", "joy");
-      screen.type("ran").enter(); // ! only 2 unknown letters left; "ran" needs 3
-      screen.assertThatWords().doesNotContain("ran");
+      screen.type("stout").enter(); // osttu
+      screen.type("ties").enter(); // eiosttu
+      screen.type("joys").enter(); // eijosttuy
+      screen.assertThatWords().containsExactly("stout", "ties", "joys");
+      screen.type("steel").enter(); // ! only 1 unknown letter left, A or E; steel needs E and L
+      screen.assertThatWords().doesNotContain("steel");
+    });
+  }
+
+  @Test public void inputRejected_impossibleToSpell_vulnerable() {
+    // ieejosttuy + lmw
+    workflow.vulnerableTurn(screen -> {
+      screen.type("stout").enter(); // osttu
+      screen.type("ties").enter(); // eiosttu
+      screen.type("joys").enter(); // eijosttuy
+      screen.assertThatWords().containsExactly("stout", "ties", "joys");
+      screen.type("steel").enter(); // ! still 4 unknown letters left; we can make it work!
+      screen.assertThatWords().contains("steel");
     });
   }
 

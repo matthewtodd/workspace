@@ -40,6 +40,7 @@ public class TurnWorkflow implements Workflow<Boolean, Words.State>, TurnScreen.
       vulnerable = false;
     }
 
+    dice.setVulnerable(vulnerable);
     words.setVulnerable(vulnerable);
 
     Flow.of(ticker).subscribe(timer::tick);

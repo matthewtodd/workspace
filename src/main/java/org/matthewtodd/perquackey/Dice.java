@@ -18,22 +18,26 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
 
 class Dice {
-  private final Processor<State, State> state;
+  private final Processor<State, State> state = Flow.pipe();
   private Letters letters;
   private PossibleRolls possibleRolls;
+  private boolean vulnerable;
 
   Dice() {
     letters = new Letters();
-    possibleRolls = new PossibleRolls();
-    state = Flow.pipe(new State(letters.toString(), possibleRolls.unknownLetters().toString()));
+    calculateAndPublishState();
+  }
+
+  void setVulnerable(boolean vulnerable) {
+    this.vulnerable = vulnerable;
+    calculateAndPublishState();
   }
 
   void observe(Iterable<String> words) {
     letters = StreamSupport.stream(words.spliterator(), true)
         .map(word -> word.chars().collect(Letters::new, Letters::add, Letters::addAll))
         .reduce(new Letters(), Letters::union);
-    possibleRolls = new PossibleRolls(letters);
-    state.onNext(new State(letters.toString(), possibleRolls.unknownLetters().toString()));
+    calculateAndPublishState();
   }
 
   boolean couldSpell(String word) {
@@ -42,6 +46,11 @@ class Dice {
 
   Publisher<State> state() {
     return state;
+  }
+
+  private void calculateAndPublishState() {
+    possibleRolls = new PossibleRolls(letters, vulnerable);
+    state.onNext(new State(letters.toString(), possibleRolls.unknownLetters().toString()));
   }
 
   static class State {
@@ -82,13 +91,10 @@ class Dice {
 
     private final Collection<BitSet> rolls;
 
-    PossibleRolls() {
-      this(new Letters());
-    }
-
-    PossibleRolls(Letters letters) {
+    PossibleRolls(Letters letters, boolean vulnerable) {
       rolls = new ArrayList<>();
-      rolls.addAll(possibleRollsFrom(letters, singletonList(noDiceSpokenFor())));
+      rolls.addAll(
+          possibleRollsFrom(letters, singletonList(noDiceSpokenFor(vulnerable ? 13 : 10))));
     }
 
     boolean couldDiceBeAvailableFor(Letters additionalLetters) {
@@ -107,9 +113,9 @@ class Dice {
       return result;
     }
 
-    private static BitSet noDiceSpokenFor() {
-      BitSet scenario = new BitSet(10); // TODO increase to 13 for vulnerable turns
-      scenario.set(0, 10);
+    private static BitSet noDiceSpokenFor(int numberOfDice) {
+      BitSet scenario = new BitSet(numberOfDice);
+      scenario.set(0, numberOfDice);
       return scenario;
     }
 

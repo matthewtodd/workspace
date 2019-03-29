@@ -24,9 +24,13 @@ public class DiceTest {
   }
 
   @Test public void cannotSpell_impossibleGivenWordsAlreadySeen() {
-    dice.canSpell("very");
-    dice.observe("quack"); // Q consumes the only available V
-    dice.cannotSpell("very");
+    // Q consumes the only available V
+    dice.canSpell("very").observe("quack").cannotSpell("very");
+  }
+
+  @Test public void canSpell_vulnerable() {
+    // vulnerable dice offer another V
+    dice.vulnerable().canSpell("very").observe("quack").canSpell("very");
   }
 
   @Test public void state() {
@@ -58,24 +62,32 @@ public class DiceTest {
       dice.state().subscribe(state);
     }
 
-    void canSpell(String word) {
+    DiceTester canSpell(String word) {
       assertThat(dice.couldSpell(word))
           .describedAs("couldSpell(\"%s\")", word)
           .isTrue();
+      return this;
     }
 
-    void cannotSpell(String word) {
+    DiceTester cannotSpell(String word) {
       assertThat(dice.couldSpell(word))
           .describedAs("couldSpell(\"%s\")", word)
           .isFalse();
+      return this;
     }
 
-    void observe(String... words) {
+    DiceTester observe(String... words) {
       dice.observe(Arrays.asList(words));
+      return this;
     }
 
     AbstractCharSequenceAssert<?, String> assertThatKnownLetters() {
       return assertThat(state.get().known());
+    }
+
+    DiceTester vulnerable() {
+      dice.setVulnerable(true);
+      return this;
     }
   }
 }
