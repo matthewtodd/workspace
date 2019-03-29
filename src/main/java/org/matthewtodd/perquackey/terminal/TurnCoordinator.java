@@ -43,7 +43,7 @@ class TurnCoordinator implements Coordinator<TurnView> {
     // TODO get rid of this setTableModel call.
     // turn.words() should be able to provide column info.
     // (especially once we handle vulnerable turns.)
-    view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
+    //view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
 
     Flow.of(screen.screenData).subscribe(turn -> {
       // TODO could push formatting up into the view widgets.
@@ -74,14 +74,18 @@ class TurnCoordinator implements Coordinator<TurnView> {
     // so, words::rowCount as a Supplier<Integer>, for example.
     // But that's premature because I'm not sure how to think about the column headers being so overloaded.
     void update(Words.State words) {
-      // TODO handle adding/removing columns first
+      for (int i = 0; i < table.getColumnCount(); i++) {
+        table.setColumnLabel(i, words.columnLabel(i));
+      }
+
+      for (int i = table.getColumnCount(); i < words.columnCount(); i++) {
+        table.addColumn(words.columnLabel(i), null);
+      }
 
       // update existing rows
       for (int rowIndex = 0; rowIndex < table.getRowCount(); rowIndex++) {
         for (int columnIndex = 0; columnIndex < table.getColumnCount(); columnIndex++) {
-          table.setCell(columnIndex, rowIndex,
-              // HACK HERE
-              words.getWord(Integer.parseInt(table.getColumnLabel(columnIndex)), rowIndex));
+          table.setCell(columnIndex, rowIndex, words.getWord(columnIndex, rowIndex));
         }
       }
 
@@ -89,9 +93,8 @@ class TurnCoordinator implements Coordinator<TurnView> {
       while (table.getRowCount() < words.rowCount()) {
         int rowIndex = table.getRowCount();
         Collection<String> row = new ArrayList<>(table.getColumnCount());
-        for (int i = 0; i < table.getColumnCount(); i++) {
-          // HACK HERE
-          row.add(words.getWord(Integer.parseInt(table.getColumnLabel(i)), rowIndex));
+        for (int columnIndex = 0; columnIndex < table.getColumnCount(); columnIndex++) {
+          row.add(words.getWord(columnIndex, rowIndex));
         }
         table.addRow(row);
       }

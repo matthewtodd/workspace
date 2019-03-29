@@ -21,6 +21,7 @@ public class Words {
 
   void setVulnerable(Boolean vulnerable) {
     lengthValidator = vulnerable ? ValueRange.of(4, 13) : ValueRange.of(3, 10);
+    state.onNext(new State(words, (int) lengthValidator.getMinimum()));
   }
 
   boolean lengthOkay(String word) {
@@ -38,7 +39,7 @@ public class Words {
       words.remove(plural);
     }
 
-    state.onNext(new State(words));
+    state.onNext(new State(words, (int) lengthValidator.getMinimum()));
   }
 
   Publisher<State> state() {
@@ -53,14 +54,16 @@ public class Words {
   // - This group words into columns by length functionality is exactly what the scorer does.
   //   So, the scorer could use this class; or we could revert this to a simple collection.
   public static class State implements Iterable<String> {
-    static final State EMPTY = new State(Collections.emptySet());
+    static final State EMPTY = new State(Collections.emptySet(), 3);
 
     private final Set<String> words;
     private final Map<Integer, List<String>> indexedWords;
+    private final int minimumLength;
     private final int rowCount;
 
-    State(Set<String> words) {
+    State(Set<String> words, int minimumLength) {
       this.words = Collections.unmodifiableSet(words);
+      this.minimumLength = minimumLength;
       indexedWords = words.stream().collect(Collectors.groupingBy(String::length));
       rowCount = indexedWords.values().stream().mapToInt(Collection::size).max().orElse(0);
     }
@@ -69,17 +72,30 @@ public class Words {
       return words.iterator();
     }
 
+    public int columnCount() {
+      return 7;
+    }
+
+    public String columnLabel(int columnIndex) {
+      return String.valueOf(columnIndexToWordLength(columnIndex));
+    }
+
     public int rowCount() {
       return rowCount;
     }
 
-    public String getWord(int length, int index) {
-      List<String> wordsOfLength = indexedWords.getOrDefault(length, Collections.emptyList());
-      return index < wordsOfLength.size() ? wordsOfLength.get(index) : null;
+    public String getWord(int columnIndex, int rowIndex) {
+      List<String> wordsOfLength =
+          indexedWords.getOrDefault(columnIndexToWordLength(columnIndex), Collections.emptyList());
+      return rowIndex < wordsOfLength.size() ? wordsOfLength.get(rowIndex) : null;
     }
 
     @Override public String toString() {
       return words.toString();
+    }
+
+    private int columnIndexToWordLength(int columnIndex) {
+      return columnIndex + minimumLength;
     }
   }
 }
