@@ -40,11 +40,6 @@ class TurnCoordinator implements Coordinator<TurnView> {
       }
     });
 
-    // TODO get rid of this setTableModel call.
-    // turn.words() should be able to provide column info.
-    // (especially once we handle vulnerable turns.)
-    //view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
-
     Flow.of(screen.screenData).subscribe(turn -> {
       // TODO could push formatting up into the view widgets.
       view.score.setText(String.format("%d points", turn.score()));
