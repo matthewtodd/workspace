@@ -47,4 +47,20 @@ public class WordsTest {
     assertThat(words.lengthOkay("dogmatization")).isTrue();
     assertThat(words.lengthOkay("dogmaticalness")).isFalse();
   }
+
+  @Test public void stateColunns() {
+    AssertSubscriber<Words.State> state = AssertSubscriber.create();
+    Words words = new Words();
+    words.setVulnerable(false);
+    words.state().subscribe(state);
+    assertThat(state.get().columnLabel(0)).isEqualTo("3");
+  }
+
+  @Test public void stateColunns_vulnerable() {
+    AssertSubscriber<Words.State> state = AssertSubscriber.create();
+    Words words = new Words();
+    words.setVulnerable(true);
+    words.state().subscribe(state);
+    assertThat(state.get().columnLabel(0)).isEqualTo("4");
+  }
 }
