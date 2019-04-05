@@ -4,6 +4,7 @@ java_library(
     visibility = [
         "//src/main/java/org/matthewtodd/perquackey/terminal:__pkg__",
         "//src/test/java/org/matthewtodd/perquackey/terminal:__pkg__",
+        "//src/test/java/org/matthewtodd/terminal:__pkg__",
     ],
     exports = [
         "//src/main/java/org/matthewtodd/workflow",

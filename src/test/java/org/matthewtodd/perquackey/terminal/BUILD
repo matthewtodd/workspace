@@ -5,6 +5,7 @@ java_library(
     deps = [
         "//src/main/java/org/matthewtodd/perquackey/terminal",
         "//src/main/java/org/matthewtodd/terminal",
+        "//src/test/java/org/matthewtodd/terminal",
         "@maven//:com_googlecode_lanterna_lanterna",
         "@maven//:io_reactivex_rxjava2_rxjava",
         "@maven//:junit_junit",
