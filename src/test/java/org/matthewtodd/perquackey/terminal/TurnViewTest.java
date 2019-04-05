@@ -1,9 +1,10 @@
 package org.matthewtodd.perquackey.terminal;
 
-import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.gui2.table.TableModel;
 import org.junit.Test;
 import org.matthewtodd.terminal.ViewTester;
+
+import static com.googlecode.lanterna.TerminalPosition.TOP_LEFT_CORNER;
 
 public class TurnViewTest {
   @Test public void hookup() {
@@ -31,7 +32,7 @@ public class TurnViewTest {
     );
 
     tester.update(view -> view.commandLine.takeFocus());
-    tester.assertCursorBufferPosition().isEqualTo(new TerminalPosition(3, 9));
+    tester.assertCursorBufferPosition().isEqualTo(TOP_LEFT_CORNER.withRow(9).withColumn(3));
     tester.assertCursorVisible().isTrue();
   }
 }
