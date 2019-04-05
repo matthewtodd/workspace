@@ -20,7 +20,7 @@ import org.matthewtodd.terminal.View;
 class TurnView extends View<TurnView> {
   final Label score = new Label("");
   final Label timer = new Label("");
-  final Table<String> words = new Table<String>("")
+  final Table<String> words = new Table<String>("0")
       .setTableHeaderRenderer(new LabelIsWidthRenderer());
   final CommandLine commandLine = new CommandLine();
   final Label letters = new Label("");

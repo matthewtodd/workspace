@@ -1,38 +1,34 @@
 package org.matthewtodd.perquackey.terminal;
 
+import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.gui2.table.TableModel;
 import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import com.googlecode.lanterna.terminal.virtual.VirtualTerminal;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import org.assertj.core.api.AbstractBooleanAssert;
+import org.assertj.core.api.AbstractComparableAssert;
+import org.assertj.core.api.ObjectArrayAssert;
 import org.junit.Test;
 import org.matthewtodd.terminal.TerminalUI;
+import org.matthewtodd.terminal.View;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TurnViewTest {
   @Test public void hookup() {
-    TurnView view = new TurnView();
+    ViewTester<TurnView> tester = new ViewTester<>(new TurnView());
 
-    VirtualTerminal terminal = new DefaultVirtualTerminal(new TerminalSize(50, 10));
-    AtomicReference<Runnable> looper = new AtomicReference<>();
-    // TODO maybe it's wonky to reuse our (ill-named) TerminalUI here.
-    // Maybe something Lanterna-native instead?
-    TerminalUI ui = new TerminalUI(terminal, looper::set);
-    ui.accept(view);
+    tester.update(view -> {
+      view.score.setText("1900 points");
+      view.timer.setText("1:42");
+      view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
+      view.commandLine.setText(":za");
+      view.letters.setText("abc");
+    });
 
-    view.score.setText("1900 points");
-    view.timer.setText("1:42");
-    view.words.setTableModel(new TableModel<>("3", "4", "5", "6", "7", "8", "9"));
-    view.commandLine.setText(":za");
-    view.commandLine.takeFocus();
-    view.letters.setText("abc");
-
-    looper.get().run();
-
-    assertThat(contentsOf(terminal)).containsExactly(
+    tester.assertRows().containsExactly(
         "1:42                                   1900 points",
         "──────────────────────────────────────────────────",
         "3   4    5     6      7       8        9          ",
@@ -45,20 +41,50 @@ public class TurnViewTest {
         ":za                                            abc"
     );
 
-    assertThat(terminal.getCursorBufferPosition().getColumn()).isEqualTo(3);
-    assertThat(terminal.getCursorBufferPosition().getRow()).isEqualTo(9);
-    assertThat(terminal.isCursorVisible()).isTrue();
+    tester.update(view -> view.commandLine.takeFocus());
+    tester.assertCursorBufferPosition().isEqualTo(new TerminalPosition(3, 9));
+    tester.assertCursorVisible().isTrue();
   }
 
-  private Collection<String> contentsOf(VirtualTerminal terminal) {
-    Collection<String> contents = new ArrayList<>(terminal.getTerminalSize().getRows());
-    for (int r = 0; r < terminal.getTerminalSize().getRows(); r++) {
-      StringBuilder row = new StringBuilder();
-      for (int c = 0; c < terminal.getTerminalSize().getColumns(); c++) {
-        row.append(terminal.getCharacter(c, r).getCharacter());
-      }
-      contents.add(row.toString());
+  static class ViewTester<T extends View<T>> {
+    private final T view;
+
+    private VirtualTerminal terminal = new DefaultVirtualTerminal(new TerminalSize(50, 10));
+    private AtomicReference<Runnable> looper = new AtomicReference<>();
+
+    ViewTester(T view) {
+      this.view = view;
+      new TerminalUI(terminal, looper::set).accept(view);
+      update(v -> {});
     }
-    return contents;
+
+    void update(Consumer<T> changes) {
+      changes.accept(view);
+      looper.get().run();
+    }
+
+    ObjectArrayAssert<String> assertRows() {
+      StringBuilder contents = new StringBuilder();
+
+      int numberOfRows = terminal.getTerminalSize().getRows();
+      int numberOfColumns = terminal.getTerminalSize().getColumns();
+
+      terminal.forEachLine(0, numberOfRows - 1, (rowNumber, row) -> {
+        for (int columnNumber = 0; columnNumber < numberOfColumns; columnNumber++) {
+          contents.append(row.getCharacterAt(columnNumber).getCharacter());
+        }
+        contents.append('\n');
+      });
+
+      return assertThat(contents.toString().split("\n"));
+    }
+
+    AbstractComparableAssert<?, TerminalPosition> assertCursorBufferPosition() {
+      return assertThat(terminal.getCursorBufferPosition());
+    }
+
+    AbstractBooleanAssert<?> assertCursorVisible() {
+      return assertThat(terminal.isCursorVisible());
+    }
   }
 }
