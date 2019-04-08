@@ -9,8 +9,9 @@ import org.reactivestreams.Publisher;
 
 import static org.matthewtodd.perquackey.Announcement.TimeIsUp;
 
-public class TurnWorkflow implements Workflow<Boolean, Words.State>, TurnScreen.Events {
+public class TurnWorkflow implements Workflow<Boolean, Integer>, TurnScreen.Events {
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen;
+  private final Processor<Integer, Integer> result;
   private final Scorer scorer;
   private final Timer timer;
   private final Words words;
@@ -25,6 +26,8 @@ public class TurnWorkflow implements Workflow<Boolean, Words.State>, TurnScreen.
     this.announcer = announcer;
 
     screen = Flow.pipe();
+    result = Flow.pipe();
+
     dice = new Dice();
     dictionary = Dictionary.standard();
     scorer = new Scorer();
@@ -34,12 +37,7 @@ public class TurnWorkflow implements Workflow<Boolean, Words.State>, TurnScreen.
         words.lengthOkay(word) && dice.couldSpell(word) && dictionary.contains(word));
   }
 
-  @Override public void start(Boolean vulnerable) {
-    // HACK get rid of this null fill
-    if (vulnerable == null) {
-      vulnerable = false;
-    }
-
+  @Override public void start(final Boolean vulnerable) {
     dice.setVulnerable(vulnerable);
     words.setVulnerable(vulnerable);
 
@@ -47,6 +45,11 @@ public class TurnWorkflow implements Workflow<Boolean, Words.State>, TurnScreen.
     Flow.of(input.entries()).subscribe(words::spell);
     Flow.of(words.state()).subscribe(dice::observe);
     Flow.of(Flow.of(timer.state()).last()).subscribe(s -> announcer.accept(TimeIsUp));
+    Flow.of(words.state())
+        .as(scorer::score)
+        .as(score -> (vulnerable && score < 1000) ? -500 : score)
+        .last()
+        .subscribe(result);
 
     screen.onNext(new TurnScreen(Flow.of(
         words.state(),
@@ -61,8 +64,8 @@ public class TurnWorkflow implements Workflow<Boolean, Words.State>, TurnScreen.
     return screen;
   }
 
-  @Override public Publisher<Words.State> result() {
-    return Flow.of(words.state()).last();
+  @Override public Publisher<Integer> result() {
+    return result;
   }
 
   @Override public void letter(char letter) {

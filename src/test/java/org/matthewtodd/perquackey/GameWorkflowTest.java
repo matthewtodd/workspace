@@ -22,14 +22,14 @@ public class GameWorkflowTest {
   @Test public void hookup() {
     workflow.turn(turn -> {
       turn.assertInputIsEqualTo(false);
-      turn.result(Words.State.EMPTY);
+      turn.result(0);
     });
 
     workflow.summary(screen -> {});
   }
 
   @Test public void quitting() {
-    workflow.turn(turn -> turn.result(Words.State.EMPTY));
+    workflow.turn(turn -> turn.result(0));
     workflow.summary(SummaryScreenTester::quit);
     workflow.assertThatResult().isEqualTo("");
   }

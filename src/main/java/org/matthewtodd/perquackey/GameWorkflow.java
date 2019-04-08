@@ -8,11 +8,11 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
 public class GameWorkflow implements Workflow<Void, String>, SummaryScreen.Events {
-  private final Workflow<Boolean, Words.State> turnWorkflow;
+  private final Workflow<Boolean, Integer> turnWorkflow;
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen = Flow.pipe();
   private final Processor<String, String> result = Flow.pipe();
 
-  public GameWorkflow(Supplier<Workflow<Boolean, Words.State>> turnWorkflowFactory) {
+  public GameWorkflow(Supplier<Workflow<Boolean, Integer>> turnWorkflowFactory) {
     turnWorkflow = turnWorkflowFactory.get();
   }
 

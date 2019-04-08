@@ -141,14 +141,22 @@ public class TurnWorkflowTest {
     });
   }
 
-  @Test public void quitting() {
-    workflow.turn(TurnScreenTester::quit);
-    workflow.assertThatResult().isEmpty();
+  @Test public void resultIsScore() {
+    workflow.turn(screen -> {
+      screen.type("dog").enter();
+      screen.quit();
+    });
+    workflow.assertThatResult().isEqualTo(60);
+  }
+
+  @Test public void resultIsScore_goingBack() {
+    workflow.vulnerableTurn(TurnScreenTester::quit);
+    workflow.assertThatResult().isEqualTo(-500);
   }
 
   private static class TurnWorkflowTester {
     private final BehaviorProcessor<Long> ticker;
-    private final WorkflowTester<Boolean, Words.State> workflow;
+    private final WorkflowTester<Boolean, Integer> workflow;
     private final List<Announcement> announcements;
 
     TurnWorkflowTester() {
@@ -169,7 +177,7 @@ public class TurnWorkflowTest {
           (data, events) -> assertions.accept(new TurnScreenTester(data, events, ticker)));
     }
 
-    IterableAssert<String> assertThatResult() {
+    AbstractIntegerAssert<?> assertThatResult() {
       return assertThat(workflow.result());
     }
 
