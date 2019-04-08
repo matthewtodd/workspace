@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.flow.Flow.Scheduler;
 import org.matthewtodd.perquackey.Announcement;
+import org.matthewtodd.perquackey.GameWorkflow;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.terminal.Application;
@@ -73,7 +74,7 @@ public class Perquackey {
 
     Application build() {
       return new Application(
-          new TurnWorkflow(ticker, announcer),
+          new GameWorkflow(() -> new TurnWorkflow(ticker, announcer)),
           Perquackey::viewFactory,
           new TerminalUI(terminal, looper));
     }
