@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.assertj.core.api.AbstractBooleanAssert;
 import org.junit.Before;
 import org.junit.Test;
 import org.matthewtodd.terminal.Application;
@@ -88,9 +89,10 @@ public class PerquackeyTest {
   }
 
   @Test public void quitting() {
-    assertThat(perquackey.closed()).isFalse();
+    perquackey.assertTerminalClosed().isFalse();
     perquackey.on(TurnView.class, view -> perquackey.type('Q'));
-    assertThat(perquackey.closed()).isTrue();
+    perquackey.on(SummaryView.class, view -> perquackey.type('Q'));
+    perquackey.assertTerminalClosed().isTrue();
   }
 
   private static class PerquackeyTester {
@@ -141,8 +143,8 @@ public class PerquackeyTest {
       ticker.onNext(0L);
     }
 
-    boolean closed() {
-      return terminal.closed();
+    AbstractBooleanAssert<?> assertTerminalClosed() {
+      return assertThat(terminal.closed()).as("terminal closed");
     }
   }
 

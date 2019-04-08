@@ -34,6 +34,14 @@ java_test(
 )
 
 java_test(
+    name = "GameWorkflowTest",
+    size = "small",
+    runtime_deps = [
+        ":perquackey",
+    ],
+)
+
+java_test(
     name = "InputTest",
     size = "small",
     runtime_deps = [
@@ -58,7 +66,7 @@ java_test(
 )
 
 java_test(
-    name = "WordsTest",
+    name = "TurnWorkflowTest",
     size = "small",
     runtime_deps = [
         ":perquackey",
@@ -66,7 +74,7 @@ java_test(
 )
 
 java_test(
-    name = "TurnWorkflowTest",
+    name = "WordsTest",
     size = "small",
     runtime_deps = [
         ":perquackey",

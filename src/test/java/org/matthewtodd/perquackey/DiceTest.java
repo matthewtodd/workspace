@@ -58,7 +58,7 @@ public class DiceTest {
 
     DiceTester() {
       dice = new Dice();
-      state = AssertSubscriber.create();
+      state = AssertSubscriber.create("dice state");
       dice.state().subscribe(state);
     }
 

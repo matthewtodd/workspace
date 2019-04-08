@@ -4,15 +4,19 @@ import io.reactivex.subscribers.TestSubscriber;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class AssertSubscriber<T> implements Subscriber<T> {
   private final TestSubscriber<T> delegate;
+  private final String description; // TODO rewrite assertions to call assertThat().as(description)
 
-  private AssertSubscriber() {
+  private AssertSubscriber(String description) {
+    this.description = description;
     delegate = TestSubscriber.create();
   }
 
-  public static <T> AssertSubscriber<T> create() {
-    return new AssertSubscriber<>();
+  public static <T> AssertSubscriber<T> create(String description) {
+    return new AssertSubscriber<>(description);
   }
 
   @Override public void onSubscribe(Subscription s) {
@@ -32,6 +36,7 @@ public class AssertSubscriber<T> implements Subscriber<T> {
   }
 
   public T get() {
+    assertThat(delegate.values()).as("%s values", description).isNotEmpty();
     return delegate.values().get(delegate.values().size() - 1);
   }
 
@@ -40,7 +45,7 @@ public class AssertSubscriber<T> implements Subscriber<T> {
   }
 
   public void assertNotComplete() {
-    delegate.assertNotComplete();
+    assertThat(delegate.completions() > 0).as("%s complete", description).isFalse();
   }
 
   public void assertEmpty() {

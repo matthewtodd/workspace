@@ -11,7 +11,7 @@ public class WordsTest {
   // auto-remove singular on spelling plural
   // auto-pluralize when filling category with s available
   @Test public void removesSingularWhenSpellingPlural() {
-    AssertSubscriber<Words.State> words = AssertSubscriber.create();
+    AssertSubscriber<Words.State> words = AssertSubscriber.create("words");
     Words turn = new Words();
     turn.state().subscribe(words);
     turn.spell("dog");
@@ -21,7 +21,7 @@ public class WordsTest {
   }
 
   @Test public void removesPluralWhenSpellingSingular() {
-    AssertSubscriber<Words.State> words = AssertSubscriber.create();
+    AssertSubscriber<Words.State> words = AssertSubscriber.create("words");
     Words turn = new Words();
     turn.state().subscribe(words);
     turn.spell("dogs");
@@ -49,7 +49,7 @@ public class WordsTest {
   }
 
   @Test public void stateColunns() {
-    AssertSubscriber<Words.State> state = AssertSubscriber.create();
+    AssertSubscriber<Words.State> state = AssertSubscriber.create("words");
     Words words = new Words();
     words.setVulnerable(false);
     words.state().subscribe(state);
@@ -57,7 +57,7 @@ public class WordsTest {
   }
 
   @Test public void stateColunns_vulnerable() {
-    AssertSubscriber<Words.State> state = AssertSubscriber.create();
+    AssertSubscriber<Words.State> state = AssertSubscriber.create("words");
     Words words = new Words();
     words.setVulnerable(true);
     words.state().subscribe(state);

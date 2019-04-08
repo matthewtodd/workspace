@@ -5,7 +5,7 @@ import org.matthewtodd.flow.AssertSubscriber;
 
 public class InputTest {
   @Test public void acceptsWordsInTheDictionary() {
-    AssertSubscriber<String> entries = AssertSubscriber.create();
+    AssertSubscriber<String> entries = AssertSubscriber.create("input entries");
     Input input = new Input(word -> true);
     input.entries().subscribe(entries);
     input.letter('z');
@@ -16,7 +16,7 @@ public class InputTest {
   }
 
   @Test public void rejectsWordsThatAreNotInTheDictionary() {
-    AssertSubscriber<String> entries = AssertSubscriber.create();
+    AssertSubscriber<String> entries = AssertSubscriber.create("input entries");
     Input input = new Input(word -> false);
     input.entries().subscribe(entries);
     input.letter('z');

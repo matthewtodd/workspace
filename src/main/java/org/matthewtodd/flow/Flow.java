@@ -62,7 +62,7 @@ public class Flow {
           onNext.accept(t);
         }
 
-        @Override public void onError(Throwable t) { }
+        @Override public void onError(Throwable t) { throw new RuntimeException(t); }
 
         @Override public void onComplete() { }
       });

@@ -10,8 +10,8 @@ public class WorkflowTester<I, R> {
 
   public WorkflowTester(Workflow<I, R> workflow) {
     this.workflow = workflow;
-    this.screen = AssertSubscriber.create();
-    this.result = AssertSubscriber.create();
+    this.screen = AssertSubscriber.create("screen");
+    this.result = AssertSubscriber.create("result");
     workflow.screen().subscribe(screen);
     workflow.result().subscribe(result);
   }
@@ -24,7 +24,7 @@ public class WorkflowTester<I, R> {
       BiConsumer<AssertSubscriber<D>, E> assertions) {
     screen.assertNotComplete();
     T currentScreen = screenClass.cast(screen.get());
-    AssertSubscriber<D> data = AssertSubscriber.create();
+    AssertSubscriber<D> data = AssertSubscriber.create("screen data");
     currentScreen.screenData.subscribe(data);
     assertions.accept(data, currentScreen.eventHandler);
   }

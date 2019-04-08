@@ -51,7 +51,7 @@ class TurnCoordinator implements Coordinator<TurnView> {
 
       new TableUpdater(view.words.getTableModel()).update(turn.words());
 
-      view.commandLine.setText(String.format(":%s", turn.input()));
+      view.commandLine.setText(turn.input());
       view.letters.setText(String.format("%s:%S", turn.knownLetters(), turn.unknownLetters()));
     });
 

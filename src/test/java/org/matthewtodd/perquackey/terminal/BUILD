@@ -23,6 +23,14 @@ java_test(
 )
 
 java_test(
+    name = "SummaryViewTest",
+    size = "small",
+    runtime_deps = [
+        ":terminal",
+    ],
+)
+
+java_test(
     name = "TurnViewTest",
     size = "small",
     runtime_deps = [

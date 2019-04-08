@@ -2,19 +2,16 @@ package org.matthewtodd.perquackey.terminal;
 
 import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.gui2.AbstractInteractableComponent;
 import com.googlecode.lanterna.gui2.BorderLayout;
 import com.googlecode.lanterna.gui2.Direction;
 import com.googlecode.lanterna.gui2.GridLayout;
-import com.googlecode.lanterna.gui2.InteractableRenderer;
 import com.googlecode.lanterna.gui2.Label;
 import com.googlecode.lanterna.gui2.Panel;
 import com.googlecode.lanterna.gui2.Separator;
 import com.googlecode.lanterna.gui2.TextGUIGraphics;
 import com.googlecode.lanterna.gui2.table.Table;
 import com.googlecode.lanterna.gui2.table.TableHeaderRenderer;
-import com.googlecode.lanterna.input.KeyStroke;
-import java.util.function.Consumer;
+import org.matthewtodd.terminal.CommandLine;
 import org.matthewtodd.terminal.View;
 
 class TurnView extends View<TurnView> {
@@ -43,45 +40,6 @@ class TurnView extends View<TurnView> {
             .addComponent(commandLine, GridLayout.createHorizontallyFilledLayoutData(1))
             .addComponent(letters, GridLayout.createHorizontallyEndAlignedLayoutData(1))
             .setLayoutData(BorderLayout.Location.BOTTOM)));
-  }
-
-  static class CommandLine extends AbstractInteractableComponent<CommandLine> {
-    private Consumer<KeyStroke> keyPressListener = c -> { };
-    private String text = "";
-
-    String getText() {
-      return text;
-    }
-
-    void setText(String text) {
-      this.text = text;
-    }
-
-    @Override protected Result handleKeyStroke(KeyStroke key) {
-      keyPressListener.accept(key);
-      return Result.HANDLED;
-    }
-
-    void setKeyPressListener(Consumer<KeyStroke> keyPressListener) {
-      this.keyPressListener = (keyPressListener != null) ? keyPressListener : c -> { };
-    }
-
-    @Override protected InteractableRenderer<CommandLine> createDefaultRenderer() {
-      return new InteractableRenderer<CommandLine>() {
-        @Override public TerminalPosition getCursorLocation(CommandLine commandLine) {
-          return TerminalPosition.TOP_LEFT_CORNER.withRelativeColumn(commandLine.getText().length());
-        }
-
-        @Override public TerminalSize getPreferredSize(CommandLine commandLine) {
-          return TerminalSize.ONE.withRelativeColumns(commandLine.getText().length());
-        }
-
-        @Override
-        public void drawComponent(TextGUIGraphics textGUIGraphics, CommandLine commandLine) {
-          textGUIGraphics.putString(TerminalPosition.TOP_LEFT_CORNER, commandLine.getText());
-        }
-      };
-    }
   }
 
   private static class LabelIsWidthRenderer implements TableHeaderRenderer<String> {

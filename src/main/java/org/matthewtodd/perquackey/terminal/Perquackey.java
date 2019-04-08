@@ -9,6 +9,7 @@ import org.matthewtodd.flow.Flow;
 import org.matthewtodd.flow.Flow.Scheduler;
 import org.matthewtodd.perquackey.Announcement;
 import org.matthewtodd.perquackey.GameWorkflow;
+import org.matthewtodd.perquackey.SummaryScreen;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.terminal.Application;
@@ -36,14 +37,22 @@ public class Perquackey {
   }
 
   private static Component viewFactory(WorkflowScreen<?, ?> screen) {
-    if (TurnScreen.KEY.equals(screen.key)) {
-      TurnCoordinator coordinator = new TurnCoordinator((TurnScreen) screen);
-      TurnView view = new TurnView();
-      view.setAddedListener(coordinator::attach);
-      view.setRemovedListener(coordinator::detach);
-      return view;
+    switch (screen.key) {
+      case TurnScreen.KEY:
+        TurnCoordinator turnCoordinator = new TurnCoordinator((TurnScreen) screen);
+        TurnView turnView = new TurnView();
+        turnView.setAddedListener(turnCoordinator::attach);
+        turnView.setRemovedListener(turnCoordinator::detach);
+        return turnView;
+      case SummaryScreen.KEY:
+        SummaryCoordinator summaryCoordinator = new SummaryCoordinator((SummaryScreen) screen);
+        SummaryView summaryView = new SummaryView();
+        summaryView.setAddedListener(summaryCoordinator::attach);
+        summaryView.setRemovedListener(summaryCoordinator::detach);
+        return summaryView;
+      default:
+        throw new IllegalStateException(String.format("View factory can't handle %s.", screen.key));
     }
-    throw new IllegalStateException();
   }
 
   static class Builder {
