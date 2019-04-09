@@ -19,5 +19,7 @@ public class SummaryCoordinator implements Coordinator<SummaryView> {
         }
       }
     });
+
+    view.commandLine.takeFocus();
   }
 }
