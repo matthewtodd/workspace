@@ -3,6 +3,8 @@ package org.matthewtodd.workflow;
 import java.util.function.BiConsumer;
 import org.matthewtodd.flow.AssertSubscriber;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class WorkflowTester<I, R> {
   private final Workflow<I, R> workflow;
   private final AssertSubscriber<WorkflowScreen<?, ?>> screen;
@@ -23,6 +25,13 @@ public class WorkflowTester<I, R> {
   public <D, E, T extends WorkflowScreen<D, E>> void on(Class<T> screenClass,
       BiConsumer<AssertSubscriber<D>, E> assertions) {
     screen.assertNotComplete();
+
+    if (!screenClass.isInstance(screen.get())) {
+      throw new AssertionError(String.format("Expected %s, but was %s.",
+              screenClass.getSimpleName(),
+              screen.get().getClass().getSimpleName()));
+    }
+
     T currentScreen = screenClass.cast(screen.get());
     AssertSubscriber<D> data = AssertSubscriber.create("screen data");
     currentScreen.screenData.subscribe(data);

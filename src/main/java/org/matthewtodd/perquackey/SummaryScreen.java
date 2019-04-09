@@ -13,10 +13,10 @@ public class SummaryScreen extends WorkflowScreen<SummaryScreen.Data, SummaryScr
   }
 
   public static class Data {
-    private final Integer score;
+    private final List<Integer> scores;
 
-    Data(Integer score) {
-      this.score = score;
+    Data(List<Integer> scores) {
+      this.scores = Collections.unmodifiableList(scores);
     }
 
     public String playerName(int columnIndex) {
@@ -28,15 +28,17 @@ public class SummaryScreen extends WorkflowScreen<SummaryScreen.Data, SummaryScr
     }
 
     public List<Integer> playerScores(int columnIndex) {
-      return Collections.singletonList(score);
+      return scores;
     }
 
     public int scoreCount() {
-      return 1;
+      return scores.size();
     }
   }
 
   public interface Events {
+    void nextTurn();
+
     void quit();
   }
 }

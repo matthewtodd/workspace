@@ -98,6 +98,12 @@ public class PerquackeyTest {
     });
   }
 
+  @Test public void nextTurn() {
+    perquackey.on(TurnView.class, view -> perquackey.type('Q'));
+    perquackey.on(SummaryView.class, view -> perquackey.typeEnter());
+    perquackey.on(TurnView.class, view -> perquackey.type('Q'));
+  }
+
   @Test public void quitting() {
     perquackey.assertTerminalClosed().isFalse();
     perquackey.on(TurnView.class, view -> perquackey.type('Q'));

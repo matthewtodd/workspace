@@ -1,7 +1,5 @@
 package org.matthewtodd.perquackey;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Consumer;
 import org.assertj.core.api.AbstractStringAssert;
 import org.assertj.core.api.ListAssert;
@@ -22,16 +20,16 @@ public class GameWorkflowTest {
     workflow.start();
   }
 
-  @Test public void hookup() {
-    workflow.turn(turn -> {
-      turn.assertInputIsEqualTo(false);
-      turn.result(850);
-    });
+  @Test public void scoring() {
+    workflow.turn(turn -> turn.result(850));
+    workflow.summary(score -> score.assertScores().containsExactly(850));
+  }
 
-    workflow.summary(screen -> {
-      screen.assertPlayers().containsExactly("Player 1");
-      screen.assertPlayerScores("Player 1").containsExactly(850);
-    });
+  @Test public void anotherTurn() {
+    workflow.turn(turn -> turn.result(850));
+    workflow.summary(SummaryScreenTester::nextTurn);
+    workflow.turn(turn -> turn.result(3000));
+    workflow.summary(score -> score.assertScores().containsExactly(850, 3000));
   }
 
   @Test public void quitting() {
@@ -74,17 +72,12 @@ public class GameWorkflowTest {
       this.events = events;
     }
 
-    ListAssert<String> assertPlayers() {
-      List<String> playerNames = new ArrayList<>();
-      for (int i = 0; i < data.get().playerCount(); i++) {
-        playerNames.add(data.get().playerName(i));
-      }
-      return assertThat(playerNames);
+    ListAssert<Integer> assertScores() {
+      return assertThat(data.get().playerScores(0).subList(0, data.get().scoreCount()));
     }
 
-    ListAssert<Integer> assertPlayerScores(String playerName) {
-      // TODO honor player name
-      return assertThat(data.get().playerScores(0));
+    void nextTurn() {
+      events.nextTurn();
     }
 
     void quit() {

@@ -21,6 +21,8 @@ public class SummaryCoordinator implements Coordinator<SummaryView> {
         if (keyStroke.getCharacter() == 'Q') {
           screen.eventHandler.quit();
         }
+      } else if (keyStroke.getKeyType() == KeyType.Enter) {
+        screen.eventHandler.nextTurn();
       }
     });
 
