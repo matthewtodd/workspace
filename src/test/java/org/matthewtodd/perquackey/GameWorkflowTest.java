@@ -32,6 +32,18 @@ public class GameWorkflowTest {
     workflow.summary(score -> score.assertScores().containsExactly(850, 3000));
   }
 
+  @Test public void vulnerability_notVulnerable() {
+    workflow.turn(turn -> turn.result(850));
+    workflow.summary(SummaryScreenTester::nextTurn);
+    workflow.turn(turn -> turn.assertInputIsEqualTo(false));
+  }
+
+  @Test public void vulnerability_vulnerable() {
+    workflow.turn(turn -> turn.result(2000));
+    workflow.summary(SummaryScreenTester::nextTurn);
+    workflow.turn(turn -> turn.assertInputIsEqualTo(true));
+  }
+
   @Test public void quitting() {
     workflow.turn(turn -> turn.result(0));
     workflow.summary(SummaryScreenTester::quit);

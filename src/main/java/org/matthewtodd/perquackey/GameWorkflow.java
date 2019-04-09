@@ -36,7 +36,7 @@ public class GameWorkflow implements Workflow<Void, String>, SummaryScreen.Event
     Workflow<Boolean, Integer> turn = factory.get();
     Flow.of(turn.screen()).subscribe(screen::onNext);
     Flow.of(turn.result()).subscribe(this::turnComplete);
-    turn.start(false);
+    turn.start(scores.stream().mapToInt(s -> s).sum() >= 2000);
   }
 
   @Override public void quit() {
