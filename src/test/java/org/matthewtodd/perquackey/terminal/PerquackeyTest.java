@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.matthewtodd.terminal.Application;
 import org.matthewtodd.terminal.View;
 
+import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // This test shows the UI wired up to the application.
@@ -88,9 +89,19 @@ public class PerquackeyTest {
     });
   }
 
+  @Test public void summary() {
+    perquackey.on(TurnView.class, view -> perquackey.type('Q'));
+
+    perquackey.on(SummaryView.class, view -> {
+      assertThat(view.scores.getTableModel().getColumnLabels()).containsExactly("Player 1");
+      assertThat(view.scores.getTableModel().getRows()).containsExactly(singletonList(0));
+    });
+  }
+
   @Test public void quitting() {
     perquackey.assertTerminalClosed().isFalse();
     perquackey.on(TurnView.class, view -> perquackey.type('Q'));
+    perquackey.assertTerminalClosed().isFalse();
     perquackey.on(SummaryView.class, view -> perquackey.type('Q'));
     perquackey.assertTerminalClosed().isTrue();
   }

@@ -47,6 +47,8 @@ class SummaryView extends View<SummaryView> {
     }
 
     @Override public void drawCell(Table<Integer> table, Integer cell, int columnIndex, int rowIndex, TextGUIGraphics gui) {
+      // TODO return early if cell is null? Can happen when partially through a round.
+
       int columns = gui.getSize().getColumns();
 
       String turnScore = String.valueOf(cell);

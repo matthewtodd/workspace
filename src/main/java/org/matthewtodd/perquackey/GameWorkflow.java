@@ -21,7 +21,8 @@ public class GameWorkflow implements Workflow<Void, String>, SummaryScreen.Event
         .subscribe(screen::onNext);
 
     Flow.of(turnWorkflow.result())
-        .subscribe(result -> screen.onNext(new SummaryScreen(Flow.pipe(), this)));
+        .subscribe(
+            result -> screen.onNext(new SummaryScreen(Flow.pipe(new SummaryScreen.Data(result)), this)));
 
     turnWorkflow.start(false);
   }

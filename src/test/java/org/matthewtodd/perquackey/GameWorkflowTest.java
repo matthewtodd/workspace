@@ -1,7 +1,10 @@
 package org.matthewtodd.perquackey;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import org.assertj.core.api.AbstractStringAssert;
+import org.assertj.core.api.ListAssert;
 import org.junit.Before;
 import org.junit.Test;
 import org.matthewtodd.flow.AssertSubscriber;
@@ -22,10 +25,13 @@ public class GameWorkflowTest {
   @Test public void hookup() {
     workflow.turn(turn -> {
       turn.assertInputIsEqualTo(false);
-      turn.result(0);
+      turn.result(850);
     });
 
-    workflow.summary(screen -> {});
+    workflow.summary(screen -> {
+      screen.assertPlayers().containsExactly("Player 1");
+      screen.assertPlayerScores("Player 1").containsExactly(850);
+    });
   }
 
   @Test public void quitting() {
@@ -66,6 +72,19 @@ public class GameWorkflowTest {
     SummaryScreenTester(AssertSubscriber<SummaryScreen.Data> data, SummaryScreen.Events events) {
       this.data = data;
       this.events = events;
+    }
+
+    ListAssert<String> assertPlayers() {
+      List<String> playerNames = new ArrayList<>();
+      for (int i = 0; i < data.get().playerCount(); i++) {
+        playerNames.add(data.get().playerName(i));
+      }
+      return assertThat(playerNames);
+    }
+
+    ListAssert<Integer> assertPlayerScores(String playerName) {
+      // TODO honor player name
+      return assertThat(data.get().playerScores(0));
     }
 
     void quit() {
