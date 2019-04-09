@@ -47,10 +47,13 @@ class SummaryView extends View<SummaryView> {
     }
 
     @Override public void drawCell(Table<Integer> table, Integer cell, int columnIndex, int rowIndex, TextGUIGraphics gui) {
-      // TODO return early if cell is null? Can happen when partially through a round.
+      // Can happen when partially through a round.
+      if (cell == null) {
+        gui.fill(' ');
+        return;
+      }
 
       int columns = gui.getSize().getColumns();
-
       String turnScore = String.valueOf(cell);
       gui.putString(new TerminalPosition(columns - turnScore.length(), 0), turnScore);
 

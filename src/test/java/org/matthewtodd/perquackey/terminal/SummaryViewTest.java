@@ -13,7 +13,7 @@ public class SummaryViewTest {
       view.scores.setTableModel(new TableModel<>("Matthew", "Kathy"));
       view.scores.getTableModel().addRow(3000, 850);
       view.scores.getTableModel().addRow(4900, 1200);
-      view.scores.getTableModel().addRow(2600, -500);
+      view.scores.getTableModel().addRow(2600, null);
       view.commandLine.takeFocus();
     });
 
@@ -23,9 +23,9 @@ public class SummaryViewTest {
         "   4900   1200                                    ",
         "------- ------                                    ",
         "   7900   2050                                    ",
-        "   2600   -500                                    ",
-        "------- ------                                    ",
-        "  10500   1550                                    ",
+        "   2600                                           ",
+        "-------                                           ",
+        "  10500                                           ",
         "                                                  ",
         ":                                                 "
     );
