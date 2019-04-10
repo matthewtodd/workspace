@@ -9,7 +9,7 @@ import org.matthewtodd.flow.Flow;
 import org.matthewtodd.flow.Flow.Scheduler;
 import org.matthewtodd.perquackey.Announcement;
 import org.matthewtodd.perquackey.GameWorkflow;
-import org.matthewtodd.perquackey.SummaryScreen;
+import org.matthewtodd.perquackey.ScorecardScreen;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.TurnWorkflow;
 import org.matthewtodd.terminal.Application;
@@ -44,12 +44,12 @@ public class Perquackey {
         turnView.setAddedListener(turnCoordinator::attach);
         turnView.setRemovedListener(turnCoordinator::detach);
         return turnView;
-      case SummaryScreen.KEY:
-        SummaryCoordinator summaryCoordinator = new SummaryCoordinator((SummaryScreen) screen);
-        SummaryView summaryView = new SummaryView();
-        summaryView.setAddedListener(summaryCoordinator::attach);
-        summaryView.setRemovedListener(summaryCoordinator::detach);
-        return summaryView;
+      case ScorecardScreen.KEY:
+        ScorecardCoordinator scorecardCoordinator = new ScorecardCoordinator((ScorecardScreen) screen);
+        ScorecardView scorecardView = new ScorecardView();
+        scorecardView.setAddedListener(scorecardCoordinator::attach);
+        scorecardView.setRemovedListener(scorecardCoordinator::detach);
+        return scorecardView;
       default:
         throw new IllegalStateException(String.format("View factory can't handle %s.", screen.key));
     }

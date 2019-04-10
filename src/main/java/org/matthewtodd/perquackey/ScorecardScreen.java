@@ -5,10 +5,10 @@ import java.util.List;
 import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Publisher;
 
-public class SummaryScreen extends WorkflowScreen<SummaryScreen.Data, SummaryScreen.Events> {
-  public static final String KEY = "SummaryScreen";
+public class ScorecardScreen extends WorkflowScreen<ScorecardScreen.Data, ScorecardScreen.Events> {
+  public static final String KEY = "ScorecardScreen";
 
-  SummaryScreen(Publisher<Data> screenData, Events eventHandler) {
+  ScorecardScreen(Publisher<Data> screenData, Events eventHandler) {
     super(KEY, screenData, eventHandler);
   }
 

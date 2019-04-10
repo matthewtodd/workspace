@@ -14,14 +14,14 @@ import org.matthewtodd.terminal.View;
 
 import static com.googlecode.lanterna.TerminalPosition.TOP_LEFT_CORNER;
 
-class SummaryView extends View<SummaryView> {
+class ScorecardView extends View<ScorecardView> {
   final Table<Integer> scores = new Table<Integer>("")
       .setTableHeaderRenderer(new ScoreTableHeaderRenderer())
       .setTableCellRenderer(new ScoreTableCellRenderer());
 
   final CommandLine commandLine = new CommandLine();
 
-  SummaryView() {
+  ScorecardView() {
     setComponent(new Panel(new BorderLayout())
         .addComponent(new Panel(new BorderLayout())
             .addComponent(scores)

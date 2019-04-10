@@ -6,9 +6,9 @@ import org.matthewtodd.terminal.ViewTester;
 
 import static com.googlecode.lanterna.TerminalPosition.TOP_LEFT_CORNER;
 
-public class SummaryViewTest {
+public class ScorecardViewTest {
   @Test public void hookup() {
-    ViewTester<SummaryView> tester = new ViewTester<>(new SummaryView());
+    ViewTester<ScorecardView> tester = new ViewTester<>(new ScorecardView());
     tester.update(view -> {
       view.scores.setTableModel(new TableModel<>("Matthew", "Kathy"));
       view.scores.getTableModel().addRow(3000, 850);

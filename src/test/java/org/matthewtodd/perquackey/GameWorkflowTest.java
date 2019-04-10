@@ -22,31 +22,31 @@ public class GameWorkflowTest {
 
   @Test public void scoring() {
     workflow.turn(turn -> turn.result(850));
-    workflow.summary(score -> score.assertScores().containsExactly(850));
+    workflow.scorecard(score -> score.assertScores().containsExactly(850));
   }
 
   @Test public void anotherTurn() {
     workflow.turn(turn -> turn.result(850));
-    workflow.summary(SummaryScreenTester::nextTurn);
+    workflow.scorecard(ScorecardScreenTester::nextTurn);
     workflow.turn(turn -> turn.result(3000));
-    workflow.summary(score -> score.assertScores().containsExactly(850, 3000));
+    workflow.scorecard(score -> score.assertScores().containsExactly(850, 3000));
   }
 
   @Test public void vulnerability_notVulnerable() {
     workflow.turn(turn -> turn.result(850));
-    workflow.summary(SummaryScreenTester::nextTurn);
+    workflow.scorecard(ScorecardScreenTester::nextTurn);
     workflow.turn(turn -> turn.assertInputIsEqualTo(false));
   }
 
   @Test public void vulnerability_vulnerable() {
     workflow.turn(turn -> turn.result(2000));
-    workflow.summary(SummaryScreenTester::nextTurn);
+    workflow.scorecard(ScorecardScreenTester::nextTurn);
     workflow.turn(turn -> turn.assertInputIsEqualTo(true));
   }
 
   @Test public void quitting() {
     workflow.turn(turn -> turn.result(0));
-    workflow.summary(SummaryScreenTester::quit);
+    workflow.scorecard(ScorecardScreenTester::quit);
     workflow.assertThatResult().isEqualTo("");
   }
 
@@ -65,9 +65,9 @@ public class GameWorkflowTest {
       workflow.on(StubWorkflowScreen.class, (data, events) -> assertions.accept(events));
     }
 
-    void summary(Consumer<SummaryScreenTester> assertions) {
-      workflow.on(SummaryScreen.class,
-          (data, events) -> assertions.accept(new SummaryScreenTester(data, events)));
+    void scorecard(Consumer<ScorecardScreenTester> assertions) {
+      workflow.on(ScorecardScreen.class,
+          (data, events) -> assertions.accept(new ScorecardScreenTester(data, events)));
     }
 
     AbstractStringAssert<?> assertThatResult() {
@@ -75,11 +75,11 @@ public class GameWorkflowTest {
     }
   }
 
-  static class SummaryScreenTester {
-    private final AssertSubscriber<SummaryScreen.Data> data;
-    private final SummaryScreen.Events events;
+  static class ScorecardScreenTester {
+    private final AssertSubscriber<ScorecardScreen.Data> data;
+    private final ScorecardScreen.Events events;
 
-    SummaryScreenTester(AssertSubscriber<SummaryScreen.Data> data, SummaryScreen.Events events) {
+    ScorecardScreenTester(AssertSubscriber<ScorecardScreen.Data> data, ScorecardScreen.Events events) {
       this.data = data;
       this.events = events;
     }

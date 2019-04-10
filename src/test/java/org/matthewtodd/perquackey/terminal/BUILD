@@ -23,7 +23,7 @@ java_test(
 )
 
 java_test(
-    name = "SummaryViewTest",
+    name = "ScorecardViewTest",
     size = "small",
     runtime_deps = [
         ":terminal",

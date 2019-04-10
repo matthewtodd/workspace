@@ -89,10 +89,10 @@ public class PerquackeyTest {
     });
   }
 
-  @Test public void summary() {
+  @Test public void scorecard() {
     perquackey.on(TurnView.class, view -> perquackey.type('Q'));
 
-    perquackey.on(SummaryView.class, view -> {
+    perquackey.on(ScorecardView.class, view -> {
       assertThat(view.scores.getTableModel().getColumnLabels()).containsExactly("Player 1");
       assertThat(view.scores.getTableModel().getRows()).containsExactly(singletonList(0));
     });
@@ -100,7 +100,7 @@ public class PerquackeyTest {
 
   @Test public void nextTurn() {
     perquackey.on(TurnView.class, view -> perquackey.type('Q'));
-    perquackey.on(SummaryView.class, view -> perquackey.typeEnter());
+    perquackey.on(ScorecardView.class, view -> perquackey.typeEnter());
     perquackey.on(TurnView.class, view -> perquackey.type('Q'));
   }
 
@@ -108,7 +108,7 @@ public class PerquackeyTest {
     perquackey.assertTerminalClosed().isFalse();
     perquackey.on(TurnView.class, view -> perquackey.type('Q'));
     perquackey.assertTerminalClosed().isFalse();
-    perquackey.on(SummaryView.class, view -> perquackey.type('Q'));
+    perquackey.on(ScorecardView.class, view -> perquackey.type('Q'));
     perquackey.assertTerminalClosed().isTrue();
   }
 

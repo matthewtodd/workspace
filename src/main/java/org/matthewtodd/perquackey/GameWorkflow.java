@@ -9,7 +9,7 @@ import org.matthewtodd.workflow.WorkflowScreen;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
-public class GameWorkflow implements Workflow<Void, String>, SummaryScreen.Events {
+public class GameWorkflow implements Workflow<Void, String>, ScorecardScreen.Events {
   private final Supplier<Workflow<Boolean, Integer>> factory;
   private final List<Integer> scores;
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen = Flow.pipe();
@@ -47,6 +47,6 @@ public class GameWorkflow implements Workflow<Void, String>, SummaryScreen.Event
 
   private void turnComplete(Integer score) {
     scores.add(score);
-    screen.onNext(new SummaryScreen(Flow.pipe(new SummaryScreen.Data(scores)), this));
+    screen.onNext(new ScorecardScreen(Flow.pipe(new ScorecardScreen.Data(scores)), this));
   }
 }
