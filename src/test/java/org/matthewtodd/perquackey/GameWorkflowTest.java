@@ -1,5 +1,7 @@
 package org.matthewtodd.perquackey;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import org.assertj.core.api.AbstractStringAssert;
 import org.assertj.core.api.ListAssert;
@@ -22,14 +24,27 @@ public class GameWorkflowTest {
 
   @Test public void scoring() {
     workflow.turn(turn -> turn.result(850));
-    workflow.scorecard(score -> score.assertScores().containsExactly(850));
+    workflow.scorecard(score -> score.assertScores(0).containsExactly(850));
   }
 
   @Test public void anotherTurn() {
     workflow.turn(turn -> turn.result(850));
     workflow.scorecard(ScorecardScreenTester::nextTurn);
     workflow.turn(turn -> turn.result(3000));
-    workflow.scorecard(score -> score.assertScores().containsExactly(850, 3000));
+    workflow.scorecard(score -> score.assertScores(0).containsExactly(850, 3000));
+  }
+
+  @Test public void twoPlayers() {
+    workflow.turn(turn -> turn.result(850));
+    workflow.scorecard(score -> {
+      score.numberOfPlayers(2);
+      score.nextTurn();
+    });
+    workflow.turn(turn -> turn.result(2100));
+    workflow.scorecard(score -> {
+      score.assertScores(0).containsExactly(850);
+      score.assertScores(1).containsExactly(2100);
+    });
   }
 
   @Test public void vulnerability_notVulnerable() {
@@ -84,8 +99,16 @@ public class GameWorkflowTest {
       this.events = events;
     }
 
-    ListAssert<Integer> assertScores() {
-      return assertThat(data.get().playerScores(0).subList(0, data.get().scoreCount()));
+    ListAssert<Integer> assertScores(int playerNumber) {
+      List<Integer> scores = new ArrayList<>();
+      for (int rowIndex = 0; rowIndex < data.get().scoreCount(); rowIndex++) {
+        scores.add(data.get().playerScore(playerNumber, rowIndex));
+      }
+      return assertThat(scores);
+    }
+
+    void numberOfPlayers(int numberOfPlayers) {
+      events.numberOfPlayers(numberOfPlayers);
     }
 
     void nextTurn() {

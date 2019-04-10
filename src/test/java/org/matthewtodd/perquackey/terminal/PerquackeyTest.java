@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.matthewtodd.terminal.Application;
 import org.matthewtodd.terminal.View;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -95,6 +96,23 @@ public class PerquackeyTest {
     perquackey.on(ScorecardView.class, view -> {
       assertThat(view.scores.getTableModel().getColumnLabels()).containsExactly("Player 1");
       assertThat(view.scores.getTableModel().getRows()).containsExactly(singletonList(0));
+    });
+  }
+
+  @Test public void twoPlayers() {
+    perquackey.on(TurnView.class, view -> perquackey.type('Q'));
+
+    perquackey.on(ScorecardView.class, view -> {
+      perquackey.type('2');
+      assertThat(view.scores.getTableModel().getColumnLabels())
+          .containsExactly("Player 1", "Player 2");
+      perquackey.typeEnter();
+    });
+
+    perquackey.on(TurnView.class, view -> perquackey.type('Q'));
+
+    perquackey.on(ScorecardView.class, view -> {
+      assertThat(view.scores.getTableModel().getRows()).containsExactly(asList(0, 0));
     });
   }
 

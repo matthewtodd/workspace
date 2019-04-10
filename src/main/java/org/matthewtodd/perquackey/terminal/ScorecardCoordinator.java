@@ -20,6 +20,8 @@ public class ScorecardCoordinator implements Coordinator<ScorecardView> {
       if (keyStroke.getKeyType() == KeyType.Character) {
         if (keyStroke.getCharacter() == 'Q') {
           screen.eventHandler.quit();
+        } else if (Character.isDigit(keyStroke.getCharacter())) {
+          screen.eventHandler.numberOfPlayers(Integer.parseInt(keyStroke.getCharacter().toString()));
         }
       } else if (keyStroke.getKeyType() == KeyType.Enter) {
         screen.eventHandler.nextTurn();
@@ -28,6 +30,11 @@ public class ScorecardCoordinator implements Coordinator<ScorecardView> {
 
     Flow.of(screen.screenData).subscribe(scorecard -> {
       TableModel<Integer> table = view.scores.getTableModel();
+
+      // Remove old columns
+      for (int columnIndex = scorecard.playerCount(); columnIndex < table.getColumnCount();) {
+        table.removeColumn(columnIndex);
+      }
 
       // Update existing columns
       for (int columnIndex = 0; columnIndex < table.getColumnCount(); columnIndex++) {
@@ -42,7 +49,7 @@ public class ScorecardCoordinator implements Coordinator<ScorecardView> {
       // Update existing rows
       for (int rowIndex = 0; rowIndex < table.getRowCount(); rowIndex++) {
         for (int columnIndex = 0; columnIndex < table.getColumnCount(); columnIndex++) {
-          table.setCell(columnIndex, rowIndex, scorecard.playerScores(columnIndex).get(rowIndex));
+          table.setCell(columnIndex, rowIndex, scorecard.playerScore(columnIndex, rowIndex));
         }
       }
 
@@ -51,11 +58,10 @@ public class ScorecardCoordinator implements Coordinator<ScorecardView> {
         int rowIndex = table.getRowCount();
         Collection<Integer> row = new ArrayList<>(table.getColumnCount());
         for (int columnIndex = 0; columnIndex < table.getColumnCount(); columnIndex++) {
-          row.add(scorecard.playerScores(columnIndex).get(rowIndex));
+          row.add(scorecard.playerScore(columnIndex, rowIndex));
         }
         table.addRow(row);
       }
-
     });
 
     view.commandLine.takeFocus();
