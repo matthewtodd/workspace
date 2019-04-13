@@ -10,10 +10,10 @@ import org.assertj.core.api.AbstractLongAssert;
 import org.assertj.core.api.IterableAssert;
 import org.assertj.core.api.ListAssert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.matthewtodd.flow.AssertSubscriber;
 import org.matthewtodd.workflow.WorkflowTester;
-import org.reactivestreams.Subscriber;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.matthewtodd.perquackey.Announcement.TimeIsUp;
@@ -122,11 +122,11 @@ public class TurnWorkflowTest {
   @Test public void timer() {
     workflow.turn(screen -> {
       screen.assertThatTimeRemaining().isEqualTo(180);
-      screen.tick();
+      workflow.tick();
       screen.assertThatTimeRemaining().isEqualTo(180);
       screen.toggleTimer();
       screen.assertThatTimeRemaining().isEqualTo(180);
-      screen.tick();
+      workflow.tick();
       screen.assertThatTimeRemaining().isEqualTo(179);
     });
   }
@@ -134,11 +134,24 @@ public class TurnWorkflowTest {
   @Test public void timeAnnouncement() {
     workflow.turn(screen -> {
       screen.toggleTimer();
-      screen.tick(179);
+      workflow.tick(179);
       workflow.assertThatAnnouncements().isEmpty();
-      screen.tick();
+      workflow.tick();
       workflow.assertThatAnnouncements().containsExactly(TimeIsUp);
     });
+  }
+
+  @Ignore("WIP")
+  @Test public void timeAnnouncement_notAfterQuitting() {
+    workflow.turn(screen -> {
+      screen.toggleTimer();
+      workflow.tick(179);
+      workflow.assertThatAnnouncements().isEmpty();
+      screen.quit();
+    });
+
+    workflow.tick();
+    workflow.assertThatAnnouncements().isEmpty();
   }
 
   @Test public void resultIsScore() {
@@ -165,16 +178,26 @@ public class TurnWorkflowTest {
       workflow = new WorkflowTester<>(new TurnWorkflow(ticker, announcements::add));
     }
 
+    void tick() {
+      ticker.onNext(0L);
+    }
+
+    void tick(int times) {
+      for (int i = 0; i < times; i++) {
+        tick();
+      }
+    }
+
     void turn(Consumer<TurnScreenTester> assertions) {
       workflow.start(false);
       workflow.on(TurnScreen.class,
-          (data, events) -> assertions.accept(new TurnScreenTester(data, events, ticker)));
+          (data, events) -> assertions.accept(new TurnScreenTester(data, events)));
     }
 
     void vulnerableTurn(Consumer<TurnScreenTester> assertions) {
       workflow.start(true);
       workflow.on(TurnScreen.class,
-          (data, events) -> assertions.accept(new TurnScreenTester(data, events, ticker)));
+          (data, events) -> assertions.accept(new TurnScreenTester(data, events)));
     }
 
     AbstractIntegerAssert<?> assertThatResult() {
@@ -189,13 +212,10 @@ public class TurnWorkflowTest {
   private static class TurnScreenTester {
     private final AssertSubscriber<TurnScreen.Data> data;
     private final TurnScreen.Events events;
-    private final Subscriber<Long> ticker;
 
-    TurnScreenTester(AssertSubscriber<TurnScreen.Data> data, TurnScreen.Events events,
-        Subscriber<Long> ticker) {
+    TurnScreenTester(AssertSubscriber<TurnScreen.Data> data, TurnScreen.Events events) {
       this.data = data;
       this.events = events;
-      this.ticker = ticker;
     }
 
     AbstractCharSequenceAssert<?, String> assertThatInput() {
@@ -224,16 +244,6 @@ public class TurnWorkflowTest {
 
     void quit() {
       events.quit();
-    }
-
-    void tick() {
-      ticker.onNext(0L);
-    }
-
-    void tick(int times) {
-      for (int i = 0; i < times; i++) {
-        tick();
-      }
     }
 
     void toggleTimer() {
