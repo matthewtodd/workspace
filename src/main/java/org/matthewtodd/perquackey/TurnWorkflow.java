@@ -1,5 +1,7 @@
 package org.matthewtodd.perquackey;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.workflow.Workflow;
@@ -12,6 +14,7 @@ import static org.matthewtodd.perquackey.Announcement.TimeIsUp;
 public class TurnWorkflow implements Workflow<Boolean, Integer>, TurnScreen.Events {
   private final Processor<WorkflowScreen<?, ?>, WorkflowScreen<?, ?>> screen;
   private final Processor<Integer, Integer> result;
+  private final List<Runnable> cancelHooks;
   private final Scorer scorer;
   private final Timer timer;
   private final Words words;
@@ -25,6 +28,7 @@ public class TurnWorkflow implements Workflow<Boolean, Integer>, TurnScreen.Even
     this.ticker = ticker;
     this.announcer = announcer;
 
+    cancelHooks = new ArrayList<>();
     screen = Flow.pipe();
     result = Flow.pipe();
 
@@ -41,10 +45,10 @@ public class TurnWorkflow implements Workflow<Boolean, Integer>, TurnScreen.Even
     dice.setVulnerable(vulnerable);
     words.setVulnerable(vulnerable);
 
-    Flow.of(ticker).subscribe(timer::tick);
-    Flow.of(input.entries()).subscribe(words::spell);
-    Flow.of(words.state()).subscribe(dice::observe);
-    Flow.of(Flow.of(timer.state()).last()).subscribe(s -> announcer.accept(TimeIsUp));
+    Flow.of(ticker).subscribe(timer::tick, cancelHooks::add);
+    Flow.of(input.entries()).subscribe(words::spell, cancelHooks::add);
+    Flow.of(words.state()).subscribe(dice::observe, cancelHooks::add);
+    Flow.of(Flow.of(timer.state()).last()).subscribe(s -> announcer.accept(TimeIsUp), cancelHooks::add);
     Flow.of(words.state())
         .as(scorer::score)
         .as(score -> (vulnerable && score < 1000) ? -500 : score)
@@ -85,6 +89,8 @@ public class TurnWorkflow implements Workflow<Boolean, Integer>, TurnScreen.Even
   }
 
   @Override public void quit() {
+    cancelHooks.forEach(Runnable::run);
+    cancelHooks.clear();
     words.quit();
     screen.onComplete();
   }

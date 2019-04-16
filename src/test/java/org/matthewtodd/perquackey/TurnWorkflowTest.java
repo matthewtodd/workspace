@@ -10,7 +10,6 @@ import org.assertj.core.api.AbstractLongAssert;
 import org.assertj.core.api.IterableAssert;
 import org.assertj.core.api.ListAssert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.matthewtodd.flow.AssertSubscriber;
 import org.matthewtodd.workflow.WorkflowTester;
@@ -141,7 +140,6 @@ public class TurnWorkflowTest {
     });
   }
 
-  @Ignore("WIP")
   @Test public void timeAnnouncement_notAfterQuitting() {
     workflow.turn(screen -> {
       screen.toggleTimer();

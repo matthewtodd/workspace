@@ -3,6 +3,7 @@ package org.matthewtodd.perquackey.terminal;
 import com.googlecode.lanterna.gui2.table.TableModel;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.TurnScreen;
 import org.matthewtodd.perquackey.Words;
@@ -10,9 +11,11 @@ import org.matthewtodd.terminal.Coordinator;
 
 class TurnCoordinator implements Coordinator<TurnView> {
   private final TurnScreen screen;
+  private final List<Runnable> cancelHooks;
 
   TurnCoordinator(TurnScreen screen) {
     this.screen = screen;
+    this.cancelHooks = new ArrayList<>();
   }
 
   @Override public void attach(TurnView view) {
@@ -53,9 +56,14 @@ class TurnCoordinator implements Coordinator<TurnView> {
 
       view.commandLine.setText(turn.input());
       view.letters.setText(String.format("%s:%S", turn.knownLetters(), turn.unknownLetters()));
-    });
+    }, cancelHooks::add);
 
     view.commandLine.takeFocus();
+  }
+
+  @Override public void detach(TurnView component) {
+    cancelHooks.forEach(Runnable::run);
+    cancelHooks.clear();
   }
 
   static class TableUpdater {

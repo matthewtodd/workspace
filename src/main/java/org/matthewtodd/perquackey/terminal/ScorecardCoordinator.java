@@ -4,15 +4,18 @@ import com.googlecode.lanterna.gui2.table.TableModel;
 import com.googlecode.lanterna.input.KeyType;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import org.matthewtodd.flow.Flow;
 import org.matthewtodd.perquackey.ScorecardScreen;
 import org.matthewtodd.terminal.Coordinator;
 
 public class ScorecardCoordinator implements Coordinator<ScorecardView> {
   private final ScorecardScreen screen;
+  private final List<Runnable> cancelHooks;
 
   ScorecardCoordinator(ScorecardScreen screen) {
     this.screen = screen;
+    this.cancelHooks = new ArrayList<>();
   }
 
   @Override public void attach(ScorecardView view) {
@@ -62,8 +65,13 @@ public class ScorecardCoordinator implements Coordinator<ScorecardView> {
         }
         table.addRow(row);
       }
-    });
+    }, cancelHooks::add);
 
     view.commandLine.takeFocus();
+  }
+
+  @Override public void detach(ScorecardView component) {
+    cancelHooks.forEach(Runnable::run);
+    cancelHooks.clear();
   }
 }

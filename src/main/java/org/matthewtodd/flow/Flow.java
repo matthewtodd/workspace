@@ -52,10 +52,28 @@ public class Flow {
       return source.lastOrError().toFlowable();
     }
 
+    @Deprecated
     public void subscribe(Consumer<T> onNext) {
       source.subscribe(new Subscriber<T>() {
         @Override public void onSubscribe(Subscription s) {
           s.request(Long.MAX_VALUE);
+        }
+
+        @Override public void onNext(T t) {
+          onNext.accept(t);
+        }
+
+        @Override public void onError(Throwable t) { throw new RuntimeException(t); }
+
+        @Override public void onComplete() { }
+      });
+    }
+
+    public void subscribe(Consumer<T> onNext, Consumer<Runnable> hooks) {
+      source.subscribe(new Subscriber<T>() {
+        @Override public void onSubscribe(Subscription subscription) {
+          hooks.accept(subscription::cancel);
+          subscription.request(Long.MAX_VALUE);
         }
 
         @Override public void onNext(T t) {
