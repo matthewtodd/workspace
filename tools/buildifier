@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+WORKSPACE=$(cd $(dirname $(dirname ${BASH_SOURCE})); pwd)
+
+find ${WORKSPACE} -name WORKSPACE \
+  -exec buildifier $* -type workspace -v {} \;
+
+find ${WORKSPACE} \( -name BUILD -or -name \*.bazel \) \
+  -exec buildifier $* -type build -v {} \;
+
+find ${WORKSPACE} -name \*.bzl \
+  -exec buildifier $* -type bzl -v {} \;
