@@ -15,6 +15,10 @@ maven_install(
     artifacts = [
         "com.github.akarnokd:rxjava2-extensions:0.20.8",
         "com.googlecode.lanterna:lanterna:3.0.1",
+        "com.jetbrains.intellij.platform:core:191.7141.44",
+        "com.jetbrains.intellij.platform:editor:191.7141.44",
+        "com.jetbrains.intellij.platform:ide-impl:191.7141.44",
+        "com.jetbrains.intellij.platform:util:191.7141.44",
         "io.reactivex.rxjava2:rxjava:2.2.8",
         "junit:junit:4.12",
         "org.assertj:assertj-core:3.12.2",
@@ -22,6 +26,9 @@ maven_install(
     ],
     fetch_sources = True,
     repositories = [
+        "https://jcenter.bintray.com/",
+        "https://jetbrains.bintray.com/intellij-third-party-dependencies",
         "https://repo1.maven.org/maven2",
+        "https://www.jetbrains.com/intellij-repository/releases",
     ],
 )
