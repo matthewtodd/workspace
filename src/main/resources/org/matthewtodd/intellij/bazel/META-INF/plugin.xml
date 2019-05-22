@@ -1,0 +1,25 @@
+<idea-plugin>
+  <id>org.matthewtodd.intellij.bazel</id>
+  <name>Bazel</name>
+  <version>1.0</version>
+  <vendor email="matthew@matthewtodd.org" url="https://matthewtodd.org">Matthew Todd</vendor>
+
+  <description>
+    A barely workable, probably doomed-to-failure pass at a Bazel plugin for IntelliJ.
+  </description>
+
+  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
+  <idea-version since-build="191" until-build="191.*"/>
+
+  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
+       on how to target different products -->
+  <!-- uncomment to enable plugin in all products
+  <depends>com.intellij.modules.lang</depends>
+  -->
+
+  <extensions defaultExtensionNs="com.intellij">
+    <externalSystemManager implementation="org.matthewtodd.intellij.bazel.BazelManager"/>
+  </extensions>
+
+</idea-plugin>
+

@@ -1,4 +1,25 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_jar")
+
+# Check for updates at https://www.jetbrains.com/intellij-repository/releases
+http_archive(
+    name = "intellij",
+    build_file_content = "\n".join([
+        "java_import(",
+        "    name = 'sdk',",
+        "    jars = glob(['lib/*.jar']),",
+        "    srcjar = '@intellij_sdk_sources//jar',",
+        "    visibility = ['//visibility:public'],",
+        ")",
+    ]),
+    sha256 = "e045751adabe2837203798270e1dc173128fe3e607e3025d4f8110c7ed4cc499",
+    url = "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/idea/ideaIC/2019.1.2/ideaIC-2019.1.2.zip",
+)
+
+http_jar(
+    name = "intellij_sdk_sources",
+    sha256 = "a86b0af9758aa70360fd4113db878a91a10e67f6b0816aa8826ad5d9c4d17894",
+    url = "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/idea/ideaIC/2019.1.2/ideaIC-2019.1.2-sources.jar",
+)
 
 # Check for updates at https://github.com/bazelbuild/rules_jvm_external/releases
 http_archive(
@@ -15,10 +36,6 @@ maven_install(
     artifacts = [
         "com.github.akarnokd:rxjava2-extensions:0.20.8",
         "com.googlecode.lanterna:lanterna:3.0.1",
-        "com.jetbrains.intellij.platform:core:191.7141.44",
-        "com.jetbrains.intellij.platform:editor:191.7141.44",
-        "com.jetbrains.intellij.platform:ide-impl:191.7141.44",
-        "com.jetbrains.intellij.platform:util:191.7141.44",
         "io.reactivex.rxjava2:rxjava:2.2.8",
         "junit:junit:4.12",
         "org.assertj:assertj-core:3.12.2",
@@ -26,9 +43,6 @@ maven_install(
     ],
     fetch_sources = True,
     repositories = [
-        "https://jcenter.bintray.com/",
-        "https://jetbrains.bintray.com/intellij-third-party-dependencies",
         "https://repo1.maven.org/maven2",
-        "https://www.jetbrains.com/intellij-repository/releases",
     ],
 )
