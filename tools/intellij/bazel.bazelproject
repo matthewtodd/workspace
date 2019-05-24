@@ -1,6 +1,5 @@
 directories:
   src/main/java/org/matthewtodd/intellij/bazel
-  src/main/resources/org/matthewtodd/intellij/bazel
 
 targets:
   //src/main/java/org/matthewtodd/intellij/bazel/...
