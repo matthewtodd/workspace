@@ -3,11 +3,3 @@ cask 'caskroom/versions/java8'
 
 brew 'bazel'
 brew 'buildifier'
-cask 'fluor'
-
-# Once https://github.com/Homebrew/homebrew-bundle/blob/master/lib/bundle/cask_installer.rb
-# honors these args when making its outdated_checks,
-# `brew bundle` will automatically upgrade IntelliJ.
-# In the meantime, we also need to check `brew cask outdated --greedy` and
-# `brew cask upgrade intellij-idea-ce`.
-cask 'intellij-idea-ce' #, args: { greedy: true }
