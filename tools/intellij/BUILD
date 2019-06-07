@@ -4,5 +4,8 @@ intellij_project(
     name = "intellij",
     ide = "@intellij//:app",
     # modules
-    plugins = ["//src/main/java/org/matthewtodd/intellij/rebalance"],
+    plugins = [
+        "//src/main/java/org/matthewtodd/intellij/bazel",
+        "//src/main/java/org/matthewtodd/intellij/rebalance",
+    ],
 )
