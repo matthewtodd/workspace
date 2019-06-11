@@ -1,6 +1,5 @@
 package org.matthewtodd.intellij.bazel;
 
-import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.SimpleJavaParameters;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
@@ -25,18 +24,18 @@ public class BazelManager implements ExternalSystemManager<
     BazelExecutionSettings> {
 
   public static final ProjectSystemId SYSTEM_ID =
-      new ProjectSystemId("org.matthewtodd.intellij.bazel");
+      new ProjectSystemId("org.matthewtodd.intellij.bazel", "Bazel");
 
   @Override public @NotNull ProjectSystemId getSystemId() {
     return SYSTEM_ID;
   }
 
   @Override public @NotNull Function<Project, BazelSettings> getSettingsProvider() {
-    return BazelSettings::new;
+    return BazelSettings::getInstance;
   }
 
   @Override public @NotNull Function<Project, BazelLocalSettings> getLocalSettingsProvider() {
-    return BazelLocalSettings::new;
+    return BazelLocalSettings::getInstance;
   }
 
   @Override public @NotNull
@@ -59,8 +58,7 @@ public class BazelManager implements ExternalSystemManager<
         .withFileFilter(file -> file.getName().equals("WORKSPACE"));
   }
 
-  @Override public void enhanceRemoteProcessing(@NotNull SimpleJavaParameters parameters)
-      throws ExecutionException {
+  @Override public void enhanceRemoteProcessing(@NotNull SimpleJavaParameters parameters) {
     // not sure if we need to do anything here...
   }
 }

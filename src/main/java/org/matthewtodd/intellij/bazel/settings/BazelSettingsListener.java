@@ -6,34 +6,21 @@ import java.util.Collection;
 import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
-public class BazelSettingsListener
-    implements ExternalSystemSettingsListener<BazelProjectSettings> {
+public interface BazelSettingsListener
+    extends ExternalSystemSettingsListener<BazelProjectSettings> {
 
-  static final Topic<BazelSettingsListener> TOPIC =
+  Topic<BazelSettingsListener> TOPIC =
       Topic.create("Bazel settings", BazelSettingsListener.class);
 
-  @Override public void onProjectRenamed(@NotNull String oldName, @NotNull String newName) {
+  @Override default void onProjectRenamed(@NotNull String oldName, @NotNull String newName) {}
 
-  }
+  @Override default void onProjectsLinked(@NotNull Collection<BazelProjectSettings> settings) {}
 
-  @Override public void onProjectsLinked(@NotNull Collection<BazelProjectSettings> settings) {
+  @Override default void onProjectsUnlinked(@NotNull Set<String> linkedProjectPaths) {}
 
-  }
+  @Override default void onUseAutoImportChange(boolean currentValue, @NotNull String linkedProjectPath) {}
 
-  @Override public void onProjectsUnlinked(@NotNull Set<String> linkedProjectPaths) {
+  @Override default void onBulkChangeStart() {}
 
-  }
-
-  @Override
-  public void onUseAutoImportChange(boolean currentValue, @NotNull String linkedProjectPath) {
-
-  }
-
-  @Override public void onBulkChangeStart() {
-
-  }
-
-  @Override public void onBulkChangeEnd() {
-
-  }
+  @Override default void onBulkChangeEnd() {}
 }

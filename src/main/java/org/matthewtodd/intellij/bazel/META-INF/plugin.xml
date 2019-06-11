@@ -18,6 +18,9 @@
   -->
 
   <extensions defaultExtensionNs="com.intellij">
+    <projectOpenProcessor implementation="org.matthewtodd.intellij.bazel.projectImport.BazelProjectOpenProcessor"/>
+    <projectService serviceImplementation="org.matthewtodd.intellij.bazel.settings.BazelSettings"/>
+    <projectService serviceImplementation="org.matthewtodd.intellij.bazel.settings.BazelLocalSettings"/>
     <externalSystemManager implementation="org.matthewtodd.intellij.bazel.BazelManager"/>
   </extensions>
 

@@ -6,6 +6,7 @@ def _app_path(filegroup):
 def _dirname(path):
     return path[0:path.rindex("/")]
 
+# TODO refactor so we can clear (and tail?) log files on launch.
 def _intellij_project_impl(ctx):
     launcher = ctx.actions.declare_file(ctx.attr.name + "/launcher")
     properties = ctx.actions.declare_file("idea.properties", sibling = launcher)
@@ -22,11 +23,13 @@ def _intellij_project_impl(ctx):
             "",
             "sed \\",
             "  -e s,%workspace%,$BUILD_WORKSPACE_DIRECTORY,g \\",
+            "  -e s,%package%,{},g \\".format(ctx.label.package),
+            "  -e s,%name%,{},g \\".format(ctx.label.name),
             "  -e s,%runfiles%,$PWD,g \\",
             "  -e s,%tempdir%,$(mktemp -d -t idea),g \\",
             "  {} > $IDEA_PROPERTIES".format(properties.short_path),
-            "cat $IDEA_PROPERTIES",
-            "open -a $PWD/{}".format(_app_path(ctx.attr.ide)),
+            "",
+            "open -a $PWD/{} $(mktemp -d -t project)".format(_app_path(ctx.attr.ide)),
         ]),
         True,
     )
@@ -44,7 +47,11 @@ def _intellij_project_impl(ctx):
     ctx.actions.write(
         properties,
         "\n".join([
-            "idea.config.path=%workspace%/{}".format("tools/intellij/config"),
+            "bazel.project.name=%name%",
+            "bazel.project.label=//%package%:%name%",
+            "bazel.project.path=%workspace%",
+            "idea.config.path=%workspace%/tools/intellij/config",
+            "idea.log.path=%workspace%/tools/intellij/logs/%name%",
             "idea.plugins.path=%runfiles%/{}".format(_dirname(plugins[0].short_path)),
             "idea.system.path=%tempdir%/system",
         ]),

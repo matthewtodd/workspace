@@ -1,13 +1,18 @@
 package org.matthewtodd.intellij.bazel.settings;
 
+import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.externalSystem.settings.AbstractExternalSystemSettings;
 import com.intellij.openapi.externalSystem.settings.ExternalSystemSettingsListener;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
 public class BazelSettings extends AbstractExternalSystemSettings<BazelSettings, BazelProjectSettings, BazelSettingsListener> {
-  public BazelSettings(Project project) {
+  private BazelSettings(Project project) {
     super(BazelSettingsListener.TOPIC, project);
+  }
+
+  public static BazelSettings getInstance(Project project) {
+    return ServiceManager.getService(project, BazelSettings.class);
   }
 
   @Override public void subscribe(

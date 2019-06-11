@@ -1,5 +1,4 @@
-tools/intellij/config/options/jdk.table.xml
-tools/intellij/config/options/path.macros.xml
-tools/intellij/config/options/usage.statistics.xml
-tools/intellij/config/port
-tools/intellij/config/port.lock
+.idea
+.ijwb
+tools/intellij/config
+tools/intellij/logs
