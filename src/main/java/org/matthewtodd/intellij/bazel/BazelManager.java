@@ -40,7 +40,11 @@ public class BazelManager implements ExternalSystemManager<
 
   @Override public @NotNull
   Function<Pair<Project, String>, BazelExecutionSettings> getExecutionSettingsProvider() {
-    return pair -> new BazelExecutionSettings(pair.first, pair.second);
+    return projectAndPath -> new BazelExecutionSettings(
+        System.getProperty("bazel.project.name"),
+        System.getProperty("bazel.project.path"),
+        System.getProperty("bazel.project.label")
+    );
   }
 
   @Override public @NotNull

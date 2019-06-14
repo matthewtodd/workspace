@@ -3,7 +3,6 @@ package org.matthewtodd.intellij.bazel.projectImport;
 import com.intellij.ide.RecentProjectsManagerBase;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode;
-import com.intellij.openapi.externalSystem.service.project.manage.ExternalProjectsManagerImpl;
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ex.ProjectManagerEx;
@@ -36,31 +35,39 @@ public class BazelProjectOpenProcessor extends ProjectOpenProcessor {
 
   @Nullable @Override
   public Project doOpenProject(@NotNull VirtualFile virtualFile, @Nullable Project projectToClose, boolean forceOpenInNewFrame) {
-    String projectName = System.getProperty("bazel.project.name");
-    //String projectLabel = System.getProperty("bazel.project.label");
-    //String projectPath = System.getProperty("bazel.project.path");
-
     final ProjectManagerEx manager = ProjectManagerEx.getInstanceEx();
-    final Project project = manager.createProject(projectName, virtualFile.getPath());
+
+    final Project project = manager.createProject(
+        System.getProperty("bazel.project.name"),
+        virtualFile.getPath()
+    );
 
     if (project == null) {
       return null;
     }
 
-    ExternalProjectsManagerImpl.setupCreatedProject(project);
+    // I don't know if I need this!
+    //ExternalProjectsManagerImpl.setupCreatedProject(project);
 
-    // TODO here's where I can stuff the properties for later.
     BazelProjectSettings settings = new BazelProjectSettings();
     settings.setExternalProjectPath(virtualFile.getPath());
     settings.setUseAutoImport(true);
 
-    ExternalSystemUtil.linkExternalProject(BazelManager.SYSTEM_ID, settings, project, null, false, ProgressExecutionMode.MODAL_SYNC);
+    ExternalSystemUtil.linkExternalProject(
+        BazelManager.SYSTEM_ID,
+        settings,
+        project,
+        null,
+        false,
+        ProgressExecutionMode.MODAL_SYNC
+    );
 
     project.save();
     manager.openProject(project);
 
     // Clear recent projects list!
-    RecentProjectsManagerBase.getInstanceEx().loadState(new RecentProjectsManagerBase.State());
+    RecentProjectsManagerBase.getInstanceEx()
+        .loadState(new RecentProjectsManagerBase.State());
 
     return project;
   }
