@@ -3,6 +3,7 @@ java_library(
     testonly = True,
     srcs = glob(["*.java"]),
     visibility = [
+        # TODO necessary anymore?
         "//src/test/java/org/matthewtodd/perquackey/terminal:__pkg__",
     ],
     deps = [

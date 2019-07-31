@@ -26,6 +26,10 @@ public class BazelManager implements ExternalSystemManager<
   public static final ProjectSystemId SYSTEM_ID =
       new ProjectSystemId("org.matthewtodd.intellij.bazel", "Bazel");
 
+  public static final String BAZEL_PROJECT_NAME = "bazel.project.name";
+  public static final String BAZEL_PROJECT_PATH = "bazel.project.path";
+  public static final String BAZEL_PROJECT_LABEL = "bazel.project.label";
+
   @Override public @NotNull ProjectSystemId getSystemId() {
     return SYSTEM_ID;
   }
@@ -41,9 +45,9 @@ public class BazelManager implements ExternalSystemManager<
   @Override public @NotNull
   Function<Pair<Project, String>, BazelExecutionSettings> getExecutionSettingsProvider() {
     return projectAndPath -> new BazelExecutionSettings(
-        System.getProperty("bazel.project.name"),
-        System.getProperty("bazel.project.path"),
-        System.getProperty("bazel.project.label")
+        System.getProperty(BAZEL_PROJECT_NAME),
+        System.getProperty(BAZEL_PROJECT_PATH),
+        System.getProperty(BAZEL_PROJECT_LABEL)
     );
   }
 

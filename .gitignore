@@ -1,4 +1,5 @@
 .idea
 .ijwb
+bazel-*
 tools/intellij/config
 tools/intellij/logs
