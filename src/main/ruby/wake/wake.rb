@@ -22,6 +22,7 @@ module Wake
   class Reporter
     def initialize(io)
       @io = io
+      @results = []
     end
 
     def start
@@ -35,10 +36,15 @@ module Wake
     def record(result)
       @io.print result.result_code
       @io.flush
+
+      @results << result unless result.passed?
     end
 
     def report
       @io.puts
+      @results.each.with_index do |result, i|
+        @io.print "\n%3d) %s" % [i+1, result]
+      end
     end
   end
 end
