@@ -36,13 +36,13 @@ class WakeTest < Minitest::Test
           RuntimeError: Boom!
               #{Dir.pwd}/smoke_test.rb:13:in `test_erroring'
 
-            2) Skipped:
-          SmokeTest#test_skipping [#{Dir.pwd}/smoke_test.rb:17]:
-          Skipped, no message given
-
-            3) Failure:
+            2) Failure:
           SmokeTest#test_failing [#{Dir.pwd}/smoke_test.rb:9]:
           Expected false to be truthy.
+
+            3) Skipped:
+          SmokeTest#test_skipping [#{Dir.pwd}/smoke_test.rb:17]:
+          Skipped, no message given
         END
       end
     end
