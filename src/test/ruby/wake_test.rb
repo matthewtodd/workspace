@@ -59,7 +59,8 @@ class WakeTest < Minitest::Test
 
         class SingletonPresentTest < Minitest::Test
           def test_hookup
-            assert Kernel.const_defined?(:Singleton), 'Expected Singleton to be defined.'
+            assert Kernel.const_defined?(:Singleton),
+              'Expected Singleton to be defined.'
           end
         end
       END
@@ -70,7 +71,8 @@ class WakeTest < Minitest::Test
 
         class SingletonAbsentTest < Minitest::Test
           def test_hookup
-            assert !Kernel.const_defined?(:Singleton), 'Expected Singleton not to be defined.'
+            assert !Kernel.const_defined?(:Singleton),
+              'Expected Singleton not to be defined.'
           end
         end
       END

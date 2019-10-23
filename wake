@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby -wU --disable-all
 
 WORKSPACE_PATH = File.expand_path('..', __FILE__)
-$:.unshift(File.join(WORKSPACE_PATH, 'src/main/ruby/wake'))
+$:.unshift(File.join(WORKSPACE_PATH, 'src/main/ruby'))
 require 'wake'
 Wake.run(WORKSPACE_PATH, STDOUT)
