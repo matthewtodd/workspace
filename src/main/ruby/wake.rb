@@ -5,7 +5,7 @@ require 'minitest'
 
 module Wake
   def self.run(workspace_path, stdout)
-    test_files = []
+    test_files = Queue.new
 
     Find.find(workspace_path) do |path|
       test_files << path if path =~ /_test.rb$/
@@ -18,53 +18,62 @@ module Wake
     include_path = File.dirname(Wake.method(:run).source_location.first)
 
     # TODO also get the include path of the library itself and use that.
-    while test_file = test_files.pop
-      IO.pipe do |my_stdout, child_stdout|
-        # binmode while we're sending marshalled data across.
-        my_stdout.binmode
+    size = 10
+    pool = size.times.map {
+      Thread.new(test_files) do |test_files|
+        Thread.current.abort_on_exception = true
 
-        pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-e', <<~END, out: child_stdout)
-          # binmode while we're sending marshalled data across.
-          STDOUT.binmode
+        while test_file = test_files.pop
+          IO.pipe do |my_stdout, child_stdout|
+            # binmode while we're sending marshalled data across.
+            my_stdout.binmode
 
-          # Unfortunate for test output predictability... Want to kill.
-          srand(0)
+            pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-e', <<~END, out: child_stdout)
+              # binmode while we're sending marshalled data across.
+              STDOUT.binmode
 
-          require '#{test_file}'
+              # Unfortunate for test output predictability... Want to kill.
+              srand(0)
 
-          class MarshallingReporter
-            def initialize(io)
-              @io = io
-            end
+              require '#{test_file}'
 
-            def prerecord(klass, name)
-              # no-op
-            end
+              class MarshallingReporter
+                def initialize(io)
+                  @io = io
+                end
 
-            def record(result)
-              buffer = Marshal.dump(result)
-              @io.puts(buffer.length)
-              @io.print(buffer)
-              @io.flush
+                def prerecord(klass, name)
+                  # no-op
+                end
+
+                def record(result)
+                  buffer = Marshal.dump(result)
+                  @io.puts(buffer.length)
+                  @io.print(buffer)
+                  @io.flush
+                end
+              end
+
+              Minitest::Runnable.runnables.each do |runnable|
+                runnable.run(MarshallingReporter.new(STDOUT), {})
+              end
+            END
+
+            child_stdout.close
+            Process.waitpid(pid)
+            until my_stdout.eof?
+              length = my_stdout.readline.to_i
+              buffer = my_stdout.read(length)
+              result = Marshal.load(buffer)
+              reporter.record(result)
             end
           end
-
-          Minitest::Runnable.runnables.each do |runnable|
-            runnable.run(MarshallingReporter.new(STDOUT), {})
-          end
-        END
-
-        child_stdout.close
-        Process.waitpid(pid)
-        until my_stdout.eof?
-          length = my_stdout.readline.to_i
-          buffer = my_stdout.read(length)
-          result = Marshal.load(buffer)
-          reporter.record(result)
         end
       end
-    end
+    }
 
+    size.times { test_files << nil }
+    pool.each(&:join)
     reporter.report
   end
 
@@ -72,16 +81,15 @@ module Wake
     def initialize(io)
       @io = io
       @results = []
-    end
-
-    def prerecord(klass, name)
-      # no-op
+      @semaphore = Mutex.new
     end
 
     def record(result)
-      @io.print result.result_code
-      @io.flush
-      @results << result unless result.passed?
+      @semaphore.synchronize do
+        @io.print result.result_code
+        @io.flush
+        @results << result unless result.passed?
+      end
     end
 
     def report
