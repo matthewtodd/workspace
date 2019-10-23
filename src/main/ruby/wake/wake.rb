@@ -1,19 +1,68 @@
 require 'find'
-require 'rubygems' # TODO don't require rubygems?
+require 'rbconfig'
+require 'rubygems'
 require 'minitest'
 
 module Wake
   def self.run(workspace_path, stdout)
-    reporter = Reporter.new(stdout)
+    test_files = []
 
     Find.find(workspace_path) do |path|
-      require(path) if path =~ /_test.rb$/
+      test_files << path if path =~ /_test.rb$/
     end
 
-    reporter.start
+    reporter = Reporter.new(stdout)
 
-    Minitest::Runnable.runnables.each do |runnable|
-      runnable.run(reporter, {})
+    # TODO this hardcodes wake; not all tests will test wake!
+    # derive instead from the dependencies of the ruby_lib.
+    include_path = File.dirname(Wake.method(:run).source_location.first)
+
+    # TODO also get the include path of the library itself and use that.
+    while test_file = test_files.pop
+      IO.pipe do |my_stdout, child_stdout|
+        # binmode while we're sending marshalled data across.
+        my_stdout.binmode
+
+        pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-e', <<~END, out: child_stdout)
+          # binmode while we're sending marshalled data across.
+          STDOUT.binmode
+
+          # Unfortunate for test output predictability... Want to kill.
+          srand(0)
+
+          require '#{test_file}'
+
+          class MarshallingReporter
+            def initialize(io)
+              @io = io
+            end
+
+            def prerecord(klass, name)
+              # no-op
+            end
+
+            def record(result)
+              buffer = Marshal.dump(result)
+              @io.puts(buffer.length)
+              @io.print(buffer)
+              @io.flush
+            end
+          end
+
+          Minitest::Runnable.runnables.each do |runnable|
+            runnable.run(MarshallingReporter.new(STDOUT), {})
+          end
+        END
+
+        child_stdout.close
+        Process.waitpid(pid)
+        until my_stdout.eof?
+          length = my_stdout.readline.to_i
+          buffer = my_stdout.read(length)
+          result = Marshal.load(buffer)
+          reporter.record(result)
+        end
+      end
     end
 
     reporter.report
@@ -25,10 +74,6 @@ module Wake
       @results = []
     end
 
-    def start
-      # no-op
-    end
-
     def prerecord(klass, name)
       # no-op
     end
@@ -36,7 +81,6 @@ module Wake
     def record(result)
       @io.print result.result_code
       @io.flush
-
       @results << result unless result.passed?
     end
 
