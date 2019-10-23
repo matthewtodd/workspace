@@ -3,9 +3,11 @@ require 'minitest'
 require 'wake'
 
 class WakeTest < Minitest::Test
+  parallelize_me!
+
   def test_runs_all_test_rb_files
-    workspace do
-      IO.write('smoke_test.rb', <<~END)
+    workspace do |path|
+      IO.write("#{path}/smoke_test.rb", <<~END)
         require 'rubygems'
         require 'minitest'
 
@@ -28,7 +30,7 @@ class WakeTest < Minitest::Test
         end
       END
 
-      out, err = wake
+      out, err = wake(path)
 
       assert_equal '', err
       assert_equal <<~END, out
@@ -37,22 +39,22 @@ class WakeTest < Minitest::Test
           1) Error:
         SmokeTest#test_erroring:
         RuntimeError: Boom!
-            #{Dir.pwd}/smoke_test.rb:14:in `test_erroring'
+            #{path}/smoke_test.rb:14:in `test_erroring'
 
           2) Failure:
-        SmokeTest#test_failing [#{Dir.pwd}/smoke_test.rb:10]:
+        SmokeTest#test_failing [#{path}/smoke_test.rb:10]:
         Expected false to be truthy.
 
           3) Skipped:
-        SmokeTest#test_skipping [#{Dir.pwd}/smoke_test.rb:18]:
+        SmokeTest#test_skipping [#{path}/smoke_test.rb:18]:
         Skipped, no message given
       END
     end
   end
 
   def test_runs_tests_with_isolated_load_paths
-    workspace do
-      IO.write('singleton_present_test.rb', <<~END)
+    workspace do |path|
+      IO.write("#{path}/singleton_present_test.rb", <<~END)
         require 'rubygems'
         require 'minitest'
         require 'singleton'
@@ -65,7 +67,7 @@ class WakeTest < Minitest::Test
         end
       END
 
-      IO.write('singleton_absent_test.rb', <<~END)
+      IO.write("#{path}/singleton_absent_test.rb", <<~END)
         require 'rubygems'
         require 'minitest'
 
@@ -77,7 +79,7 @@ class WakeTest < Minitest::Test
         end
       END
 
-      out, err = wake
+      out, err = wake(path)
 
       assert_equal '', err
       assert_equal "..\n", out
@@ -88,17 +90,15 @@ class WakeTest < Minitest::Test
 
   def workspace
     Dir.mktmpdir do |workspace_path|
-      Dir.chdir(workspace_path) do
-        yield
-      end
+      yield workspace_path
     end
   end
 
-  def wake
+  def wake(path)
     IO.pipe do |my_stdout, child_stdout|
       IO.pipe do |my_stderr, child_stderr|
         include_path = File.dirname(Wake.method(:run).source_location.first)
-        pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-rwake', '-e', "Wake.run('#{Dir.pwd}', STDOUT)", out: child_stdout, err: child_stderr)
+        pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-rwake', '-e', "Wake.run('#{path}', STDOUT)", out: child_stdout, err: child_stderr)
         child_stdout.close
         child_stderr.close
         Process.waitpid(pid)

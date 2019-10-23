@@ -40,6 +40,7 @@ module Wake
               class MarshallingReporter
                 def initialize(io)
                   @io = io
+                  @semaphore = Mutex.new
                 end
 
                 def prerecord(klass, name)
@@ -52,11 +53,18 @@ module Wake
                   @io.print(buffer)
                   @io.flush
                 end
+
+                def synchronize
+                  @semaphore.synchronize { yield }
+                end
               end
 
+              Minitest.parallel_executor = Minitest::Parallel::Executor.new(10)
+              Minitest.parallel_executor.start
               Minitest::Runnable.runnables.each do |runnable|
                 runnable.run(MarshallingReporter.new(STDOUT), {})
               end
+              Minitest.parallel_executor.shutdown
             END
 
             child_stdout.close
