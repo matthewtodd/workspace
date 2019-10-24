@@ -5,8 +5,15 @@ require 'wake'
 class WakeTest < Minitest::Test
   parallelize_me!
 
-  def test_runs_all_test_rb_files
+  def test_runs_all_ruby_tests
     workspace do |path|
+      IO.write("#{path}/BUILD", <<~END)
+        ruby_test(
+          name: "SmokeTest",
+          srcs: ["smoke_test.rb"],
+        )
+      END
+
       IO.write("#{path}/smoke_test.rb", <<~END)
         require 'rubygems'
         require 'minitest'
@@ -54,6 +61,18 @@ class WakeTest < Minitest::Test
 
   def test_runs_tests_with_isolated_load_paths
     workspace do |path|
+      IO.write("#{path}/BUILD", <<~END)
+        ruby_test(
+          name: "SingletonPresentTest",
+          srcs: ["singleton_present_test.rb"],
+        )
+
+        ruby_test(
+          name: "SingletonAbsentTest",
+          srcs: ["singleton_absent_test.rb"],
+        )
+      END
+
       IO.write("#{path}/singleton_present_test.rb", <<~END)
         require 'rubygems'
         require 'minitest'
@@ -90,7 +109,7 @@ class WakeTest < Minitest::Test
 
   def workspace
     Dir.mktmpdir do |workspace_path|
-      yield workspace_path
+      yield File.realpath(workspace_path)
     end
   end
 
