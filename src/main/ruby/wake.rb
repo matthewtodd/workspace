@@ -5,15 +5,17 @@ require 'minitest'
 
 module Wake
   class RubyTest
-    def self.load(package_path:, name:, srcs:, deps:)
+    def self.load(package:, name:, srcs:, deps:)
       new(
+        package: package,
         name: name,
-        srcs: srcs.map { |src| File.join(package_path, src) },
+        srcs: srcs,
         deps: deps
       )
     end
 
-    def initialize(name:, srcs:, deps:)
+    def initialize(package:, name:, srcs:, deps:)
+      @package = package
       @name = name
       @srcs = srcs
       @deps = deps
@@ -24,7 +26,7 @@ module Wake
       # TODO this hardcodes wake; not all tests will test wake!
       # derive instead from the dependencies of the ruby_lib.
       command += ['-I', File.dirname(Wake.method(:run).source_location.first)]
-      command += @srcs.flat_map { |src| ['-r', src] }
+      command += @srcs.flat_map { |src| ['-r', @package.resolve_path(src)] }
       command += ['-e', script]
       command
     end
@@ -79,12 +81,16 @@ module Wake
       @collector = collector
     end
 
+    def resolve_path(path)
+      File.join(@path, path)
+    end
+
     def ruby_lib(name:, srcs:)
       self
     end
 
     def ruby_test(name:, srcs:, deps:[])
-      @collector.call RubyTest.load(package_path: @path, name: name, srcs: srcs, deps: deps)
+      @collector.call RubyTest.load(package: self, name: name, srcs: srcs, deps: deps)
       self
     end
   end
