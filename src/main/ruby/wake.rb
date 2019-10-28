@@ -5,16 +5,18 @@ require 'minitest'
 
 module Wake
   class RubyTest
-    def self.from_dsl(package_path:, name:, srcs:)
+    def self.load(package_path:, name:, srcs:, deps:)
       new(
         name: name,
-        srcs: srcs.map { |src| File.join(package_path, src) }
+        srcs: srcs.map { |src| File.join(package_path, src) },
+        deps: deps
       )
     end
 
-    def initialize(name:, srcs:)
+    def initialize(name:, srcs:, deps:)
       @name = name
       @srcs = srcs
+      @deps = deps
     end
 
     def command
@@ -77,8 +79,12 @@ module Wake
       @collector = collector
     end
 
-    def ruby_test(name:, srcs:)
-      @collector.call RubyTest.from_dsl(package_path: @path, name: name, srcs: srcs)
+    def ruby_lib(name:, srcs:)
+      self
+    end
+
+    def ruby_test(name:, srcs:, deps:[])
+      @collector.call RubyTest.load(package_path: @path, name: name, srcs: srcs, deps: deps)
       self
     end
   end
