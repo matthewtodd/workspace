@@ -66,22 +66,31 @@ module Wake
   class Workspace
     def initialize(path)
       @path = path
+      @packages = {}
+    end
+
+    def add_package(path, contents)
+      @packages[path] = Package.load(self, path, contents)
     end
 
     def resolve_path(path)
       File.join(@path, path)
     end
+
+    def each
+      @packages.values.each { |p| p.each { |t| yield t } }
+    end
   end
 
   class Package
-    def self.load(workspace, path, contents, &collector)
-      new(workspace, path, collector).instance_eval(contents)
+    def self.load(workspace, path, contents)
+      new(workspace, path).instance_eval(contents)
     end
 
-    def initialize(workspace, path, collector)
+    def initialize(workspace, path)
       @workspace = workspace
       @path = path
-      @collector = collector
+      @targets = {}
     end
 
     def resolve_path(path)
@@ -92,23 +101,29 @@ module Wake
       self
     end
 
-    def ruby_test(**kwargs)
-      @collector.call RubyTest.new(package: self, **kwargs)
+    def ruby_test(name:, **kwargs)
+      @targets[name] = RubyTest.new(package: self, name: name, **kwargs)
       self
+    end
+
+    def each
+      @targets.values.each { |t| yield t }
     end
   end
 
   def self.run(workspace_path, stdout)
     workspace = Workspace.new(workspace_path)
-    ruby_tests = Queue.new
 
     Find.find(workspace_path) do |path|
       if File.basename(path) == 'BUILD'
-        Package.load(workspace, Pathname.new(path).dirname.relative_path_from(workspace_path).to_s, IO.read(path)) { |target| ruby_tests << target }
+        workspace.add_package(File.dirname(path).slice(workspace_path.length.next..-1) || '', IO.read(path))
       end
     end
 
     reporter = Reporter.new(stdout)
+
+    ruby_tests = Queue.new
+    workspace.each { |t| ruby_tests << t }
 
     size = 10
     pool = size.times.map {
