@@ -1,4 +1,5 @@
 require 'find'
+require 'pathname'
 require 'rbconfig'
 require 'rubygems'
 require 'minitest'
@@ -62,18 +63,29 @@ module Wake
     end
   end
 
-  class Package
-    def self.load(path, contents, &collector)
-      new(path, collector).instance_eval(contents)
+  class Workspace
+    def initialize(path)
+      @path = path
     end
 
-    def initialize(path, collector)
+    def resolve_path(path)
+      File.join(@path, path)
+    end
+  end
+
+  class Package
+    def self.load(workspace, path, contents, &collector)
+      new(workspace, path, collector).instance_eval(contents)
+    end
+
+    def initialize(workspace, path, collector)
+      @workspace = workspace
       @path = path
       @collector = collector
     end
 
     def resolve_path(path)
-      File.join(@path, path)
+      @workspace.resolve_path(File.join(@path, path))
     end
 
     def ruby_lib(name:, srcs:)
@@ -87,11 +99,12 @@ module Wake
   end
 
   def self.run(workspace_path, stdout)
+    workspace = Workspace.new(workspace_path)
     ruby_tests = Queue.new
 
     Find.find(workspace_path) do |path|
       if File.basename(path) == 'BUILD'
-        Package.load(File.dirname(path), IO.read(path)) { |target| ruby_tests << target }
+        Package.load(workspace, Pathname.new(path).dirname.relative_path_from(workspace_path).to_s, IO.read(path)) { |target| ruby_tests << target }
       end
     end
 
