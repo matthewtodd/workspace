@@ -5,15 +5,6 @@ require 'minitest'
 
 module Wake
   class RubyTest
-    def self.load(package:, name:, srcs:, deps:)
-      new(
-        package: package,
-        name: name,
-        srcs: srcs,
-        deps: deps
-      )
-    end
-
     def initialize(package:, name:, srcs:, deps:)
       @package = package
       @name = name
@@ -90,7 +81,7 @@ module Wake
     end
 
     def ruby_test(name:, srcs:, deps:[])
-      @collector.call RubyTest.load(package: self, name: name, srcs: srcs, deps: deps)
+      @collector.call RubyTest.new(package: self, name: name, srcs: srcs, deps: deps)
       self
     end
   end
