@@ -42,10 +42,6 @@ module Wake
       @label = label
       @srcs = srcs
     end
-
-    def include_path(resolver)
-      resolver.path(@label, '.')
-    end
   end
 
   class RubyTest
@@ -60,7 +56,8 @@ module Wake
     def test_command(resolver)
       command = [ RbConfig.ruby, '-wU', '--disable-all']
       # TODO sandboxing; this include path is meaningless for a single ruby source tree.
-      command += @deps.flat_map { |dep| ['-I', resolver.target(dep).include_path(resolver)] }
+      # TODO want to get the include path from the dep...
+      command += @deps.flat_map { |dep| ['-I', resolver.path(dep, '.')] }
       command += @srcs.flat_map { |src| ['-r', resolver.path(@label, src)] }
       command += ['-e', script]
       command
@@ -107,28 +104,18 @@ module Wake
   end
 
   class Workspace
-    def initialize(path)
-      @path = path
+    def initialize
       @targets = {}
     end
 
-    def load_package(build_file_path, contents)
-      path = File.dirname(build_file_path).slice(@path.length.next..-1) || ''
+    def load_package(path, contents)
       Package.load(path, contents) { |target| @targets[target.label] = target }
-    end
-
-    def target(label)
-      @targets[label]
-    end
-
-    def path(label, src)
-      File.absolute_path(File.join(@path, label.package, src))
     end
 
     def test
       @targets.each_value do |target|
         if target.respond_to?(:test_command)
-          yield target.test_command(self)
+          yield target
         end
       end
     end
@@ -155,19 +142,38 @@ module Wake
     end
   end
 
-  def self.run(workspace_path, stdout)
-    workspace = Workspace.new(workspace_path)
+  class Filesystem
+    def initialize(path)
+      @path = path
+    end
 
-    Find.find(workspace_path) do |path|
-      if File.basename(path) == 'BUILD'
-        workspace.load_package(path, IO.read(path))
+    def each_package
+      Find.find(@path) do |path|
+        if File.basename(path) == 'BUILD'
+          yield File.dirname(path).slice(@path.length.next..-1) || '', IO.read(path)
+        end
       end
+    end
+
+    def path(label, src)
+      File.absolute_path(File.join(@path, label.package, src))
+    end
+  end
+
+  def self.run(workspace_path, stdout)
+    workspace = Workspace.new
+
+    source_tree = Filesystem.new(workspace_path)
+    source_tree.each_package do |path, contents|
+      workspace.load_package(path, contents)
     end
 
     reporter = Reporter.new(stdout)
 
     test_commands = Queue.new
-    workspace.test { |test_command| test_commands << test_command }
+    workspace.test do |target|
+      test_commands << target.test_command(source_tree)
+    end
 
     size = 10
     pool = size.times.map {
