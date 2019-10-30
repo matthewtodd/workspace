@@ -69,7 +69,7 @@ module Wake
       @packages = {}
     end
 
-    def add_package(build_file_path, contents)
+    def load_package(build_file_path, contents)
       path = File.dirname(build_file_path).slice(@path.length.next..-1) || ''
       @packages[path] = Package.load(self, path, contents)
     end
@@ -117,7 +117,7 @@ module Wake
 
     Find.find(workspace_path) do |path|
       if File.basename(path) == 'BUILD'
-        workspace.add_package(path, IO.read(path))
+        workspace.load_package(path, IO.read(path))
       end
     end
 
