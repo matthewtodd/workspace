@@ -57,8 +57,8 @@ module Wake
       command = [ RbConfig.ruby, '-wU', '--disable-all']
       # TODO sandboxing; this include path is meaningless for a single ruby source tree.
       # TODO want to get the include path from the dep...
-      command += @deps.flat_map { |dep| ['-I', resolver.path(dep, '.')] }
-      command += @srcs.flat_map { |src| ['-r', resolver.path(@label, src)] }
+      command += @deps.flat_map { |dep| ['-I', resolver.absolute_path(dep, '.')] }
+      command += @srcs.flat_map { |src| ['-r', resolver.absolute_path(@label, src)] }
       command += ['-e', script]
       command
     end
@@ -155,7 +155,7 @@ module Wake
       end
     end
 
-    def path(label, src)
+    def absolute_path(label, src)
       File.absolute_path(File.join(@path, label.package, src))
     end
   end
