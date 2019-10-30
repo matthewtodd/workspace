@@ -170,22 +170,22 @@ module Wake
 
     reporter = Reporter.new(stdout)
 
-    test_commands = Queue.new
+    test_targets = Queue.new
     workspace.test do |target|
-      test_commands << target.test_command(source_tree)
+      test_targets << target
     end
 
     size = 10
     pool = size.times.map {
-      Thread.new(test_commands) do |test_commands|
+      Thread.new(test_targets) do |test_targets|
         Thread.current.abort_on_exception = true
 
-        while test_command = test_commands.pop
+        while target = test_targets.pop
           IO.pipe do |my_stdout, child_stdout|
             # binmode while we're sending marshalled data across.
             my_stdout.binmode
 
-            pid = Process.spawn(*test_command, out: child_stdout)
+            pid = Process.spawn(*target.test_command(source_tree), out: child_stdout)
 
             child_stdout.close
             Process.waitpid(pid)
@@ -200,7 +200,7 @@ module Wake
       end
     }
 
-    size.times { test_commands << nil }
+    size.times { test_targets << nil }
     pool.each(&:join)
     reporter.report
   end
