@@ -27,6 +27,7 @@ module Wake
 
     def command
       command = [ RbConfig.ruby, '-wU', '--disable-all']
+      # TODO sandboxing; this include path is meaningless for a single ruby source tree.
       command += @deps.flat_map { |dep| ['-I', @package.resolve(dep).include_path] }
       command += @srcs.flat_map { |src| ['-r', @package.resolve_path(src)] }
       command += ['-e', script]
