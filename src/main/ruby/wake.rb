@@ -5,31 +5,63 @@ require 'rubygems'
 require 'minitest'
 
 module Wake
-  class RubyLib
-    def initialize(package:, name:, srcs:)
+  class Label
+    def self.parse(string)
+      new(*string[2..-1].split(':'))
+    end
+
+    attr_reader :package
+    attr_reader :name
+
+    def initialize(package, name)
       @package = package
       @name = name
+    end
+
+    def ==(other)
+      @package == other.package && @name == other.name
+    end
+
+    def eql?(other)
+      self == other
+    end
+
+    def hash
+      to_s.hash
+    end
+
+    def to_s
+      "//#{@package}:#{@name}"
+    end
+  end
+
+  class RubyLib
+    attr_reader :label
+
+    def initialize(label:, srcs:)
+      @label = label
       @srcs = srcs
     end
 
-    def include_path
-      @package.resolve_path('.')
+    def include_path(resolver)
+      resolver.path(@label, '.')
     end
   end
 
   class RubyTest
-    def initialize(package:, name:, srcs:, deps:[])
-      @package = package
-      @name = name
+    attr_reader :label
+
+    def initialize(label:, srcs:, deps:[])
+      @label = label
       @srcs = srcs
       @deps = deps
     end
 
-    def command
+    def command(resolver)
       command = [ RbConfig.ruby, '-wU', '--disable-all']
       # TODO sandboxing; this include path is meaningless for a single ruby source tree.
-      command += @deps.flat_map { |dep| ['-I', @package.resolve(dep).include_path] }
-      command += @srcs.flat_map { |src| ['-r', @package.resolve_path(src)] }
+      command += @deps.flat_map { |dep| ['-I', resolver.target(dep).include_path(resolver)] }
+      command += @srcs.flat_map { |src| ['-r', resolver.path(@label, src)] }
       command += ['-e', script]
       command
     end
@@ -68,7 +100,7 @@ module Wake
 
         Minitest.parallel_executor = Minitest::Parallel::Executor.new(10)
         Minitest.parallel_executor.start
-        #{@name}.run(MarshallingReporter.new(STDOUT), {})
+        #{@label.name}.run(MarshallingReporter.new(STDOUT), {})
         Minitest.parallel_executor.shutdown
       END
     end
@@ -77,64 +109,45 @@ module Wake
   class Workspace
     def initialize(path)
       @path = path
-      @packages = {}
+      @targets = {}
     end
 
     def load_package(build_file_path, contents)
       path = File.dirname(build_file_path).slice(@path.length.next..-1) || ''
-      @packages[path] = Package.load(self, path, contents)
+      Package.load(path, contents) { |target| @targets[target.label] = target }
     end
 
-    def resolve(label)
-      package, name = label.sub(%r{^//}, '').split(':')
-      @packages.fetch(package).fetch(name)
+    def target(label)
+      @targets[label]
     end
 
-    def resolve_path(path)
-      File.absolute_path(File.join(@path, path))
+    def path(label, src)
+      File.absolute_path(File.join(@path, label.package, src))
     end
 
     def each
-      @packages.values.each { |p| p.each { |t| yield t } }
+      @targets.values.each { |target| yield target }
     end
   end
 
   class Package
-    def self.load(workspace, path, contents)
-      new(workspace, path).instance_eval(contents)
+    def self.load(path, contents, &collector)
+      new(path, collector).instance_eval(contents)
     end
 
-    def initialize(workspace, path)
-      @workspace = workspace
+    def initialize(path, collector)
       @path = path
-      @targets = {}
-    end
-
-    def fetch(name)
-      @targets.fetch(name)
-    end
-
-    def resolve(label)
-      @workspace.resolve(label)
-    end
-
-    def resolve_path(path)
-      @workspace.resolve_path(File.join(@path, path))
+      @collector = collector
     end
 
     def ruby_lib(name:, **kwargs)
-      @targets[name] = RubyLib.new(package: self, name: name, **kwargs)
+      @collector.call RubyLib.new(label: Label.new(@path, name), **kwargs)
       self
     end
 
-    def ruby_test(name:, **kwargs)
-      @targets[name] = RubyTest.new(package: self, name: name, **kwargs)
+    def ruby_test(name:, deps:[], **kwargs)
+      @collector.call RubyTest.new(label: Label.new(@path, name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
       self
-    end
-
-    def each
-      # HACK get rid of this instance_of? check.
-      @targets.values.each { |t| yield t if t.instance_of? RubyTest }
     end
   end
 
@@ -150,7 +163,7 @@ module Wake
     reporter = Reporter.new(stdout)
 
     ruby_tests = Queue.new
-    workspace.each { |t| ruby_tests << t }
+    workspace.each { |t| ruby_tests << t if t.instance_of? RubyTest }
 
     size = 10
     pool = size.times.map {
@@ -162,7 +175,7 @@ module Wake
             # binmode while we're sending marshalled data across.
             my_stdout.binmode
 
-            pid = Process.spawn(*ruby_test.command, out: child_stdout)
+            pid = Process.spawn(*ruby_test.command(workspace), out: child_stdout)
 
             child_stdout.close
             Process.waitpid(pid)
