@@ -5,6 +5,18 @@ require 'rubygems'
 require 'minitest'
 
 module Wake
+  class RubyLib
+    def initialize(package:, name:, srcs:)
+      @package = package
+      @name = name
+      @srcs = srcs
+    end
+
+    def include_path
+      @package.resolve_path('.')
+    end
+  end
+
   class RubyTest
     def initialize(package:, name:, srcs:, deps:[])
       @package = package
@@ -15,9 +27,7 @@ module Wake
 
     def command
       command = [ RbConfig.ruby, '-wU', '--disable-all']
-      # TODO this hardcodes wake; not all tests will test wake!
-      # derive instead from the dependencies of the ruby_lib.
-      command += ['-I', File.dirname(Wake.method(:run).source_location.first)]
+      command += @deps.flat_map { |dep| ['-I', @package.resolve(dep).include_path] }
       command += @srcs.flat_map { |src| ['-r', @package.resolve_path(src)] }
       command += ['-e', script]
       command
@@ -74,8 +84,13 @@ module Wake
       @packages[path] = Package.load(self, path, contents)
     end
 
+    def resolve(label)
+      package, name = label.sub(%r{^//}, '').split(':')
+      @packages.fetch(package).fetch(name)
+    end
+
     def resolve_path(path)
-      File.join(@path, path)
+      File.absolute_path(File.join(@path, path))
     end
 
     def each
@@ -94,11 +109,20 @@ module Wake
       @targets = {}
     end
 
+    def fetch(name)
+      @targets.fetch(name)
+    end
+
+    def resolve(label)
+      @workspace.resolve(label)
+    end
+
     def resolve_path(path)
       @workspace.resolve_path(File.join(@path, path))
     end
 
-    def ruby_lib(name:, srcs:)
+    def ruby_lib(name:, **kwargs)
+      @targets[name] = RubyLib.new(package: self, name: name, **kwargs)
       self
     end
 
@@ -108,7 +132,8 @@ module Wake
     end
 
     def each
-      @targets.values.each { |t| yield t }
+      # HACK get rid of this instance_of? check.
+      @targets.values.each { |t| yield t if t.instance_of? RubyTest }
     end
   end
 
