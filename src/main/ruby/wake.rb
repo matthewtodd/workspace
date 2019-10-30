@@ -57,7 +57,7 @@ module Wake
       @deps = deps
     end
 
-    def command(resolver)
+    def test_command(resolver)
       command = [ RbConfig.ruby, '-wU', '--disable-all']
       # TODO sandboxing; this include path is meaningless for a single ruby source tree.
       command += @deps.flat_map { |dep| ['-I', resolver.target(dep).include_path(resolver)] }
@@ -125,8 +125,12 @@ module Wake
       File.absolute_path(File.join(@path, label.package, src))
     end
 
-    def each
-      @targets.values.each { |target| yield target }
+    def test
+      @targets.each_value do |target|
+        if target.respond_to?(:test_command)
+          yield target.test_command(self)
+        end
+      end
     end
   end
 
@@ -162,20 +166,20 @@ module Wake
 
     reporter = Reporter.new(stdout)
 
-    ruby_tests = Queue.new
-    workspace.each { |t| ruby_tests << t if t.instance_of? RubyTest }
+    test_commands = Queue.new
+    workspace.test { |test_command| test_commands << test_command }
 
     size = 10
     pool = size.times.map {
-      Thread.new(ruby_tests) do |ruby_tests|
+      Thread.new(test_commands) do |test_commands|
         Thread.current.abort_on_exception = true
 
-        while ruby_test = ruby_tests.pop
+        while test_command = test_commands.pop
           IO.pipe do |my_stdout, child_stdout|
             # binmode while we're sending marshalled data across.
             my_stdout.binmode
 
-            pid = Process.spawn(*ruby_test.command(workspace), out: child_stdout)
+            pid = Process.spawn(*test_command, out: child_stdout)
 
             child_stdout.close
             Process.waitpid(pid)
@@ -190,7 +194,7 @@ module Wake
       end
     }
 
-    size.times { ruby_tests << nil }
+    size.times { test_commands << nil }
     pool.each(&:join)
     reporter.report
   end
