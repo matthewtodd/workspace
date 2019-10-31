@@ -105,6 +105,41 @@ class WakeTest < Minitest::Test
     end
   end
 
+  def test_runs_tests_with_only_the_files_they_depend_on
+    skip 'WIP'
+
+    workspace do |path|
+      IO.write("#{path}/BUILD", <<~END)
+        ruby_test(
+          name: 'FooTest',
+          srcs: ['foo_test.rb'],
+        )
+      END
+
+      IO.write("#{path}/foo_test.rb", <<~END)
+        require 'rubygems'
+        require 'minitest'
+
+        class FooTest < Minitest::Test
+          def test_bar_is_inaccessible
+            assert_raises(LoadError) do
+              require_relative('bar')
+            end
+          end
+        end
+      END
+
+      IO.write("#{path}/bar.rb", <<~END)
+        # Here I am!
+      END
+
+      out, err = wake(path)
+
+      raise err if not err.empty?
+      assert_equal ".\n", out
+    end
+  end
+
   private
 
   def workspace
