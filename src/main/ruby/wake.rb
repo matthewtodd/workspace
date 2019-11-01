@@ -112,11 +112,10 @@ module Wake
       Package.load(path, contents) { |target| @targets[target.label] = target }
     end
 
-    def test
+    def each
+      # TODO topological sort?
       @targets.each_value do |target|
-        if target.respond_to?(:test_command)
-          yield target
-        end
+        yield target
       end
     end
   end
@@ -168,19 +167,24 @@ module Wake
       workspace.load_package(path, contents)
     end
 
-    reporter = Reporter.new(stdout)
+    test = TestCommand.new(Executor.new, Reporter.new(stdout))
 
-    test_targets = Queue.new
-    workspace.test do |target|
-      test_targets << target
+    workspace.each do |target|
+      test.accept(target, source_tree)
     end
 
-    size = 10
-    pool = size.times.map {
-      Thread.new(test_targets) do |test_targets|
-        Thread.current.abort_on_exception = true
+    test.run
+  end
 
-        while target = test_targets.pop
+  class TestCommand
+    def initialize(pool, reporter)
+      @pool = pool
+      @reporter = reporter
+    end
+
+    def accept(target, source_tree)
+      if target.respond_to?(:test_command)
+        @pool.execute do
           IO.pipe do |my_stdout, child_stdout|
             # binmode while we're sending marshalled data across.
             my_stdout.binmode
@@ -193,16 +197,40 @@ module Wake
               length = my_stdout.readline.to_i
               buffer = my_stdout.read(length)
               result = Marshal.load(buffer)
-              reporter.record(result)
+              @reporter.record(result)
             end
           end
         end
       end
-    }
+    end
 
-    size.times { test_targets << nil }
-    pool.each(&:join)
-    reporter.report
+    def run
+      @pool.shutdown
+      @reporter.report
+    end
+  end
+
+  class Executor
+    def initialize
+      @queue = Queue.new
+      @pool = 10.times.map do
+        Thread.new(@queue) do |queue|
+          Thread.current.abort_on_exception = true
+          while command = @queue.pop
+            command.call
+          end
+        end
+      end
+    end
+
+    def execute(&command)
+      @queue << command
+    end
+
+    def shutdown
+      @pool.size.times { @queue << nil }
+      @pool.each(&:join)
+    end
   end
 
   class Reporter
