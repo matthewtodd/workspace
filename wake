@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby -wU --disable-all
+#!/usr/bin/env ruby
 
 WORKSPACE_PATH = File.expand_path('..', __FILE__)
 $:.unshift(File.join(WORKSPACE_PATH, 'src/main/ruby'))
