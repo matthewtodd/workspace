@@ -143,7 +143,7 @@ class WakeTest < Minitest::Test
   private
 
   def workspace
-    Dir.mktmpdir do |workspace_path|
+    Dir.mktmpdir("#{self.class.name}##{self.name}-") do |workspace_path|
       yield File.realpath(workspace_path)
     end
   end
