@@ -46,6 +46,12 @@ module Wake
     def accept(visitor)
       # no-op for now
     end
+
+    def each_runfile(workspace)
+      @srcs.each do |path|
+        yield @label, path
+      end
+    end
   end
 
   class RubyTest
@@ -59,6 +65,18 @@ module Wake
 
     def accept(visitor)
       visitor.visit_test(self)
+    end
+
+    def each_runfile(workspace)
+      @deps.each do |label|
+        workspace[label].each_runfile(workspace) do |label, path|
+          yield label, path
+        end
+      end
+
+      @srcs.each do |path|
+        yield @label, path
+      end
     end
 
     def test_command(resolver)
@@ -120,6 +138,10 @@ module Wake
       Package.load(path, contents) { |target| @targets[target.label] = target }
     end
 
+    def [](label)
+      @targets.fetch(label)
+    end
+
     def each
       # TODO topological sort?
       @targets.each_value do |target|
@@ -166,8 +188,18 @@ module Wake
       File.absolute_path(File.join(@path, label.package, src))
     end
 
-    def sandbox(path)
-      self
+    def link(label, path, src)
+      target = absolute_path(label, path)
+      FileUtils.mkdir_p(File.dirname(target))
+      FileUtils.ln(src, target, force: true)
+    end
+
+    def sandbox(*segments)
+      Filesystem.new(File.join(@path, *segments))
+    end
+
+    def runfiles_tree_for(label)
+      sandbox(label.package, "#{label.name}.runfiles")
     end
   end
 
@@ -180,7 +212,7 @@ module Wake
     end
 
     runfiles_tree = source_tree.sandbox('var/run')
-    runfiles_tree_builder = RunfilesTreeBuilder.new(source_tree, runfiles_tree)
+    runfiles_tree_builder = RunfilesTreeBuilder.new(workspace, source_tree, runfiles_tree)
     test_runner = TestRunner.new(runfiles_tree, Executor.new, Reporter.new(stdout))
 
     workspace.each do |target|
@@ -192,12 +224,18 @@ module Wake
   end
 
   class RunfilesTreeBuilder
-    def initialize(source, runfiles)
-
+    def initialize(workspace, source, runfiles)
+      @workspace = workspace
+      @source = source
+      @runfiles = runfiles
     end
 
     def visit_test(target)
+      runfiles = @runfiles.runfiles_tree_for(target.label)
 
+      target.each_runfile(@workspace) do |label, path|
+        runfiles.link(label, path, @source.absolute_path(label, path))
+      end
     end
   end
 
@@ -214,7 +252,7 @@ module Wake
           # binmode while we're sending marshalled data across.
           my_stdout.binmode
 
-          pid = Process.spawn(*target.test_command(@filesystem), out: child_stdout)
+          pid = Process.spawn(*target.test_command(@filesystem.runfiles_tree_for(target.label)), out: child_stdout)
 
           child_stdout.close
           Process.waitpid(pid)

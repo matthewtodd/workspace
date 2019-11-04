@@ -46,14 +46,14 @@ class WakeTest < Minitest::Test
           1) Error:
         SmokeTest#test_erroring:
         RuntimeError: Boom!
-            #{path}/smoke_test.rb:14:in `test_erroring'
+            #{path}/var/run/SmokeTest.runfiles/smoke_test.rb:14:in `test_erroring'
 
           2) Failure:
-        SmokeTest#test_failing [#{path}/smoke_test.rb:10]:
+        SmokeTest#test_failing [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:10]:
         Expected false to be truthy.
 
           3) Skipped:
-        SmokeTest#test_skipping [#{path}/smoke_test.rb:18]:
+        SmokeTest#test_skipping [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:18]:
         Skipped, no message given
       END
     end
@@ -106,8 +106,6 @@ class WakeTest < Minitest::Test
   end
 
   def test_runs_tests_with_only_the_files_they_depend_on
-    skip 'WIP'
-
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
         ruby_test(
