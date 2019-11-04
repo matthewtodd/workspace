@@ -49,7 +49,7 @@ module Wake
 
     def each_runfile(workspace)
       @srcs.each do |path|
-        yield @label, path
+        yield File.join(@label.package, path)
       end
     end
   end
@@ -69,13 +69,13 @@ module Wake
 
     def each_runfile(workspace)
       @deps.each do |label|
-        workspace[label].each_runfile(workspace) do |label, path|
-          yield label, path
+        workspace.each_runfile(label) do |path|
+          yield path
         end
       end
 
       @srcs.each do |path|
-        yield @label, path
+        yield File.join(@label.package, path)
       end
     end
 
@@ -83,8 +83,8 @@ module Wake
       command = [ RbConfig.ruby, '-wU', '--disable-all']
       # TODO sandboxing; this include path is meaningless for a single ruby source tree.
       # TODO want to get the include path from the dep...
-      command += @deps.flat_map { |dep| ['-I', resolver.absolute_path(dep, '.')] }
-      command += @srcs.flat_map { |src| ['-r', resolver.absolute_path(@label, src)] }
+      command += @deps.flat_map { |dep| ['-I', resolver.absolute_path(dep.package)] }
+      command += @srcs.flat_map { |src| ['-r', resolver.absolute_path(File.join(@label.package, src))] }
       command += ['-e', script]
       command
     end
@@ -138,14 +138,16 @@ module Wake
       Package.load(path, contents) { |target| @targets[target.label] = target }
     end
 
-    def [](label)
-      @targets.fetch(label)
-    end
-
     def each
       # TODO topological sort?
       @targets.each_value do |target|
         yield target
+      end
+    end
+
+    def each_runfile(label)
+      @targets.fetch(label).each_runfile(self) do |path|
+        yield path
       end
     end
   end
@@ -184,12 +186,12 @@ module Wake
       end
     end
 
-    def absolute_path(label, src)
-      File.absolute_path(File.join(@path, label.package, src))
+    def absolute_path(path)
+      File.absolute_path(File.join(@path, path))
     end
 
-    def link(label, path, src)
-      target = absolute_path(label, path)
+    def link(path, src)
+      target = absolute_path(path)
       FileUtils.mkdir_p(File.dirname(target))
       FileUtils.ln(src, target, force: true)
     end
@@ -233,8 +235,8 @@ module Wake
     def visit_test(target)
       runfiles = @runfiles.runfiles_tree_for(target.label)
 
-      target.each_runfile(@workspace) do |label, path|
-        runfiles.link(label, path, @source.absolute_path(label, path))
+      target.each_runfile(@workspace) do |path|
+        runfiles.link(path, @source.absolute_path(path))
       end
     end
   end
