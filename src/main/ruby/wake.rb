@@ -42,6 +42,10 @@ module Wake
       @label = label
       @srcs = srcs
     end
+
+    def accept(visitor)
+      # no-op for now
+    end
   end
 
   class RubyTest
@@ -51,6 +55,10 @@ module Wake
       @label = label
       @srcs = srcs
       @deps = deps
+    end
+
+    def accept(visitor)
+      visitor.visit_test(self)
     end
 
     def test_command(resolver)
@@ -170,7 +178,7 @@ module Wake
     test = TestCommand.new(source_tree, Executor.new, Reporter.new(stdout))
 
     workspace.each do |target|
-      test.accept(target)
+      target.accept(test)
     end
 
     test.run
@@ -183,23 +191,21 @@ module Wake
       @reporter = reporter
     end
 
-    def accept(target)
-      if target.respond_to?(:test_command)
-        @pool.execute do
-          IO.pipe do |my_stdout, child_stdout|
-            # binmode while we're sending marshalled data across.
-            my_stdout.binmode
+    def visit_test(target)
+      @pool.execute do
+        IO.pipe do |my_stdout, child_stdout|
+          # binmode while we're sending marshalled data across.
+          my_stdout.binmode
 
-            pid = Process.spawn(*target.test_command(@filesystem), out: child_stdout)
+          pid = Process.spawn(*target.test_command(@filesystem), out: child_stdout)
 
-            child_stdout.close
-            Process.waitpid(pid)
-            until my_stdout.eof?
-              length = my_stdout.readline.to_i
-              buffer = my_stdout.read(length)
-              result = Marshal.load(buffer)
-              @reporter.record(result)
-            end
+          child_stdout.close
+          Process.waitpid(pid)
+          until my_stdout.eof?
+            length = my_stdout.readline.to_i
+            buffer = my_stdout.read(length)
+            result = Marshal.load(buffer)
+            @reporter.record(result)
           end
         end
       end
