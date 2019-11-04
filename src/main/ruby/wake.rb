@@ -165,6 +165,10 @@ module Wake
     def absolute_path(label, src)
       File.absolute_path(File.join(@path, label.package, src))
     end
+
+    def sandbox(path)
+      self
+    end
   end
 
   def self.run(workspace_path, stdout)
@@ -175,16 +179,29 @@ module Wake
       workspace.load_package(path, contents)
     end
 
-    test = TestCommand.new(source_tree, Executor.new, Reporter.new(stdout))
+    runfiles_tree = source_tree.sandbox('var/run')
+    runfiles_tree_builder = RunfilesTreeBuilder.new(source_tree, runfiles_tree)
+    test_runner = TestRunner.new(runfiles_tree, Executor.new, Reporter.new(stdout))
 
     workspace.each do |target|
-      target.accept(test)
+      target.accept(runfiles_tree_builder)
+      target.accept(test_runner)
     end
 
-    test.run
+    test_runner.run
   end
 
-  class TestCommand
+  class RunfilesTreeBuilder
+    def initialize(source, runfiles)
+
+    end
+
+    def visit_test(target)
+
+    end
+  end
+
+  class TestRunner
     def initialize(filesystem, pool, reporter)
       @filesystem = filesystem
       @pool = pool
