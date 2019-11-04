@@ -167,29 +167,30 @@ module Wake
       workspace.load_package(path, contents)
     end
 
-    test = TestCommand.new(Executor.new, Reporter.new(stdout))
+    test = TestCommand.new(source_tree, Executor.new, Reporter.new(stdout))
 
     workspace.each do |target|
-      test.accept(target, source_tree)
+      test.accept(target)
     end
 
     test.run
   end
 
   class TestCommand
-    def initialize(pool, reporter)
+    def initialize(filesystem, pool, reporter)
+      @filesystem = filesystem
       @pool = pool
       @reporter = reporter
     end
 
-    def accept(target, source_tree)
+    def accept(target)
       if target.respond_to?(:test_command)
         @pool.execute do
           IO.pipe do |my_stdout, child_stdout|
             # binmode while we're sending marshalled data across.
             my_stdout.binmode
 
-            pid = Process.spawn(*target.test_command(source_tree), out: child_stdout)
+            pid = Process.spawn(*target.test_command(@filesystem), out: child_stdout)
 
             child_stdout.close
             Process.waitpid(pid)
