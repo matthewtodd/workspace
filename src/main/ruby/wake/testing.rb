@@ -1,5 +1,18 @@
 module Wake
   module Testing
+    def self.run(test_class, stdout)
+      # binmode while we're sending marshalled data across.
+      stdout.binmode
+
+      # Unfortunate for test output predictability... Want to kill.
+      srand(0)
+
+      Minitest.parallel_executor = Minitest::Parallel::Executor.new(10)
+      Minitest.parallel_executor.start
+      test_class.run(Wake::Testing::MarshallingReporter.new(stdout), {})
+      Minitest.parallel_executor.shutdown
+    end
+
     def self.source_location
       method(:source_location).source_location.first
     end

@@ -96,25 +96,8 @@ module Wake
       command += ['-I', resolver.absolute_path('src/main/ruby')]
       command += ['-r', 'wake/testing']
       command += @srcs.flat_map { |src| ['-r', resolver.absolute_path(File.join(@label.package, src))] }
-      command += ['-e', script]
+      command += ['-e', "Wake::Testing.run(#{@label.name}, STDOUT)"]
       command
-    end
-
-    private
-
-    def script
-      return <<~END
-        # binmode while we're sending marshalled data across.
-        STDOUT.binmode
-
-        # Unfortunate for test output predictability... Want to kill.
-        srand(0)
-
-        Minitest.parallel_executor = Minitest::Parallel::Executor.new(10)
-        Minitest.parallel_executor.start
-        #{@label.name}.run(Wake::Testing::MarshallingReporter.new(STDOUT), {})
-        Minitest.parallel_executor.shutdown
-      END
     end
   end
 
