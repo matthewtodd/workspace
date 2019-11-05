@@ -1,19 +1,16 @@
+require 'base64'
+
 module Wake
   module Testing
     def self.run(test_class, stdout)
-      # binmode while we're sending marshalled data across.
-      stdout.binmode
-
-      # Unfortunate for test output predictability... Want to kill.
-      srand(0)
-
+      srand(0) # Unfortunate for test output predictability... Want to kill.
       test_class.run(Wake::Testing::WireReporter.new(stdout), {})
     end
 
     def self.record(pipe, reporter)
       format = MarshalFormat.new
       until pipe.eof?
-        reporter.record(format.load(pipe))
+        reporter.record(format.load(pipe.readline.chomp))
       end
     end
 
@@ -56,7 +53,7 @@ module Wake
       end
 
       def record(result)
-        @io.print(@format.dump(result))
+        @io.puts(@format.dump(result))
         @io.flush
       end
 
@@ -67,14 +64,11 @@ module Wake
 
     class MarshalFormat
       def dump(result)
-        buffer = Marshal.dump(result)
-        "#{buffer.length}\n#{buffer}"
+        Base64.urlsafe_encode64 Marshal.dump(result)
       end
 
-      def load(io)
-        length = io.readline.to_i
-        buffer = io.read(length)
-        Marshal.load(buffer)
+      def load(line)
+        Marshal.load Base64.urlsafe_decode64(line)
       end
     end
   end
