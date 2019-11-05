@@ -233,12 +233,7 @@ module Wake
 
           child_stdout.close
           Process.waitpid(pid)
-          until my_stdout.eof?
-            length = my_stdout.readline.to_i
-            buffer = my_stdout.read(length)
-            result = Marshal.load(buffer)
-            @reporter.record(result)
-          end
+          Wake::Testing.record(my_stdout, @reporter)
         end
       end
     end

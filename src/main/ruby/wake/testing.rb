@@ -10,6 +10,15 @@ module Wake
       test_class.run(Wake::Testing::MarshallingReporter.new(stdout), {})
     end
 
+    def self.record(pipe, reporter)
+      until pipe.eof?
+        length = pipe.readline.to_i
+        buffer = pipe.read(length)
+        result = Marshal.load(buffer)
+        reporter.record(result)
+      end
+    end
+
     def self.source_location
       method(:source_location).source_location.first
     end

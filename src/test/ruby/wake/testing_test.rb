@@ -16,17 +16,12 @@ class TestingTest < Minitest::Test
     Wake::Testing.run(test_class, pipe)
     pipe.rewind
 
-    io = StringIO.new
-    reporter = Reporter.new(io)
-    until pipe.eof?
-      length = pipe.readline.to_i
-      buffer = pipe.read(length)
-      result = Marshal.load(buffer)
-      reporter.record(result)
-    end
+    output = StringIO.new
+    reporter = Reporter.new(output)
+    Wake::Testing.record(pipe, reporter)
     reporter.report
 
-    assert_equal <<~END, io.string
+    assert_equal <<~END, output.string
       F
 
         1) Failure:
