@@ -17,16 +17,18 @@ class WakeTest < Minitest::Test
         require 'minitest'
 
         class SmokeTest < Minitest::Test
-          def test_passing
-            assert true
+          i_suck_and_my_tests_are_order_dependent! # not really, but this gives predictable output
+
+          def test_erroring
+            raise 'Boom!'
           end
 
           def test_failing
             assert false
           end
 
-          def test_erroring
-            raise 'Boom!'
+          def test_passing
+            assert true
           end
 
           def test_skipping
@@ -39,19 +41,19 @@ class WakeTest < Minitest::Test
 
       assert_equal '', err
       assert_equal <<~END, out
-        ES.F
+        EF.S
 
           1) Error:
         SmokeTest#test_erroring:
         RuntimeError: Boom!
-            #{path}/var/run/SmokeTest.runfiles/smoke_test.rb:14:in `test_erroring'
+            #{path}/var/run/SmokeTest.runfiles/smoke_test.rb:8:in `test_erroring'
 
           2) Failure:
-        SmokeTest#test_failing [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:10]:
+        SmokeTest#test_failing [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:12]:
         Expected false to be truthy.
 
           3) Skipped:
-        SmokeTest#test_skipping [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:18]:
+        SmokeTest#test_skipping [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:20]:
         Skipped, no message given
       END
     end

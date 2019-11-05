@@ -3,7 +3,6 @@ require 'base64'
 module Wake
   module Testing
     def self.run(test_class, stdout)
-      srand(0) # Unfortunate for test output predictability... Want to kill.
       test_class.run(Wake::Testing::WireReporter.new(stdout), {})
     end
 
