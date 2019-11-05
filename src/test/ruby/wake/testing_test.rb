@@ -5,8 +5,6 @@ require 'wake/testing'
 class TestingTest < Minitest::Test
   include Wake::Testing
 
-  parallelize_me!
-
   def test_reporting_a_minitest_run
     test_class = Class.new(Minitest::Test) do
       def test_failing
@@ -22,7 +20,7 @@ class TestingTest < Minitest::Test
       F
 
         1) Failure:
-      #test_failing [#{__FILE__}:13]:
+      #test_failing [#{__FILE__}:11]:
       Expected false to be truthy.
     END
   end

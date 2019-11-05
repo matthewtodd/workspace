@@ -7,10 +7,7 @@ module Wake
       # Unfortunate for test output predictability... Want to kill.
       srand(0)
 
-      Minitest.parallel_executor = Minitest::Parallel::Executor.new(10)
-      Minitest.parallel_executor.start
       test_class.run(Wake::Testing::MarshallingReporter.new(stdout), {})
-      Minitest.parallel_executor.shutdown
     end
 
     def self.source_location

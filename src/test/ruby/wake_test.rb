@@ -3,8 +3,6 @@ require 'minitest'
 require 'wake'
 
 class WakeTest < Minitest::Test
-  parallelize_me!
-
   def test_runs_all_ruby_tests
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
