@@ -7,15 +7,13 @@ module Wake
       # Unfortunate for test output predictability... Want to kill.
       srand(0)
 
-      test_class.run(Wake::Testing::MarshallingReporter.new(stdout), {})
+      test_class.run(Wake::Testing::WireReporter.new(stdout), {})
     end
 
     def self.record(pipe, reporter)
+      format = MarshalFormat.new
       until pipe.eof?
-        length = pipe.readline.to_i
-        buffer = pipe.read(length)
-        result = Marshal.load(buffer)
-        reporter.record(result)
+        reporter.record(format.load(pipe))
       end
     end
 
@@ -46,10 +44,11 @@ module Wake
       end
     end
 
-    class MarshallingReporter
+    class WireReporter
       def initialize(io)
         @io = io
         @semaphore = Mutex.new
+        @format = MarshalFormat.new
       end
 
       def prerecord(klass, name)
@@ -57,14 +56,25 @@ module Wake
       end
 
       def record(result)
-        buffer = Marshal.dump(result)
-        @io.puts(buffer.length)
-        @io.print(buffer)
+        @io.print(@format.dump(result))
         @io.flush
       end
 
       def synchronize
         @semaphore.synchronize { yield }
+      end
+    end
+
+    class MarshalFormat
+      def dump(result)
+        buffer = Marshal.dump(result)
+        "#{buffer.length}\n#{buffer}"
+      end
+
+      def load(io)
+        length = io.readline.to_i
+        buffer = io.read(length)
+        Marshal.load(buffer)
       end
     end
   end
