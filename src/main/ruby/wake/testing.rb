@@ -21,10 +21,6 @@ module Wake
         @semaphore = Mutex.new
       end
 
-      def prerecord(*args)
-
-      end
-
       def record(result)
         @semaphore.synchronize do
           @io.print result.result_code
