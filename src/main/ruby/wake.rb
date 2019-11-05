@@ -3,6 +3,7 @@ require 'pathname'
 require 'rbconfig'
 require 'rubygems'
 require 'minitest'
+require 'wake/testing'
 
 module Wake
   class Label
@@ -33,14 +34,19 @@ module Wake
     def to_s
       "//#{@package}:#{@name}"
     end
+
+    def inspect
+      to_s
+    end
   end
 
   class RubyLib
     attr_reader :label
 
-    def initialize(label:, srcs:)
+    def initialize(label:, srcs:, deps:)
       @label = label
       @srcs = srcs
+      @deps = deps
     end
 
     def accept(visitor)
@@ -48,6 +54,12 @@ module Wake
     end
 
     def each_runfile(workspace)
+      @deps.each do |label|
+        workspace.each_runfile(label) do |path|
+          yield path
+        end
+      end
+
       @srcs.each do |path|
         yield File.join(@label.package, path)
       end
@@ -162,8 +174,8 @@ module Wake
       @collector = collector
     end
 
-    def ruby_lib(name:, **kwargs)
-      @collector.call RubyLib.new(label: Label.new(@path, name), **kwargs)
+    def ruby_lib(name:, deps:[], **kwargs)
+      @collector.call RubyLib.new(label: Label.new(@path, name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
       self
     end
 
