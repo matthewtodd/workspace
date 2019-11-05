@@ -1,10 +1,18 @@
 module Wake
   module Testing
+    def self.source_location
+      method(:source_location).source_location.first
+    end
+
     class Reporter
       def initialize(io)
         @io = io
         @results = []
         @semaphore = Mutex.new
+      end
+
+      def prerecord(*args)
+
       end
 
       def record(result)

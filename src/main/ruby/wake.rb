@@ -93,9 +93,7 @@ module Wake
 
     def test_command(resolver)
       command = [ RbConfig.ruby, '-wU', '--disable-all']
-      # TODO sandboxing; this include path is meaningless for a single ruby source tree.
-      # TODO want to get the include path from the dep...
-      command += @deps.flat_map { |dep| ['-I', resolver.absolute_path(dep.package)] }
+      command += ['-I', resolver.absolute_path('src/main/ruby')]
       command += @srcs.flat_map { |src| ['-r', resolver.absolute_path(File.join(@label.package, src))] }
       command += ['-e', script]
       command
@@ -246,6 +244,9 @@ module Wake
 
     def visit_test(target)
       runfiles = @runfiles.runfiles_tree_for(target.label)
+
+      # Implicit dependency on wake/testing.
+      runfiles.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
 
       target.each_runfile(@workspace) do |path|
         runfiles.link(path, @source.absolute_path(path))
