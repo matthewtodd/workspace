@@ -30,5 +30,27 @@ module Wake
         end
       end
     end
+
+    class MarshallingReporter
+      def initialize(io)
+        @io = io
+        @semaphore = Mutex.new
+      end
+
+      def prerecord(klass, name)
+        # no-op
+      end
+
+      def record(result)
+        buffer = Marshal.dump(result)
+        @io.puts(buffer.length)
+        @io.print(buffer)
+        @io.flush
+      end
+
+      def synchronize
+        @semaphore.synchronize { yield }
+      end
+    end
   end
 end

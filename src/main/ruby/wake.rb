@@ -94,6 +94,7 @@ module Wake
     def test_command(resolver)
       command = [ RbConfig.ruby, '-wU', '--disable-all']
       command += ['-I', resolver.absolute_path('src/main/ruby')]
+      command += ['-r', 'wake/testing']
       command += @srcs.flat_map { |src| ['-r', resolver.absolute_path(File.join(@label.package, src))] }
       command += ['-e', script]
       command
@@ -109,31 +110,9 @@ module Wake
         # Unfortunate for test output predictability... Want to kill.
         srand(0)
 
-        class MarshallingReporter
-          def initialize(io)
-            @io = io
-            @semaphore = Mutex.new
-          end
-
-          def prerecord(klass, name)
-            # no-op
-          end
-
-          def record(result)
-            buffer = Marshal.dump(result)
-            @io.puts(buffer.length)
-            @io.print(buffer)
-            @io.flush
-          end
-
-          def synchronize
-            @semaphore.synchronize { yield }
-          end
-        end
-
         Minitest.parallel_executor = Minitest::Parallel::Executor.new(10)
         Minitest.parallel_executor.start
-        #{@label.name}.run(MarshallingReporter.new(STDOUT), {})
+        #{@label.name}.run(Wake::Testing::MarshallingReporter.new(STDOUT), {})
         Minitest.parallel_executor.shutdown
       END
     end
