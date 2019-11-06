@@ -96,7 +96,7 @@ module Wake
       command += ['-I', resolver.absolute_path('src/main/ruby')]
       command += ['-r', 'wake/testing']
       command += @srcs.flat_map { |src| ['-r', resolver.absolute_path(File.join(@label.package, src))] }
-      command += ['-e', "Wake::Testing.run(#{@label.name}, STDOUT)"]
+      command += ['-e', "Wake::Testing::Minitest.run(#{@label.name}, STDOUT)"]
       command
     end
   end
