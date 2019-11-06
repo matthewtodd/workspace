@@ -199,7 +199,7 @@ module Wake
       class ResultTranslator
         def call(result)
           test_case = TestCase::Builder.new
-            .class_name(result.class_name)
+            .class_name(result.respond_to?(:class_name) ? result.class_name : result.class.name)
             .name(result.name)
             .assertion_count(result.assertions)
             .time(result.time)
