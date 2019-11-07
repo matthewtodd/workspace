@@ -3,63 +3,6 @@ require 'minitest'
 require 'wake'
 
 class WakeTest < Minitest::Test
-  def test_runs_all_ruby_tests
-    workspace do |path|
-      IO.write("#{path}/BUILD", <<~END)
-        ruby_test(
-          name: "SmokeTest",
-          srcs: ["smoke_test.rb"],
-        )
-      END
-
-      IO.write("#{path}/smoke_test.rb", <<~END)
-        require 'rubygems'
-        require 'minitest'
-
-        class SmokeTest < Minitest::Test
-          i_suck_and_my_tests_are_order_dependent! # not really, but this gives predictable output
-
-          def test_erroring
-            raise 'Boom!'
-          end
-
-          def test_failing
-            assert false
-          end
-
-          def test_passing
-            assert true
-          end
-
-          def test_skipping
-            skip
-          end
-        end
-      END
-
-      result = wake(path)
-
-      assert !result.success?
-      raise result.err if not result.err.empty?
-      assert_equal <<~END, result.out
-        EF.S
-
-          1) Error:
-        SmokeTest#test_erroring:
-        RuntimeError: Boom!
-            #{path}/var/run/SmokeTest.runfiles/smoke_test.rb:8:in `test_erroring'
-
-          2) Failure:
-        SmokeTest#test_failing [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:12]:
-        Expected false to be truthy.
-
-          3) Skipped:
-        SmokeTest#test_skipping [#{path}/var/run/SmokeTest.runfiles/smoke_test.rb:20]:
-        Skipped, no message given
-      END
-    end
-  end
-
   def test_runs_tests_with_isolated_load_paths
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
