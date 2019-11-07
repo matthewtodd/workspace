@@ -33,6 +33,7 @@ module Wake
         @results.sort_by(&:result_code).each.with_index do |result, i|
           @io.print "\n%3d) %s" % [i+1, result]
         end
+        @results.empty?
       end
     end
 

@@ -194,7 +194,11 @@ module Wake
       target.accept(test_runner)
     end
 
-    test_runner.run
+    if test_runner.run
+      exit 0
+    else
+      exit 1
+    end
   end
 
   class RunfilesTreeBuilder

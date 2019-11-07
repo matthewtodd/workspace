@@ -39,7 +39,7 @@ class WakeTest < Minitest::Test
 
       result = wake(path)
 
-      assert result.success?
+      assert !result.success?
       raise result.err if not result.err.empty?
       assert_equal <<~END, result.out
         EF.S
@@ -141,6 +141,32 @@ class WakeTest < Minitest::Test
     end
   end
 
+  def test_exits_non_zero_when_tests_fail
+    workspace do |path|
+      IO.write("#{path}/BUILD", <<~END)
+        ruby_test(
+          name: "FailingTest",
+          srcs: ["failing_test.rb"],
+        )
+      END
+
+      IO.write("#{path}/failing_test.rb", <<~END)
+        require 'rubygems'
+        require 'minitest'
+
+        class FailingTest < Minitest::Test
+          def test_failing
+            assert false
+          end
+        end
+      END
+
+      result = wake(path)
+
+      assert !result.success?
+    end
+  end
+
   private
 
   def workspace
@@ -164,7 +190,7 @@ class WakeTest < Minitest::Test
 
   WakeResult = Struct.new(:out, :err, :status) do
     def success?
-      status == 0
+      status.exitstatus == 0
     end
   end
 end
