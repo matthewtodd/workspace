@@ -40,7 +40,7 @@ class WakeTest < Minitest::Test
       result = wake(path)
 
       assert result.success?
-      assert_equal '', result.err
+      raise result.err if not result.err.empty?
       assert_equal <<~END, result.out
         EF.S
 
@@ -102,7 +102,7 @@ class WakeTest < Minitest::Test
       result = wake(path)
 
       assert result.success?
-      assert_equal '', result.err
+      raise result.err if not result.err.empty?
       assert_equal "..\n", result.out
     end
   end
