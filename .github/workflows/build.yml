@@ -1,0 +1,29 @@
+name: build
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-ruby@v1
+        # https://github.community/t5/GitHub-Actions/Ruby-World-writable-directory-in-PATH/m-p/37552#M2994
+      - run: echo $PATH
+      - run: |
+          sudo chmod go-w /bin
+          sudo chmod go-w /opt
+          sudo chmod go-w /opt/hostedtoolcache
+          sudo chmod go-w /opt/hostedtoolcache/Ruby
+          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.6.3
+          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.6.3/x64
+          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.6.3/x64/bin
+          sudo chmod go-w /sbin
+          sudo chmod go-w /snap
+          sudo chmod go-w /usr
+          sudo chmod go-w /usr/local
+          sudo chmod go-w /usr/local/bin
+          sudo chmod go-w /usr/local/sbin
+          sudo chmod go-w /usr/share
+          sudo chmod go-w /usr/share/rust
+          sudo chmod go-w /usr/share/rust/.cargo
+          sudo chmod go-w /usr/share/rust/.cargo/bin
+      - run: ruby -wU --disable-all ./wake
