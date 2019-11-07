@@ -3,7 +3,7 @@ require 'minitest'
 require 'wake'
 
 class WakeTest < Minitest::Test
-  def test_runs_tests_with_isolated_load_paths
+  def test_ruby_test_runs_tests_with_isolated_load_paths
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
         ruby_test(
@@ -50,7 +50,7 @@ class WakeTest < Minitest::Test
     end
   end
 
-  def test_runs_tests_with_only_the_files_they_depend_on
+  def test_ruby_test_runs_tests_with_only_the_files_they_depend_on
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
         ruby_test(
@@ -84,7 +84,7 @@ class WakeTest < Minitest::Test
     end
   end
 
-  def test_exits_non_zero_when_tests_fail
+  def test_ruby_test_exits_non_zero_when_tests_fail
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
         ruby_test(
