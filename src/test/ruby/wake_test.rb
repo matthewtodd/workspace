@@ -37,10 +37,10 @@ class WakeTest < Minitest::Test
         end
       END
 
-      out, err = wake(path)
+      result = wake(path)
 
-      assert_equal '', err
-      assert_equal <<~END, out
+      assert_equal '', result.err
+      assert_equal <<~END, result.out
         EF.S
 
           1) Error:
@@ -98,10 +98,10 @@ class WakeTest < Minitest::Test
         end
       END
 
-      out, err = wake(path)
+      result = wake(path)
 
-      assert_equal '', err
-      assert_equal "..\n", out
+      assert_equal '', result.err
+      assert_equal "..\n", result.out
     end
   end
 
@@ -131,10 +131,10 @@ class WakeTest < Minitest::Test
         # Here I am!
       END
 
-      out, err = wake(path)
+      result = wake(path)
 
-      raise err if not err.empty?
-      assert_equal ".\n", out
+      raise result.err if not result.err.empty?
+      assert_equal ".\n", result.out
     end
   end
 
@@ -154,8 +154,10 @@ class WakeTest < Minitest::Test
         child_stdout.close
         child_stderr.close
         Process.waitpid(pid)
-        return my_stdout.read, my_stderr.read
+        return WakeResult.new(my_stdout.read, my_stderr.read)
       end
     end
   end
+
+  WakeResult = Struct.new(:out, :err)
 end
