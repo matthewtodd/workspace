@@ -39,6 +39,7 @@ class WakeTest < Minitest::Test
 
       result = wake(path)
 
+      assert result.success?
       assert_equal '', result.err
       assert_equal <<~END, result.out
         EF.S
@@ -100,6 +101,7 @@ class WakeTest < Minitest::Test
 
       result = wake(path)
 
+      assert result.success?
       assert_equal '', result.err
       assert_equal "..\n", result.out
     end
@@ -133,6 +135,7 @@ class WakeTest < Minitest::Test
 
       result = wake(path)
 
+      assert result.success?
       raise result.err if not result.err.empty?
       assert_equal ".\n", result.out
     end
@@ -153,11 +156,15 @@ class WakeTest < Minitest::Test
         pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-rwake', '-e', "Wake.run('#{path}', STDOUT)", out: child_stdout, err: child_stderr)
         child_stdout.close
         child_stderr.close
-        Process.waitpid(pid)
-        return WakeResult.new(my_stdout.read, my_stderr.read)
+        _, status = Process.waitpid2(pid)
+        return WakeResult.new(my_stdout.read, my_stderr.read, status)
       end
     end
   end
 
-  WakeResult = Struct.new(:out, :err)
+  WakeResult = Struct.new(:out, :err, :status) do
+    def success?
+      status == 0
+    end
+  end
 end
