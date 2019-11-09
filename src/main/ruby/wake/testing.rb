@@ -33,7 +33,7 @@ module Wake
         @results.sort_by(&:result_code).each.with_index do |result, i|
           @io.print "\n%3d) %s" % [i+1, result]
         end
-        @results.empty?
+        @results.all? { |result| result.passed? || result.skipped? }
       end
     end
 
@@ -67,6 +67,10 @@ module Wake
 
       def passed?
         @skipped.empty? && @errors.empty? && @failures.empty?
+      end
+
+      def skipped?
+        !@skipped.empty? && @errors.empty? && @failures.empty?
       end
 
       def result_code

@@ -146,6 +146,32 @@ class WakeTest < Minitest::Test
     end
   end
 
+  def test_ruby_test_exits_zero_when_tests_are_skipped
+    workspace do |path|
+      IO.write("#{path}/BUILD", <<~END)
+        ruby_test(
+          name: "SkippedTest",
+          srcs: ["skipped_test.rb"],
+        )
+      END
+
+      IO.write("#{path}/skipped_test.rb", <<~END)
+        require 'rubygems'
+        require 'minitest'
+
+        class SkippedTest < Minitest::Test
+          def test_skipping
+            skip 'WIP'
+          end
+        end
+      END
+
+      result = wake(path)
+
+      assert result.success?
+    end
+  end
+
   private
 
   def workspace
