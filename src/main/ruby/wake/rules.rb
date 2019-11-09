@@ -13,23 +13,29 @@ module Wake
       end
 
       def kt_jvm_lib(name:, **kwargs)
-        @collector.call KtJvmLib.new(label: Label.new(@path, name), **kwargs)
+        @collector.call KtJvmLib.new(label: label(name), **kwargs)
         self
       end
 
       def kt_jvm_test(name:, deps:[], **kwargs)
-        @collector.call KtJvmTest.new(label: Label.new(@path, name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
+        @collector.call KtJvmTest.new(label: label(name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
         self
       end
 
       def ruby_lib(name:, deps:[], **kwargs)
-        @collector.call RubyLib.new(label: Label.new(@path, name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
+        @collector.call RubyLib.new(label: label(name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
         self
       end
 
       def ruby_test(name:, deps:[], **kwargs)
-        @collector.call RubyTest.new(label: Label.new(@path, name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
+        @collector.call RubyTest.new(label: label(name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
         self
+      end
+
+      private
+
+      def label(name)
+        Label.new(@path, name)
       end
     end
 
