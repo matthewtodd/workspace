@@ -12,23 +12,23 @@ module Wake
         @collector = collector
       end
 
-      def kt_jvm_lib(name:, **kwargs)
-        @collector.call KtJvmLib.new(label: label(name), **kwargs)
+      def kt_jvm_lib(name:, srcs:)
+        @collector.call KtJvmLib.new(label: label(name), srcs: srcs)
         self
       end
 
-      def kt_jvm_test(name:, deps:[], **kwargs)
-        @collector.call KtJvmTest.new(label: label(name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
+      def kt_jvm_test(name:, deps:[])
+        @collector.call KtJvmTest.new(label: label(name), deps: parse(deps))
         self
       end
 
-      def ruby_lib(name:, deps:[], **kwargs)
-        @collector.call RubyLib.new(label: label(name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
+      def ruby_lib(name:, srcs:, deps:[])
+        @collector.call RubyLib.new(label: label(name), srcs: srcs, deps: parse(deps))
         self
       end
 
-      def ruby_test(name:, deps:[], **kwargs)
-        @collector.call RubyTest.new(label: label(name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
+      def ruby_test(name:, srcs:, deps:[])
+        @collector.call RubyTest.new(label: label(name), srcs: srcs, deps: parse(deps))
         self
       end
 
@@ -36,6 +36,10 @@ module Wake
 
       def label(name)
         Label.new(@path, name)
+      end
+
+      def parse(deps)
+        deps.map { |string| Label.parse(string) }
       end
     end
 
