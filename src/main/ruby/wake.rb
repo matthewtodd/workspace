@@ -40,6 +40,32 @@ module Wake
     end
   end
 
+  class KtJvmLib
+    attr_reader :label
+
+    def initialize(label:, srcs:)
+      @label = label
+      @srcs = srcs
+    end
+
+    def accept(visitor)
+
+    end
+  end
+
+  class KtJvmTest
+    attr_reader :label
+
+    def initialize(label:, deps:)
+      @label = label
+      @deps = deps
+    end
+
+    def accept(visitor)
+
+    end
+  end
+
   class RubyLib
     attr_reader :label
 
@@ -132,6 +158,16 @@ module Wake
     def initialize(path, collector)
       @path = path
       @collector = collector
+    end
+
+    def kt_jvm_lib(name:, **kwargs)
+      @collector.call KtJvmLib.new(label: Label.new(@path, name), **kwargs)
+      self
+    end
+
+    def kt_jvm_test(name:, deps:[], **kwargs)
+      @collector.call KtJvmTest.new(label: Label.new(@path, name), deps: deps.map { |string| Label.parse(string) }, **kwargs)
+      self
     end
 
     def ruby_lib(name:, deps:[], **kwargs)

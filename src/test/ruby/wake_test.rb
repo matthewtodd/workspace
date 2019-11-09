@@ -3,6 +3,42 @@ require 'minitest'
 require 'wake'
 
 class WakeTest < Minitest::Test
+  def test_kt_jvm_test
+    skip 'WIP'
+
+    workspace do |path|
+      IO.write("#{path}/BUILD", <<~END)
+        kt_jvm_lib(
+          name: "lib",
+          srcs: ["ExampleTest.kt"],
+        )
+
+        kt_jvm_test(
+          name: "ExampleTest",
+          deps: ["//:lib"],
+        )
+      END
+
+      IO.write("#{path}/ExampleTest.kt", <<~END)
+        import kotlin.test.Test
+        import kotlin.test.assertTrue
+
+        class ExampleTest {
+          @Test fun passing() {
+            assertTrue(true)
+          }
+        }
+      END
+
+      result = wake(path)
+
+      # How does the test framework know what to do? Look at JUnitRunner...
+      # assert result.success?
+      raise result.err if not result.err.empty?
+      assert_equal ".\n", result.out
+    end
+  end
+
   def test_ruby_test_runs_tests_with_isolated_load_paths
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
