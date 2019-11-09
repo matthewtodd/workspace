@@ -1,3 +1,5 @@
+require 'rbconfig'
+
 module Wake
   module Rules
     def self.load(path, contents, &collector)

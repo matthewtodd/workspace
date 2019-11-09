@@ -1,8 +1,5 @@
+require 'fileutils'
 require 'find'
-require 'pathname'
-require 'rbconfig'
-require 'rubygems'
-require 'minitest'
 require 'wake/rules'
 require 'wake/testing'
 
