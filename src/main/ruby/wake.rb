@@ -7,37 +7,27 @@ require 'wake/rules'
 require 'wake/testing'
 
 module Wake
-  class Label
-    def self.parse(string)
-      new(*string[2..-1].split(':'))
+  def self.run(workspace_path, stdout)
+    workspace = Workspace.new
+
+    source_tree = Filesystem.new(workspace_path)
+    source_tree.each_package do |path, contents|
+      workspace.load_package(path, contents)
     end
 
-    attr_reader :package
-    attr_reader :name
+    runfiles_tree = source_tree.sandbox('var/run')
+    runfiles_tree_builder = RunfilesTreeBuilder.new(workspace, source_tree, runfiles_tree)
+    test_runner = TestRunner.new(runfiles_tree, Executor.new, Testing::Reporter.new(stdout))
 
-    def initialize(package, name)
-      @package = package
-      @name = name
+    workspace.each do |target|
+      target.accept(runfiles_tree_builder)
+      target.accept(test_runner)
     end
 
-    def ==(other)
-      @package == other.package && @name == other.name
-    end
-
-    def eql?(other)
-      self == other
-    end
-
-    def hash
-      to_s.hash
-    end
-
-    def to_s
-      "//#{@package}:#{@name}"
-    end
-
-    def inspect
-      to_s
+    if test_runner.run
+      exit 0
+    else
+      exit 1
     end
   end
 
@@ -96,29 +86,6 @@ module Wake
     end
   end
 
-  def self.run(workspace_path, stdout)
-    workspace = Workspace.new
-
-    source_tree = Filesystem.new(workspace_path)
-    source_tree.each_package do |path, contents|
-      workspace.load_package(path, contents)
-    end
-
-    runfiles_tree = source_tree.sandbox('var/run')
-    runfiles_tree_builder = RunfilesTreeBuilder.new(workspace, source_tree, runfiles_tree)
-    test_runner = TestRunner.new(runfiles_tree, Executor.new, Testing::Reporter.new(stdout))
-
-    workspace.each do |target|
-      target.accept(runfiles_tree_builder)
-      target.accept(test_runner)
-    end
-
-    if test_runner.run
-      exit 0
-    else
-      exit 1
-    end
-  end
 
   class RunfilesTreeBuilder
     def initialize(workspace, source, runfiles)
@@ -187,6 +154,40 @@ module Wake
     def shutdown
       @pool.size.times { @queue << nil }
       @pool.each(&:join)
+    end
+  end
+
+  class Label
+    def self.parse(string)
+      new(*string[2..-1].split(':'))
+    end
+
+    attr_reader :package
+    attr_reader :name
+
+    def initialize(package, name)
+      @package = package
+      @name = name
+    end
+
+    def ==(other)
+      @package == other.package && @name == other.name
+    end
+
+    def eql?(other)
+      self == other
+    end
+
+    def hash
+      to_s.hash
+    end
+
+    def to_s
+      "//#{@package}:#{@name}"
+    end
+
+    def inspect
+      to_s
     end
   end
 end
