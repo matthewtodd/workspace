@@ -22,7 +22,7 @@ module Wake
 
       def record(result)
         @semaphore.synchronize do
-          @io.print result.result_code
+          @io.print maybe_color_result_code(result.result_code)
           @io.flush
           @errors_failures_skips << result unless result.passed?
         end
@@ -34,6 +34,27 @@ module Wake
           @io.print "\n%3d) %s" % [i+1, result]
         end
         @errors_failures_skips.all?(&:skipped?)
+      end
+
+      private
+
+      RED = 31
+      GREEN = 32
+      YELLOW = 33
+
+      RESULT_CODE_COLORS = {
+        'E' => RED,
+        'F' => RED,
+        'S' => YELLOW,
+        '.' => GREEN
+      }.freeze
+
+      def maybe_color_result_code(result_code)
+        maybe_color(result_code, RESULT_CODE_COLORS.fetch(result_code))
+      end
+
+      def maybe_color(string, color)
+        @io.tty? ? "\e[#{color}m#{string}\e[0m" : string
       end
     end
 
