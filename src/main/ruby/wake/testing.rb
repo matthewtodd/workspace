@@ -16,24 +16,24 @@ module Wake
     class Reporter
       def initialize(io)
         @io = io
-        @errors_failures_skips = []
         @semaphore = Mutex.new
+        @summarizer = Summarizer.new
       end
 
       def record(result)
         @semaphore.synchronize do
           @io.print maybe_color_result_code(result.result_code)
           @io.flush
-          @errors_failures_skips << result unless result.passed?
+          @summarizer.record(result)
         end
       end
 
       def report
         @io.puts
-        @errors_failures_skips.sort_by(&:result_code).each.with_index do |result, i|
+        @summarizer.each.with_index do |result, i|
           @io.print "\n%3d) %s" % [i+1, result]
         end
-        @errors_failures_skips.all?(&:skipped?)
+        @summarizer.success?
       end
 
       private
@@ -55,6 +55,24 @@ module Wake
 
       def maybe_color(string, color)
         @io.tty? ? "\e[#{color}m#{string}\e[0m" : string
+      end
+
+      class Summarizer
+        def initialize
+          @errors_failures_skips = []
+        end
+
+        def record(result)
+          @errors_failures_skips << result unless result.passed?
+        end
+
+        def each
+          @errors_failures_skips.sort_by(&:result_code).each
+        end
+
+        def success?
+          @errors_failures_skips.all?(&:skipped?)
+        end
       end
     end
 
