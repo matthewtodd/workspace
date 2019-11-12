@@ -16,7 +16,7 @@ module Wake
     class Reporter
       def initialize(io)
         @io = io
-        @results = []
+        @errors_failures_skips = []
         @semaphore = Mutex.new
       end
 
@@ -24,16 +24,16 @@ module Wake
         @semaphore.synchronize do
           @io.print result.result_code
           @io.flush
-          @results << result unless result.passed?
+          @errors_failures_skips << result unless result.passed?
         end
       end
 
       def report
         @io.puts
-        @results.sort_by(&:result_code).each.with_index do |result, i|
+        @errors_failures_skips.sort_by(&:result_code).each.with_index do |result, i|
           @io.print "\n%3d) %s" % [i+1, result]
         end
-        @results.all? { |result| result.passed? || result.skipped? }
+        @errors_failures_skips.all?(&:skipped?)
       end
     end
 
