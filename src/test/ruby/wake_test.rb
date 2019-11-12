@@ -35,7 +35,6 @@ class WakeTest < Minitest::Test
       # How does the test framework know what to do? Look at JUnitRunner...
       # assert result.success?
       raise result.err if not result.err.empty?
-      assert_equal ".\n", result.out
     end
   end
 
@@ -82,7 +81,6 @@ class WakeTest < Minitest::Test
 
       assert result.success?
       raise result.err if not result.err.empty?
-      assert_equal "..\n", result.out
     end
   end
 
@@ -116,7 +114,6 @@ class WakeTest < Minitest::Test
 
       assert result.success?
       raise result.err if not result.err.empty?
-      assert_equal ".\n", result.out
     end
   end
 
