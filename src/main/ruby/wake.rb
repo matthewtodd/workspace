@@ -5,26 +5,33 @@ require 'wake/testing'
 
 module Wake
   def self.run(workspace_path, stdout)
-    workspace = Workspace.new
-
     source_tree = Filesystem.new(workspace_path)
-    source_tree.each_package do |path, contents|
-      workspace.load_package(path, contents)
+    runner = Runner.new(source_tree, stdout)
+    exit runner.run ? 0 : 1
+  end
+
+  class Runner
+    def initialize(source_tree, stdout)
+      @source_tree = source_tree
+      @stdout = stdout
     end
 
-    runfiles_tree = source_tree.sandbox('var/run')
-    runfiles_tree_builder = RunfilesTreeBuilder.new(workspace, source_tree, runfiles_tree)
-    test_runner = TestRunner.new(runfiles_tree, Executor.new, Testing::Reporter.new(stdout))
+    def run
+      workspace = Workspace.new
+      @source_tree.each_package do |path, contents|
+        workspace.load_package(path, contents)
+      end
 
-    workspace.each do |target|
-      target.accept(runfiles_tree_builder)
-      target.accept(test_runner)
-    end
+      runfiles_tree = @source_tree.sandbox('var/run')
+      runfiles_tree_builder = RunfilesTreeBuilder.new(workspace, @source_tree, runfiles_tree)
+      test_runner = TestRunner.new(runfiles_tree, Executor.new, Testing::Reporter.new(@stdout))
 
-    if test_runner.run
-      exit 0
-    else
-      exit 1
+      workspace.each do |target|
+        target.accept(runfiles_tree_builder)
+        target.accept(test_runner)
+      end
+
+      test_runner.run
     end
   end
 
