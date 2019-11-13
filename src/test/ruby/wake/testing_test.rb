@@ -50,6 +50,8 @@ class TestingTest < Minitest::Test
         3) Skipped:
       #test_skipping [#{__FILE__}:23]:
       Skipped, no message given
+
+      4 tests, 2 assertions, 1 failure, 1 error, 1 skip.
     END
   end
 
@@ -64,6 +66,8 @@ class TestingTest < Minitest::Test
     Wake::Testing.record(pipe, reporter)
     reporter.report
 
-    assert_equal "\e[31mE\e[0m\e[31mF\e[0m\e[32m.\e[0m\e[33mS\e[0m", output.string.lines.first.chomp
+    lines = output.string.lines
+    assert_equal "\e[31mE\e[0m\e[31mF\e[0m\e[32m.\e[0m\e[33mS\e[0m", lines.first.chomp
+    assert_equal "\e[31m4 tests, 2 assertions, 1 failure, 1 error, 1 skip.\e[0m", lines.last.chomp
   end
 end

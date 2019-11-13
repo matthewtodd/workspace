@@ -33,6 +33,8 @@ module Wake
         @summarizer.each.with_index do |result, i|
           @io.print "\n%3d) %s" % [i+1, result]
         end
+        @io.puts
+        @io.puts maybe_color(@summarizer.counts, @summarizer.success? ? GREEN : RED)
         @summarizer.success?
       end
 
@@ -59,10 +61,20 @@ module Wake
 
       class Summarizer
         def initialize
+          @test_count = 0
+          @assertion_count = 0
+          @error_count = 0
+          @failure_count = 0
+          @skip_count = 0
           @errors_failures_skips = []
         end
 
         def record(result)
+          @test_count += 1
+          @assertion_count += result.assertion_count
+          @error_count += result.error_count
+          @failure_count += result.failure_count
+          @skip_count += result.skip_count
           @errors_failures_skips << result unless result.passed?
         end
 
@@ -70,8 +82,24 @@ module Wake
           @errors_failures_skips.sort_by(&:result_code).each
         end
 
+        def counts
+          counts = []
+          counts << pluralize(@test_count, 'test')
+          counts << pluralize(@assertion_count, 'assertion')
+          counts << pluralize(@failure_count, 'failure')
+          counts << pluralize(@error_count, 'error')
+          counts << pluralize(@skip_count, 'skip')
+          counts.join(', ').concat('.')
+        end
+
         def success?
           @errors_failures_skips.all?(&:skipped?)
+        end
+
+        private
+
+        def pluralize(count, string)
+          count == 1 ? "#{count} #{string}" : "#{count} #{string}s"
         end
       end
     end
@@ -92,6 +120,11 @@ module Wake
       Failure = Struct.new(:message, :location)
       Skipped = Struct.new(:message, :location)
 
+      attr_reader :assertion_count
+      attr_reader :error_count
+      attr_reader :failure_count
+      attr_reader :skip_count
+
       def initialize(**kwargs)
         @class_name = kwargs.fetch(:class_name)
         @name = kwargs.fetch(:name)
@@ -102,6 +135,9 @@ module Wake
         @failures = kwargs.fetch(:failures)
         @system_out = kwargs.fetch(:system_out)
         @system_err = kwargs.fetch(:system_err)
+        @error_count = @errors.length
+        @failure_count = @failures.length
+        @skip_count = @skipped.length
       end
 
       def passed?
