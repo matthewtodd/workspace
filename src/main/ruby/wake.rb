@@ -123,7 +123,7 @@ module Wake
           # binmode while we're sending marshalled data across.
           my_stdout.binmode
 
-          pid = Process.spawn(*target.test_command(@filesystem.runfiles_tree_for(target.label)), out: child_stdout)
+          pid = Process.spawn(*target.test_command, out: child_stdout, chdir: @filesystem.runfiles_tree_for(target.label).absolute_path('.'))
 
           child_stdout.close
           Process.waitpid(pid)
