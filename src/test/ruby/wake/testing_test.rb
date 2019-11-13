@@ -35,7 +35,7 @@ class TestingTest < Minitest::Test
     Wake::Testing.record(pipe, reporter)
     reporter.report
 
-    assert_equal <<~END, output.string
+    assert_equal <<~END, output.string.lines[0..-4].join
       EF.S
 
         1) Error:
@@ -50,7 +50,11 @@ class TestingTest < Minitest::Test
         3) Skipped:
       #test_skipping [#{__FILE__}:23]:
       Skipped, no message given
+    END
 
+    # Finished in 0.005599s, 357.2066 runs/s, 535.8100 assertions/s.
+
+    assert_equal <<~END, output.string.lines.last
       4 tests, 2 assertions, 1 failure, 1 error, 1 skip.
     END
   end

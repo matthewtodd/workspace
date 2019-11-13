@@ -34,6 +34,7 @@ module Wake
           @io.print "\n%3d) %s" % [i+1, result]
         end
         @io.puts
+        @io.puts @summarizer.timing
         @io.puts maybe_color(@summarizer.counts, @summarizer.success? ? GREEN : RED)
         @summarizer.success?
       end
@@ -66,6 +67,7 @@ module Wake
           @error_count = 0
           @failure_count = 0
           @skip_count = 0
+          @total_time = 0
           @errors_failures_skips = []
         end
 
@@ -75,11 +77,17 @@ module Wake
           @error_count += result.error_count
           @failure_count += result.failure_count
           @skip_count += result.skip_count
+          @total_time += result.time
           @errors_failures_skips << result unless result.passed?
         end
 
         def each
           @errors_failures_skips.sort_by(&:result_code).each
+        end
+
+        def timing
+          "Finished in %.6fs, %.4f runs/s, %.4f assertions/s." %
+            [@total_time, @test_count / @total_time, @assertion_count / @total_time]
         end
 
         def counts
@@ -124,6 +132,7 @@ module Wake
       attr_reader :error_count
       attr_reader :failure_count
       attr_reader :skip_count
+      attr_reader :time
 
       def initialize(**kwargs)
         @class_name = kwargs.fetch(:class_name)
