@@ -78,9 +78,7 @@ class WakeTest < Minitest::Test
       END
 
       result = wake(path)
-
-      assert result.success?
-      raise result.err if not result.err.empty?
+      assert result.success?, result.err
     end
   end
 
@@ -111,9 +109,7 @@ class WakeTest < Minitest::Test
       END
 
       result = wake(path)
-
-      assert result.success?
-      raise result.err if not result.err.empty?
+      assert result.success?, result.err
     end
   end
 
@@ -138,7 +134,6 @@ class WakeTest < Minitest::Test
       END
 
       result = wake(path)
-
       assert !result.success?
     end
   end
@@ -164,8 +159,7 @@ class WakeTest < Minitest::Test
       END
 
       result = wake(path)
-
-      assert result.success?
+      assert result.success?, result.err
     end
   end
 
