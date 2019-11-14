@@ -122,7 +122,7 @@ module Wake
 
       def test_command
         command = [ RbConfig.ruby, '-wU', '--disable-all']
-        command += ['-I', 'src/main/ruby']
+        command += ['-I', 'src/main/ruby'] # TODO uniq load paths of all deps, plus me?
         command += ['-r', 'wake/testing']
         command += @srcs.flat_map { |src| ['-r', File.join('.', @label.package, src)] }
         command += ['-e', "Wake::Testing::Minitest.run(#{@label.name}, STDOUT)"]
