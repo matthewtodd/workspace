@@ -79,18 +79,18 @@ module Wake
       end
 
       def accept(visitor)
-        # no-op for now
+        visitor.visit_ruby_lib(self)
       end
 
-      def each_runfile(workspace)
-        @deps.each do |label|
-          workspace.each_runfile(label) do |path|
-            yield path
-          end
-        end
-
+      def each_source
         @srcs.each do |path|
           yield File.join(@label.package, path)
+        end
+      end
+
+      def each_dependency
+        @deps.each do |label|
+          yield label
         end
       end
     end
@@ -105,18 +105,18 @@ module Wake
       end
 
       def accept(visitor)
-        visitor.visit_test(self)
+        visitor.visit_ruby_test(self)
       end
 
-      def each_runfile(workspace)
-        @deps.each do |label|
-          workspace.each_runfile(label) do |path|
-            yield path
-          end
-        end
-
+      def each_source
         @srcs.each do |path|
           yield File.join(@label.package, path)
+        end
+      end
+
+      def each_dependency
+        @deps.each do |label|
+          yield label
         end
       end
 

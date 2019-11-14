@@ -22,12 +22,11 @@ module Wake
         workspace.load_package(path, contents)
       end
 
-      runfiles_tree = @source_tree.sandbox('var/run')
-      runfiles_tree_builder = RunfilesTreeBuilder.new(workspace, @source_tree, runfiles_tree)
-      test_runner = TestRunner.new(runfiles_tree, Executor.new, Testing::Reporter.new(@stdout))
+      executable_builder = ExecutableBuilder.new(workspace, @source_tree)
+      test_runner = TestRunner.new(@source_tree.sandbox('var/run'), Executor.new, Testing::Reporter.new(@stdout))
 
       workspace.each do |target|
-        target.accept(runfiles_tree_builder)
+        target.accept(executable_builder)
         target.accept(test_runner)
       end
 
@@ -44,16 +43,14 @@ module Wake
       Rules.load(path, contents) { |target| @targets[target.label] = target }
     end
 
+    def target(label)
+      @targets.fetch(label)
+    end
+
     def each
       # TODO topological sort?
       @targets.each_value do |target|
         yield target
-      end
-    end
-
-    def each_runfile(label)
-      @targets.fetch(label).each_runfile(self) do |path|
-        yield path
       end
     end
   end
@@ -90,22 +87,51 @@ module Wake
     end
   end
 
-
-  class RunfilesTreeBuilder
-    def initialize(workspace, source, runfiles)
+  class ExecutableBuilder
+    def initialize(workspace, source)
       @workspace = workspace
       @source = source
-      @runfiles = runfiles
     end
 
-    def visit_test(target)
-      runfiles = @runfiles.runfiles_tree_for(target.label)
+    def visit_ruby_lib(target)
+      # no-op
+    end
+
+    def visit_ruby_test(target)
+      runfiles = @source.sandbox('var/run', target.label.package, "#{target.label.name}.runfiles")
+      target.accept(Run.new(@workspace, @source, runfiles))
 
       # Implicit dependency on wake/testing.
       runfiles.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
+    end
 
-      target.each_runfile(@workspace) do |path|
-        runfiles.link(path, @source.absolute_path(path))
+    private
+
+    class Run
+      def initialize(workspace, source, runfiles)
+        @workspace = workspace
+        @source = source
+        @runfiles = runfiles
+      end
+
+      def visit_ruby_lib(target)
+        target.each_dependency do |label|
+          @workspace.target(label).accept(self)
+        end
+
+        target.each_source do |path|
+          @runfiles.link(path, @source.absolute_path(path))
+        end
+      end
+
+      def visit_ruby_test(target)
+        target.each_dependency do |label|
+          @workspace.target(label).accept(self)
+        end
+
+        target.each_source do |path|
+          @runfiles.link(path, @source.absolute_path(path))
+        end
       end
     end
   end
@@ -117,7 +143,11 @@ module Wake
       @reporter = reporter
     end
 
-    def visit_test(target)
+    def visit_ruby_lib(target)
+      # no-op
+    end
+
+    def visit_ruby_test(target)
       @pool.execute do
         IO.pipe do |my_stdout, child_stdout|
           # binmode while we're sending marshalled data across.
