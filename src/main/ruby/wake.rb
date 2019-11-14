@@ -99,7 +99,9 @@ module Wake
 
     def visit_ruby_test(target)
       runfiles = @source.sandbox('var/run', target.label.package, "#{target.label.name}.runfiles")
+      # TODO also pass a Bin visitor to write the script.
       target.accept(Run.new(@workspace, @source, runfiles))
+      # TODO also pass a Log visitor to mkdir the log structure?
     end
 
     private
