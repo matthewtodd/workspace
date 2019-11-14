@@ -79,18 +79,16 @@ module Wake
       end
 
       def accept(visitor)
+        @deps.each do |label|
+          visitor.visit_label(label)
+        end
+
         visitor.visit_ruby_lib(self)
       end
 
       def each_source
         @srcs.each do |path|
           yield File.join(@label.package, path)
-        end
-      end
-
-      def each_dependency
-        @deps.each do |label|
-          yield label
         end
       end
     end
@@ -105,18 +103,16 @@ module Wake
       end
 
       def accept(visitor)
+        @deps.each do |label|
+          visitor.visit_label(label)
+        end
+
         visitor.visit_ruby_test(self)
       end
 
       def each_source
         @srcs.each do |path|
           yield File.join(@label.package, path)
-        end
-      end
-
-      def each_dependency
-        @deps.each do |label|
-          yield label
         end
       end
 

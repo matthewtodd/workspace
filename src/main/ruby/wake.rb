@@ -87,14 +87,24 @@ module Wake
     end
   end
 
-  class ExecutableBuilder
-    def initialize(workspace, source)
-      @workspace = workspace
-      @source = source
+  class Visitor
+    def visit_label(label)
+
     end
 
     def visit_ruby_lib(target)
       # no-op
+    end
+
+    def visit_ruby_test(target)
+      # no-op
+    end
+  end
+
+  class ExecutableBuilder < Visitor
+    def initialize(workspace, source)
+      @workspace = workspace
+      @source = source
     end
 
     def visit_ruby_test(target)
@@ -106,28 +116,24 @@ module Wake
 
     private
 
-    class Run
+    class Run < Visitor
       def initialize(workspace, source, runfiles)
         @workspace = workspace
         @source = source
         @runfiles = runfiles
       end
 
-      def visit_ruby_lib(target)
-        target.each_dependency do |label|
-          @workspace.target(label).accept(self)
-        end
+      def visit_label(label)
+        @workspace.target(label).accept(self)
+      end
 
+      def visit_ruby_lib(target)
         target.each_source do |path|
           @runfiles.link(path, @source.absolute_path(path))
         end
       end
 
       def visit_ruby_test(target)
-        target.each_dependency do |label|
-          @workspace.target(label).accept(self)
-        end
-
         # Implicit dependency on wake/testing.
         # TODO depend on @wake//:testing or something?
         @runfiles.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
@@ -139,15 +145,11 @@ module Wake
     end
   end
 
-  class TestRunner
+  class TestRunner < Visitor
     def initialize(filesystem, pool, reporter)
       @filesystem = filesystem
       @pool = pool
       @reporter = reporter
-    end
-
-    def visit_ruby_lib(target)
-      # no-op
     end
 
     def visit_ruby_test(target)
