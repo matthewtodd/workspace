@@ -100,9 +100,6 @@ module Wake
     def visit_ruby_test(target)
       runfiles = @source.sandbox('var/run', target.label.package, "#{target.label.name}.runfiles")
       target.accept(Run.new(@workspace, @source, runfiles))
-
-      # Implicit dependency on wake/testing.
-      runfiles.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
     end
 
     private
@@ -128,6 +125,10 @@ module Wake
         target.each_dependency do |label|
           @workspace.target(label).accept(self)
         end
+
+        # Implicit dependency on wake/testing.
+        # TODO depend on @wake//:testing or something?
+        @runfiles.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
 
         target.each_source do |path|
           @runfiles.link(path, @source.absolute_path(path))
