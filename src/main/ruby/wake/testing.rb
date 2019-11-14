@@ -1,9 +1,9 @@
-require 'base64'
+require 'json'
 
 module Wake
   module Testing
     def self.record(pipe, reporter)
-      format = MarshalFormat.new
+      format = JsonFormat.new
       until pipe.eof?
         reporter.record(format.load(pipe.readline.chomp))
       end
@@ -112,27 +112,87 @@ module Wake
       end
     end
 
-    class MarshalFormat
+    class JsonFormat
       def dump(result)
-        Base64.urlsafe_encode64 Marshal.dump(result)
+        result.as_json.to_json
       end
 
       def load(line)
-        Marshal.load Base64.urlsafe_decode64(line)
+        TestCase.json_create(JSON.parse(line))
       end
     end
 
     # https://stackoverflow.com/questions/4922867/what-is-the-junit-xml-format-specification-that-hudson-supports/9691131#9691131
     class TestCase
-      Error = Struct.new(:type, :message, :backtrace)
-      Failure = Struct.new(:message, :location)
-      Skipped = Struct.new(:message, :location)
+      class Error < Struct.new(:type, :message, :backtrace)
+        def self.json_create(object)
+          new(
+            object.fetch('type'),
+            object.fetch('message'),
+            object.fetch('backtrace')
+          )
+        end
+
+        def as_json(*)
+          {
+            'type' => type,
+            'message' => message,
+            'backtrace' => backtrace,
+          }
+        end
+      end
+
+      class Failure < Struct.new(:message, :location)
+        def self.json_create(object)
+          new(
+            object.fetch('message'),
+            object.fetch('location')
+          )
+        end
+
+        def as_json(*)
+          {
+            'message' => message,
+            'location' => location,
+          }
+        end
+      end
+
+      class Skipped < Struct.new(:message, :location)
+        def self.json_create(object)
+          new(
+            object.fetch('message'),
+            object.fetch('location')
+          )
+        end
+
+        def as_json(*)
+          {
+            'message' => message,
+            'location' => location,
+          }
+        end
+      end
 
       attr_reader :assertion_count
       attr_reader :error_count
       attr_reader :failure_count
       attr_reader :skip_count
       attr_reader :time
+
+      def self.json_create(object)
+        new(
+          class_name: object.fetch('class_name'),
+          name: object.fetch('name'),
+          assertion_count: object.fetch('assertion_count'),
+          time: object.fetch('time'),
+          skipped: object.fetch('skipped', []).map(&Skipped.method(:json_create)),
+          errors: object.fetch('errors', []).map(&Error.method(:json_create)),
+          failures: object.fetch('failures', []).map(&Failure.method(:json_create)),
+          system_out: object.fetch('system_out'),
+          system_err: object.fetch('system_err'),
+        )
+      end
 
       def initialize(**kwargs)
         @class_name = kwargs.fetch(:class_name)
@@ -144,9 +204,24 @@ module Wake
         @failures = kwargs.fetch(:failures)
         @system_out = kwargs.fetch(:system_out)
         @system_err = kwargs.fetch(:system_err)
+
         @error_count = @errors.length
         @failure_count = @failures.length
         @skip_count = @skipped.length
+      end
+
+      def as_json(*)
+        {
+          'class_name' => @class_name,
+          'name' => @name,
+          'assertion_count' => @assertion_count,
+          'time' => @time,
+          'skipped' => @skipped.map(&:as_json),
+          'errors' => @errors.map(&:as_json),
+          'failures' => @failures.map(&:as_json),
+          'system_out' => @system_out,
+          'system_err' => @system_err,
+        }
       end
 
       def passed?
@@ -267,7 +342,7 @@ module Wake
         def initialize(io)
           @io = io
           @semaphore = Mutex.new
-          @format = MarshalFormat.new
+          @format = JsonFormat.new
           @translator = ResultTranslator.new
         end
 
