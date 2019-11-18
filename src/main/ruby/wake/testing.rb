@@ -31,7 +31,7 @@ module Wake
       def report
         @io.puts
         @summarizer.each.with_index do |result, i|
-          @io.print "\n%3d) %s" % [i+1, maybe_color_result(result.to_s)]
+          @io.print "\n%3d) %s" % [i+1, maybe_color_result(format_result(result))]
         end
         @io.puts
         @io.puts @summarizer.timing
@@ -53,6 +53,35 @@ module Wake
         'S' => YELLOW,
         '.' => GREEN
       }.freeze
+
+      def format_result(result)
+        string = ''
+
+        result.each_error do |error|
+          string += "Error:\n"
+          string += "#{result.location}:\n"
+          string += "#{error.type}: #{error.message}\n"
+          string += "    #{error.backtrace.join("    \n")}\n"
+        end
+
+        result.each_failure do |failure|
+          string += "Failure:\n"
+          string += "#{result.location} [#{failure.location}]:\n"
+          string += "#{failure.message}\n"
+        end
+
+        result.each_skip do |skipped|
+          string += "Skipped:\n"
+          string += "#{result.location} [#{skipped.location}]:\n"
+          string += "#{skipped.message}\n"
+        end
+
+        with_workspace_relative_paths(string)
+      end
+
+      def with_workspace_relative_paths(string)
+        string.gsub %r{(/[^/]+)+/\w+\.runfiles/}, ''
+      end
 
       def maybe_color_result_code(result_code)
         maybe_color(result_code, RESULT_CODE_COLORS.fetch(result_code))
@@ -257,29 +286,20 @@ module Wake
         end
       end
 
-      def to_s
-        string = ''
+      def location
+        "#{@class_name}##{@name}"
+      end
 
-        @errors.each do |error|
-          string += "Error:\n"
-          string += "#{@class_name}##{@name}:\n"
-          string += "#{error.type}: #{error.message}\n"
-          string += "    #{error.backtrace.join("    \n")}\n"
-        end
+      def each_error
+        @errors.each { |e| yield e }
+      end
 
-        @failures.each do |failure|
-          string += "Failure:\n"
-          string += "#{@class_name}##{@name} [#{failure.location}]:\n"
-          string += "#{failure.message}\n"
-        end
+      def each_failure
+        @failures.each { |f| yield f }
+      end
 
-        @skipped.each do |skipped|
-          string += "Skipped:\n"
-          string += "#{@class_name}##{@name} [#{skipped.location}]:\n"
-          string += "#{skipped.message}\n"
-        end
-
-        string
+      def each_skip
+        @skipped.each { |s| yield s }
       end
 
       class Builder

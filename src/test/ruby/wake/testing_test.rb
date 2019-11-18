@@ -45,14 +45,14 @@ class TestingTest < Minitest::Test
         1) Error:
       #test_erroring:
       RuntimeError: Boom!
-          #{__FILE__}:11:in `test_erroring'
+          src/test/ruby/wake/testing_test.rb:11:in `test_erroring'
 
         2) Failure:
-      #test_failing [#{__FILE__}:15]:
+      #test_failing [src/test/ruby/wake/testing_test.rb:15]:
       Expected false to be truthy.
 
         3) Failure:
-      #test_failing_diff [#{__FILE__}:19]:
+      #test_failing_diff [src/test/ruby/wake/testing_test.rb:19]:
       --- expected
       +++ actual
       @@ -1,3 +1,3 @@
@@ -63,7 +63,7 @@ class TestingTest < Minitest::Test
 
 
         4) Skipped:
-      #test_skipping [#{__FILE__}:27]:
+      #test_skipping [src/test/ruby/wake/testing_test.rb:27]:
       Skipped, no message given
     END
 
