@@ -15,6 +15,10 @@ class TestingTest < Minitest::Test
         assert false
       end
 
+      def test_failing_diff
+        assert_equal "\nfoo\n", "\nbar\n"
+      end
+
       def test_passing
         assert true
       end
@@ -36,7 +40,7 @@ class TestingTest < Minitest::Test
     reporter.report
 
     assert_equal <<~END, output.string.lines[0..-4].join
-      EF.S
+      EFF.S
 
         1) Error:
       #test_erroring:
@@ -47,15 +51,26 @@ class TestingTest < Minitest::Test
       #test_failing [#{__FILE__}:15]:
       Expected false to be truthy.
 
-        3) Skipped:
-      #test_skipping [#{__FILE__}:23]:
+        3) Failure:
+      #test_failing_diff [#{__FILE__}:19]:
+      --- expected
+      +++ actual
+      @@ -1,3 +1,3 @@
+       \"
+      -foo
+      +bar
+       \"
+
+
+        4) Skipped:
+      #test_skipping [#{__FILE__}:27]:
       Skipped, no message given
     END
 
     # Finished in 0.005599s, 357.2066 runs/s, 535.8100 assertions/s.
 
     assert_equal <<~END, output.string.lines.last
-      4 tests, 2 assertions, 1 failure, 1 error, 1 skip.
+      5 tests, 3 assertions, 2 failures, 1 error, 1 skip.
     END
   end
 
@@ -71,7 +86,12 @@ class TestingTest < Minitest::Test
     reporter.report
 
     lines = output.string.lines
-    assert_equal "\e[31mE\e[0m\e[31mF\e[0m\e[32m.\e[0m\e[33mS\e[0m", lines.first.chomp
-    assert_equal "\e[31m4 tests, 2 assertions, 1 failure, 1 error, 1 skip.\e[0m", lines.last.chomp
+    assert_equal "\e[31mE\e[0m\e[31mF\e[0m\e[31mF\e[0m\e[32m.\e[0m\e[33mS\e[0m", lines.first.chomp
+    assert_equal "\e[1m--- expected\e[0m", lines[13].chomp
+    assert_equal "\e[1m+++ actual\e[0m", lines[14].chomp
+    assert_equal "\e[36m@@ -1,3 +1,3 @@\e[0m", lines[15].chomp
+    assert_equal "\e[31m-foo\e[0m", lines[17].chomp
+    assert_equal "\e[32m+bar\e[0m", lines[18].chomp
+    assert_equal "\e[31m5 tests, 3 assertions, 2 failures, 1 error, 1 skip.\e[0m", lines.last.chomp
   end
 end

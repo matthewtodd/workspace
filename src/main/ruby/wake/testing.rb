@@ -31,7 +31,7 @@ module Wake
       def report
         @io.puts
         @summarizer.each.with_index do |result, i|
-          @io.print "\n%3d) %s" % [i+1, result]
+          @io.print "\n%3d) %s" % [i+1, maybe_color_result(result.to_s)]
         end
         @io.puts
         @io.puts @summarizer.timing
@@ -41,9 +41,11 @@ module Wake
 
       private
 
+      BOLD = 1
       RED = 31
       GREEN = 32
       YELLOW = 33
+      CYAN = 36
 
       RESULT_CODE_COLORS = {
         'E' => RED,
@@ -54,6 +56,17 @@ module Wake
 
       def maybe_color_result_code(result_code)
         maybe_color(result_code, RESULT_CODE_COLORS.fetch(result_code))
+      end
+
+      def maybe_color_result(result)
+        # colored diffs!
+        result.
+          gsub(/^(---.*)$/) { |line| maybe_color(line, BOLD) }.
+          gsub(/^(\+\+\+.*)$/) { |line| maybe_color(line, BOLD) }.
+          gsub(/^(@@.*@@)$/) { |line| maybe_color(line, CYAN) }.
+          gsub(/^(-.*)$/) { |line| maybe_color(line, RED) }.
+          gsub(/^(\+.*)$/) { |line| maybe_color(line, GREEN) }.
+          to_s
       end
 
       def maybe_color(string, color)
