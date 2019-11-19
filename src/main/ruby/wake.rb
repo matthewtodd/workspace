@@ -24,7 +24,7 @@ module Wake
       end
 
       executable_builder = ExecutableBuilder.new(workspace, @source_tree)
-      test_runner = TestRunner.new(@source_tree.sandbox('var/run'), Executor.new, Testing::Reporter.new(@stdout))
+      test_runner = TestRunner.new(@source_tree.sandbox('bin'), Executor.new, Testing::Reporter.new(@stdout))
 
       workspace.each do |target|
         target.accept(executable_builder)
@@ -95,10 +95,6 @@ module Wake
       FileUtils.mkdir_p(File.dirname(path))
       FileUtils.touch(path)
     end
-
-    def runfiles_tree_for(label)
-      sandbox(label.package, "#{label.name}.runfiles")
-    end
   end
 
   class Visitor
@@ -121,9 +117,6 @@ module Wake
       @source = source
     end
 
-    # Next steps
-    # - TestRunner just runs the executable.
-    # - Collapse hierarchy under bin? Maybe just src/main there, and src/test in, um, test? or libexec?
     def visit_ruby_test(target)
       target.accept(Run.new(@workspace, @source, target))
     end
@@ -171,16 +164,17 @@ module Wake
   end
 
   class TestRunner < Visitor
-    def initialize(filesystem, pool, reporter)
-      @filesystem = filesystem
+    def initialize(bin, pool, reporter)
+      @bin = bin
       @pool = pool
       @reporter = reporter
     end
 
     def visit_ruby_test(target)
+      executable = @bin.absolute_path(File.join(target.label.package, target.label.name))
       @pool.execute do
         IO.pipe do |my_stdout, child_stdout|
-          pid = Process.spawn(*target.test_command, out: child_stdout, chdir: @filesystem.runfiles_tree_for(target.label).absolute_path('.'))
+          pid = Process.spawn(executable, out: child_stdout)
           child_stdout.close
           Wake::Testing.record(my_stdout, @reporter)
           Process.waitpid(pid)
