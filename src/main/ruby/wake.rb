@@ -182,8 +182,8 @@ module Wake
         IO.pipe do |my_stdout, child_stdout|
           pid = Process.spawn(*target.test_command, out: child_stdout, chdir: @filesystem.runfiles_tree_for(target.label).absolute_path('.'))
           child_stdout.close
-          Process.waitpid(pid)
           Wake::Testing.record(my_stdout, @reporter)
+          Process.waitpid(pid)
         end
       end
     end
