@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'find'
+require 'shellwords'
 require 'wake/rules'
 require 'wake/testing'
 
@@ -68,8 +69,15 @@ module Wake
       end
     end
 
-    def absolute_path(path)
+    def absolute_path(path = '.')
       File.absolute_path(File.join(@path, path))
+    end
+
+    def executable(path, contents)
+      path = absolute_path(path)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.open(path, 'w+') { |io| io.print(contents) }
+      File.chmod(0755, path)
     end
 
     def link(path, src)
@@ -80,6 +88,12 @@ module Wake
 
     def sandbox(*segments)
       Filesystem.new(File.join(@path, *segments))
+    end
+
+    def touch(path)
+      path = absolute_path(path)
+      FileUtils.mkdir_p(File.dirname(path))
+      FileUtils.touch(path)
     end
 
     def runfiles_tree_for(label)
@@ -107,20 +121,22 @@ module Wake
       @source = source
     end
 
+    # Next steps
+    # - TestRunner just runs the executable.
+    # - Collapse hierarchy under bin? Maybe just src/main there, and src/test in, um, test? or libexec?
     def visit_ruby_test(target)
-      runfiles = @source.sandbox('var/run', target.label.package, "#{target.label.name}.runfiles")
-      # TODO also pass a Bin visitor to write the script.
-      target.accept(Run.new(@workspace, @source, runfiles))
-      # TODO also pass a Log visitor to mkdir the log structure?
+      target.accept(Run.new(@workspace, @source, target))
     end
 
     private
 
     class Run < Visitor
-      def initialize(workspace, source, runfiles)
+      def initialize(workspace, source, target)
         @workspace = workspace
         @source = source
-        @runfiles = runfiles
+        @bin = @source.sandbox('bin', target.label.package)
+        @log = @source.sandbox('var/log', target.label.package, target.label.name)
+        @run = @source.sandbox('var/run', target.label.package, "#{target.label.name}.runfiles")
       end
 
       def visit_label(label)
@@ -129,18 +145,27 @@ module Wake
 
       def visit_ruby_lib(target)
         target.each_source do |path|
-          @runfiles.link(path, @source.absolute_path(path))
+          @run.link(path, @source.absolute_path(path))
         end
       end
 
       def visit_ruby_test(target)
+        @bin.executable(target.label.name, <<~END)
+          #!/bin/sh
+          set -e
+          cd #{@run.absolute_path}
+          exec #{target.test_command.shelljoin} | tee #{@log.absolute_path('stdout.log') }
+        END
+
         # Implicit dependency on wake/testing.
         # TODO depend on @wake//:testing or something?
-        @runfiles.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
+        @run.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
 
         target.each_source do |path|
-          @runfiles.link(path, @source.absolute_path(path))
+          @run.link(path, @source.absolute_path(path))
         end
+
+        @log.touch('stdout.log')
       end
     end
   end
