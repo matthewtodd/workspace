@@ -24,11 +24,13 @@ module Wake
       end
 
       executable_builder = ExecutableBuilder.new(workspace, @source_tree)
-      test_runner = TestRunner.new(@source_tree.sandbox('bin'), Executor.new, Testing::Reporter.new(@stdout))
-
       workspace.each do |target|
         target.accept(executable_builder)
-        target.accept(test_runner)
+      end
+
+      test_runner = TestRunner.new(Executor.new, Testing::Reporter.new(@stdout))
+      executable_builder.each do |executable|
+        test_runner.add(executable)
       end
 
       test_runner.run
@@ -115,21 +117,31 @@ module Wake
     def initialize(workspace, source)
       @workspace = workspace
       @source = source
+      @executables = []
+    end
+
+    def each
+      @executables.each { |e| yield e }
     end
 
     def visit_ruby_test(target)
-      target.accept(Run.new(@workspace, @source, target))
+      visitor = Run.new(@workspace, @source, target)
+      target.accept(visitor)
+      @executables << visitor.executable
     end
 
     private
 
     class Run < Visitor
+      attr_reader :executable
+
       def initialize(workspace, source, target)
         @workspace = workspace
         @source = source
         @bin = @source.sandbox('bin', target.label.package)
         @log = @source.sandbox('var/log', target.label.package, target.label.name)
         @run = @source.sandbox('var/run', target.label.package, "#{target.label.name}.runfiles")
+        @executable = @bin.absolute_path(target.label.name)
       end
 
       def visit_label(label)
@@ -163,15 +175,13 @@ module Wake
     end
   end
 
-  class TestRunner < Visitor
-    def initialize(bin, pool, reporter)
-      @bin = bin
+  class TestRunner
+    def initialize(pool, reporter)
       @pool = pool
       @reporter = reporter
     end
 
-    def visit_ruby_test(target)
-      executable = @bin.absolute_path(File.join(target.label.package, target.label.name))
+    def add(executable)
       @pool.execute do
         IO.pipe do |my_stdout, child_stdout|
           pid = Process.spawn(executable, out: child_stdout)
