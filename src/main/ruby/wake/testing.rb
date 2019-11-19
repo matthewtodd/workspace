@@ -2,13 +2,6 @@ require 'json'
 
 module Wake
   module Testing
-    def self.record(pipe, reporter)
-      format = JsonFormat.new
-      until pipe.eof?
-        reporter.record(format.load(pipe.readline.chomp))
-      end
-    end
-
     def self.source_location
       method(:source_location).source_location.first
     end

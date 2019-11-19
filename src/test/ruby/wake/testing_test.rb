@@ -36,7 +36,10 @@ class TestingTest < Minitest::Test
 
     output = StringIO.new
     reporter = Wake::Testing::Reporter.new(output)
-    Wake::Testing.record(pipe, reporter)
+    format = Wake::Testing::JsonFormat.new
+    until pipe.eof?
+      reporter.record(format.load(pipe.readline.chomp))
+    end
     reporter.report
 
     assert_equal <<~END, output.string.lines[0..-4].join
@@ -82,7 +85,10 @@ class TestingTest < Minitest::Test
     output = StringIO.new
     def output.tty?; true; end
     reporter = Wake::Testing::Reporter.new(output)
-    Wake::Testing.record(pipe, reporter)
+    format = Wake::Testing::JsonFormat.new
+    until pipe.eof?
+      reporter.record(format.load(pipe.readline.chomp))
+    end
     reporter.report
 
     lines = output.string.lines

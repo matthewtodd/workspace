@@ -23,17 +23,21 @@ module Wake
         workspace.load_package(path, contents)
       end
 
-      executable_builder = ExecutableBuilder.new(workspace, @source_tree)
+      executables = ExecutableBuilder.new(workspace, @source_tree)
       workspace.each do |target|
-        target.accept(executable_builder)
+        target.accept(executables)
       end
 
-      test_runner = TestRunner.new(Executor.new, Testing::Reporter.new(@stdout))
-      executable_builder.each do |executable|
+      test_runner = Executor.new
+      test_reporter = Testing::Reporter.new(@stdout)
+      test_format = Testing::JsonFormat.new
+      executables.each do |executable|
         test_runner.add(executable)
       end
-
-      test_runner.run
+      test_runner.run do |line|
+        test_reporter.record(test_format.load(line))
+      end
+      test_reporter.report
     end
   end
 
@@ -175,49 +179,33 @@ module Wake
     end
   end
 
-  class TestRunner
-    def initialize(pool, reporter)
-      @pool = pool
-      @reporter = reporter
+  class Executor
+    def initialize
+      @executables = Queue.new
+      @size = 10
     end
 
     def add(executable)
-      @pool.execute do
-        IO.pipe do |my_stdout, child_stdout|
-          pid = Process.spawn(executable, out: child_stdout)
-          child_stdout.close
-          Wake::Testing.record(my_stdout, @reporter)
-          Process.waitpid(pid)
-        end
-      end
+      @executables.push(executable)
     end
 
     def run
-      @pool.shutdown
-      @reporter.report
-    end
-  end
-
-  class Executor
-    def initialize
-      @queue = Queue.new
-      @pool = 10.times.map do
-        Thread.new(@queue) do |queue|
-          Thread.current.abort_on_exception = true
-          while command = @queue.pop
-            command.call
+      threads = @size.times.map do
+        Thread.new do
+          while executable = @executables.pop
+            IO.pipe do |my_stdout, child_stdout|
+              pid = Process.spawn(executable, out: child_stdout)
+              child_stdout.close
+              until my_stdout.eof?
+                yield my_stdout.readline.chomp
+              end
+              Process.waitpid(pid)
+            end
           end
         end
       end
-    end
-
-    def execute(&command)
-      @queue << command
-    end
-
-    def shutdown
-      @pool.size.times { @queue << nil }
-      @pool.each(&:join)
+      @size.times { add(nil) }
+      threads.each(&:join)
     end
   end
 
