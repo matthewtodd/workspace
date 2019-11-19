@@ -4,6 +4,7 @@ ruby_lib(
   name: "wake",
   srcs: [
     "wake.rb",
+    "wake/label.rb",
     "wake/rules.rb",
   ],
   deps: ["//src/main/ruby:wake_testing"],
