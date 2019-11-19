@@ -16,6 +16,10 @@ module Wake
       @name = name
     end
 
+    def path(suffix = nil)
+      File.join(@package, [@name, suffix].compact.join('.'))
+    end
+
     def ==(other)
       @package == other.package && @name == other.name
     end

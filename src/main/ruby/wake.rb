@@ -144,8 +144,8 @@ module Wake
         @workspace = workspace
         @source = source
         @bin = @source.sandbox('bin', target.label.package)
-        @log = @source.sandbox('var/log', target.label.package, target.label.name)
-        @run = @source.sandbox('var/run', target.label.package, "#{target.label.name}.runfiles")
+        @log = @source.sandbox('var/log', target.label.path)
+        @run = @source.sandbox('var/run', target.label.path('runfiles'))
         @executable = @bin.absolute_path(target.label.name)
       end
 
