@@ -28,15 +28,15 @@ module Wake
         target.accept(executables)
       end
 
-      test_runner = Executor.new
+      test_runner = ExecutorService.new
       test_reporter = Testing::Reporter.new(@stdout)
       test_format = Testing::JsonFormat.new
       executables.each do |executable|
-        test_runner.add(executable)
+        test_runner.submit(executable) do |line|
+          test_reporter.record(test_format.load(line))
+        end
       end
-      test_runner.run do |line|
-        test_reporter.record(test_format.load(line))
-      end
+      test_runner.shutdown
       test_reporter.report
     end
   end
@@ -179,33 +179,45 @@ module Wake
     end
   end
 
-  class Executor
+  class ExecutorService
     def initialize
-      @executables = Queue.new
-      @size = 10
-    end
-
-    def add(executable)
-      @executables.push(executable)
-    end
-
-    def run
-      threads = @size.times.map do
+      @tasks = Queue.new
+      @workers = 10.times.map do
         Thread.new do
-          while executable = @executables.pop
-            IO.pipe do |my_stdout, child_stdout|
-              pid = Process.spawn(executable, out: child_stdout)
-              child_stdout.close
-              until my_stdout.eof?
-                yield my_stdout.readline.chomp
-              end
-              Process.waitpid(pid)
-            end
+          while task = @tasks.pop
+            task.run
           end
         end
       end
-      @size.times { add(nil) }
-      threads.each(&:join)
+    end
+
+    def submit(command, &output_processor)
+      @tasks.push(Task.new(command, output_processor))
+    end
+
+    def shutdown
+      @workers.size.times { @tasks.push(nil) }
+      @workers.each(&:join)
+    end
+
+    private
+
+    class Task
+      def initialize(command, output_processor)
+        @command = command
+        @output_processor = output_processor
+      end
+
+      def run
+        IO.pipe do |my_stdout, child_stdout|
+          pid = Process.spawn(@command, out: child_stdout)
+          child_stdout.close
+          until my_stdout.eof?
+            @output_processor.call(my_stdout.readline.chomp)
+          end
+          Process.waitpid(pid)
+        end
+      end
     end
   end
 
