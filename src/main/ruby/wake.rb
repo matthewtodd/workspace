@@ -180,11 +180,7 @@ module Wake
     def visit_ruby_test(target)
       @pool.execute do
         IO.pipe do |my_stdout, child_stdout|
-          # binmode while we're sending marshalled data across.
-          my_stdout.binmode
-
           pid = Process.spawn(*target.test_command, out: child_stdout, chdir: @filesystem.runfiles_tree_for(target.label).absolute_path('.'))
-
           child_stdout.close
           Process.waitpid(pid)
           Wake::Testing.record(my_stdout, @reporter)
