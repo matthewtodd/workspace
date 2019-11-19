@@ -1,14 +1,17 @@
 module Wake
   class Label
     def self.parse(string)
-      new(*string[2..-1].split(':'))
+      string.match %r{(?:@(\w+))?//(\w+(?:/\w+)*)?:(\w+)} do |match|
+        new(match[1], match[2], match[3])
+      end
     end
 
     attr_reader :repository
     attr_reader :package
     attr_reader :name
 
-    def initialize(package, name)
+    def initialize(repository, package, name)
+      @repository = repository
       @package = package
       @name = name
     end
@@ -34,4 +37,3 @@ module Wake
     end
   end
 end
-

@@ -35,7 +35,7 @@ module Wake
       private
 
       def label(name)
-        Label.new(@path, name)
+        Label.new(nil, @path, name)
       end
 
       def parse(deps)
