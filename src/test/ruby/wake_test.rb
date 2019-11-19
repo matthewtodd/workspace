@@ -3,7 +3,7 @@ require 'minitest'
 require 'wake'
 
 class WakeTest < Minitest::Test
-  def test_kt_jvm_test
+  def skip_test_kt_jvm_test
     skip 'WIP'
 
     workspace do |path|
