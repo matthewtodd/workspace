@@ -29,6 +29,9 @@ module Wake
         @io.puts # separate dots from summary when green
         @io.puts @summarizer.timing
         @io.puts maybe_color(@summarizer.counts, @summarizer.success? ? GREEN : RED)
+      end
+
+      def all_green?
         @summarizer.success?
       end
 

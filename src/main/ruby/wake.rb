@@ -10,7 +10,7 @@ module Wake
     source_tree = Filesystem.new(workspace_path)
     executor_service = ExecutorService.new
     runner = Runner.new(source_tree, executor_service, stdout)
-    exit runner.run ? 0 : 1
+    runner.run
   end
 
   class Runner
@@ -40,6 +40,7 @@ module Wake
       end
       @executor_service.shutdown
       test_reporter.report
+      test_reporter.all_green?
     end
   end
 

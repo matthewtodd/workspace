@@ -175,7 +175,7 @@ class WakeTest < Minitest::Test
     IO.pipe do |my_stdout, child_stdout|
       IO.pipe do |my_stderr, child_stderr|
         include_path = File.dirname(Wake.method(:run).source_location.first)
-        pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-rwake', '-e', "Wake.run('#{path}', STDOUT)", out: child_stdout, err: child_stderr)
+        pid = Process.spawn(RbConfig.ruby, '-wU', '--disable-all', '-I', include_path, '-rwake', '-e', "exit Wake.run('#{path}', STDOUT)", out: child_stdout, err: child_stderr)
         child_stdout.close
         child_stderr.close
         _, status = Process.waitpid2(pid)

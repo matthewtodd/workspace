@@ -3,4 +3,4 @@
 WORKSPACE_PATH = File.expand_path('..', __FILE__)
 $:.unshift(File.join(WORKSPACE_PATH, 'src/main/ruby'))
 require 'wake'
-Wake.run(WORKSPACE_PATH, STDOUT)
+exit Wake.run(WORKSPACE_PATH, STDOUT)
