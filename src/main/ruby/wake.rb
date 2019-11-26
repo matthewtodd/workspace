@@ -20,8 +20,8 @@ module Wake
 
     def run
       workspace = Workspace.new
-      @source_tree.each_package do |path, contents|
-        workspace.load_package(path, contents)
+      @source_tree.glob('**/BUILD') do |path, contents|
+        workspace.load_package(File.dirname(path), contents)
       end
 
       executables = ExecutableBuilder.new(workspace, @source_tree)
@@ -68,14 +68,6 @@ module Wake
       @path = path
     end
 
-    def each_package
-      Find.find(@path) do |path|
-        if File.basename(path) == 'BUILD'
-          yield File.dirname(path).slice(@path.length.next..-1) || '', IO.read(path)
-        end
-      end
-    end
-
     def absolute_path(path = '.')
       File.absolute_path(File.join(@path, path))
     end
@@ -85,6 +77,12 @@ module Wake
       FileUtils.mkdir_p(File.dirname(path))
       File.open(path, 'w+') { |io| io.print(contents) }
       File.chmod(0755, path)
+    end
+
+    def glob(pattern)
+      Dir.glob(File.join(@path, pattern)).each do |path|
+        yield relative_path(path), IO.read(path)
+      end
     end
 
     def link(path, src)
@@ -101,6 +99,12 @@ module Wake
       path = absolute_path(path)
       FileUtils.mkdir_p(File.dirname(path))
       FileUtils.touch(path)
+    end
+
+    private
+
+    def relative_path(path)
+      path.slice(@path.length.next..-1) || ''
     end
   end
 
