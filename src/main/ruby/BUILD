@@ -1,14 +1,27 @@
 # vim: ft=ruby
 
 ruby_lib(
+  name: "concurrent",
+  srcs: ["concurrent.rb"],
+)
+
+ruby_lib(
+  name: "filesystem",
+  srcs: ["filesystem.rb"],
+)
+
+ruby_lib(
   name: "wake",
   srcs: [
     "wake.rb",
-    "wake/count_down_latch.rb",
     "wake/label.rb",
     "wake/rules.rb",
   ],
-  deps: ["//src/main/ruby:wake_testing"],
+  deps: [
+    "//src/main/ruby:concurrent",
+    "//src/main/ruby:filesystem",
+    "//src/main/ruby:wake_testing",
+  ],
 )
 
 # TODO want to move this to //src/main/ruby/wake:testing but first need to change ruby include path handling

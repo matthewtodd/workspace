@@ -1,21 +1,21 @@
 require 'rubygems'
 require 'minitest'
-require 'wake'
+require 'concurrent'
 
-class CountDownLatchTest < Minitest::Test
+class ConcurrentTest < Minitest::Test
   def test_zero
-    Wake::CountDownLatch.new.await
+    Concurrent::CountDownLatch.new.await
   end
 
   def test_typical_usage
-    latch = Wake::CountDownLatch.new
+    latch = Concurrent::CountDownLatch.new
     10.times { latch.increment }
     10.times { Thread.new { latch.decrement } }
     latch.await
   end
 
   def test_reuse
-    latch = Wake::CountDownLatch.new
+    latch = Concurrent::CountDownLatch.new
     10.times { latch.increment }
     10.times { Thread.new { latch.decrement } }
     latch.await
@@ -28,4 +28,3 @@ class CountDownLatchTest < Minitest::Test
     assert queue.empty?
   end
 end
-

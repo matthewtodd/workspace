@@ -1,7 +1,6 @@
-require 'fileutils'
-require 'find'
+require 'concurrent'
+require 'filesystem'
 require 'shellwords'
-require 'wake/count_down_latch'
 require 'wake/label'
 require 'wake/rules'
 require 'wake/testing'
@@ -9,7 +8,7 @@ require 'wake/testing'
 module Wake
   def self.run(workspace_path, args, stdout)
     source_tree = Filesystem.new(workspace_path)
-    executor_service = ExecutorService.new
+    executor_service = Concurrent::ExecutorService.new
     runner = Runner.new(source_tree, executor_service, stdout)
     runner.run(*args)
   end
@@ -66,50 +65,6 @@ module Wake
     end
   end
 
-  class Filesystem
-    def initialize(path)
-      @path = path
-    end
-
-    def absolute_path(path = '.')
-      File.absolute_path(File.join(@path, path))
-    end
-
-    def executable(path, contents)
-      path = absolute_path(path)
-      FileUtils.mkdir_p(File.dirname(path))
-      File.open(path, 'w+') { |io| io.print(contents) }
-      File.chmod(0755, path)
-    end
-
-    def glob(pattern)
-      Dir.glob(File.join(@path, pattern)).each do |path|
-        yield relative_path(path), IO.read(path)
-      end
-    end
-
-    def link(path, src)
-      target = absolute_path(path)
-      FileUtils.mkdir_p(File.dirname(target))
-      FileUtils.ln(src, target, force: true)
-    end
-
-    def sandbox(*segments)
-      Filesystem.new(File.join(@path, *segments))
-    end
-
-    def touch(path)
-      path = absolute_path(path)
-      FileUtils.mkdir_p(File.dirname(path))
-      FileUtils.touch(path)
-    end
-
-    private
-
-    def relative_path(path)
-      path.slice(@path.length.next..-1) || ''
-    end
-  end
 
   class Visitor
     def visit_label(label)
@@ -183,50 +138,6 @@ module Wake
         end
 
         @log.touch('stdout.log')
-      end
-    end
-  end
-
-  class ExecutorService
-    def initialize
-      @latch = CountDownLatch.new
-      @tasks = Queue.new
-      @workers = 10.times.map do
-        Thread.new do
-          while task = @tasks.pop
-            task.run
-            @latch.decrement
-          end
-        end
-      end
-    end
-
-    def submit(command, &output_processor)
-      @latch.increment
-      @tasks.push(Task.new(command, output_processor))
-    end
-
-    def drain
-      @latch.await
-    end
-
-    private
-
-    class Task
-      def initialize(command, output_processor)
-        @command = command
-        @output_processor = output_processor
-      end
-
-      def run
-        IO.pipe do |my_stdout, child_stdout|
-          pid = Process.spawn(@command, out: child_stdout)
-          child_stdout.close
-          until my_stdout.eof?
-            @output_processor.call(my_stdout.readline.chomp)
-          end
-          Process.waitpid(pid)
-        end
       end
     end
   end

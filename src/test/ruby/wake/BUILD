@@ -1,12 +1,6 @@
 # vim: ft=ruby
 
 ruby_test(
-  name: "CountDownLatchTest",
-  srcs: ["count_down_latch_test.rb"],
-  deps: ["//src/main/ruby:wake"],
-)
-
-ruby_test(
   name: "LabelTest",
   srcs: ["label_test.rb"],
   deps: ["//src/main/ruby:wake"],
