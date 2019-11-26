@@ -1,6 +1,7 @@
 require 'fileutils'
 require 'find'
 require 'shellwords'
+require 'wake/count_down_latch'
 require 'wake/label'
 require 'wake/rules'
 require 'wake/testing'
@@ -38,7 +39,7 @@ module Wake
           test_reporter.record(test_format.load(single_test_result))
         end
       end
-      @executor_service.shutdown
+      @executor_service.drain
       test_reporter.report
       test_reporter.all_green?
     end
@@ -188,23 +189,25 @@ module Wake
 
   class ExecutorService
     def initialize
+      @latch = CountDownLatch.new
       @tasks = Queue.new
       @workers = 10.times.map do
         Thread.new do
           while task = @tasks.pop
             task.run
+            @latch.decrement
           end
         end
       end
     end
 
     def submit(command, &output_processor)
+      @latch.increment
       @tasks.push(Task.new(command, output_processor))
     end
 
-    def shutdown
-      @workers.size.times { @tasks.push(nil) }
-      @workers.each(&:join)
+    def drain
+      @latch.await
     end
 
     private

@@ -4,6 +4,7 @@ ruby_lib(
   name: "wake",
   srcs: [
     "wake.rb",
+    "wake/count_down_latch.rb",
     "wake/label.rb",
     "wake/rules.rb",
   ],

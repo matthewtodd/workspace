@@ -9,7 +9,7 @@ class WatchingTest < Minitest::Test
     end
 
     executor_service = Object.new
-    def executor_service.shutdown
+    def executor_service.drain
     end
 
     stdout = StringIO.new
