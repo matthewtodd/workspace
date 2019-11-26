@@ -8,13 +8,15 @@ require 'wake/testing'
 module Wake
   def self.run(workspace_path, stdout)
     source_tree = Filesystem.new(workspace_path)
-    runner = Runner.new(source_tree, stdout)
+    executor_service = ExecutorService.new
+    runner = Runner.new(source_tree, executor_service, stdout)
     exit runner.run ? 0 : 1
   end
 
   class Runner
-    def initialize(source_tree, stdout)
+    def initialize(source_tree, executor_service, stdout)
       @source_tree = source_tree
+      @executor_service = executor_service
       @stdout = stdout
     end
 
@@ -29,15 +31,14 @@ module Wake
         target.accept(executables)
       end
 
-      test_runner = ExecutorService.new
       test_reporter = Testing::Reporter.new(@stdout)
       test_format = Testing::JsonFormat.new
       executables.each do |executable|
-        test_runner.submit(executable) do |line|
+        @executor_service.submit(executable) do |line|
           test_reporter.record(test_format.load(line))
         end
       end
-      test_runner.shutdown
+      @executor_service.shutdown
       test_reporter.report
     end
   end
