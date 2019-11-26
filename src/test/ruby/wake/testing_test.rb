@@ -77,6 +77,27 @@ class TestingTest < Minitest::Test
     END
   end
 
+  def test_reporting_nothing
+    pipe = StringIO.new
+    Wake::Testing::Minitest.run(Class.new(Minitest::Test), pipe)
+    pipe.rewind
+
+    output = StringIO.new
+    reporter = Wake::Testing::Reporter.new(output)
+    format = Wake::Testing::JsonFormat.new
+    until pipe.eof?
+      reporter.record(format.load(pipe.readline.chomp))
+    end
+    reporter.report
+
+    assert_equal <<~END, output.string
+
+
+      Finished in 0.000000s, 0.0000 runs/s, 0.0000 assertions/s.
+      0 tests, 0 assertions, 0 failures, 0 errors, 0 skips.
+    END
+  end
+
   def test_colored_output
     pipe = StringIO.new
     Wake::Testing::Minitest.run(@test_class, pipe)

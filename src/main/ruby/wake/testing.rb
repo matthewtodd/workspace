@@ -22,11 +22,11 @@ module Wake
       end
 
       def report
-        @io.puts
+        @io.puts # finish the dots
         @summarizer.each.with_index do |result, i|
-          @io.print "\n%3d) %s" % [i+1, maybe_color_result(format_result(result))]
+          @io.puts "\n%3d) %s" % [i+1, maybe_color_result(format_result(result))]
         end
-        @io.puts
+        @io.puts # separate dots from summary when green
         @io.puts @summarizer.timing
         @io.puts maybe_color(@summarizer.counts, @summarizer.success? ? GREEN : RED)
         @summarizer.success?
@@ -121,8 +121,11 @@ module Wake
         end
 
         def timing
-          "Finished in %.6fs, %.4f runs/s, %.4f assertions/s." %
-            [@total_time, @test_count / @total_time, @assertion_count / @total_time]
+          "Finished in %.6fs, %.4f runs/s, %.4f assertions/s." % [
+            @total_time,
+            @total_time.zero? ? 0 : @test_count / @total_time,
+            @total_time.zero? ? 0 : @assertion_count / @total_time
+          ]
         end
 
         def counts
