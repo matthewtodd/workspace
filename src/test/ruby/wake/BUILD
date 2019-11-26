@@ -11,3 +11,9 @@ ruby_test(
   srcs: ["testing_test.rb"],
   deps: ["//src/main/ruby:wake_testing"],
 )
+
+ruby_test(
+  name: "WatchingTest",
+  srcs: ["watching_test.rb"],
+  deps: ["//src/main/ruby:wake"],
+)

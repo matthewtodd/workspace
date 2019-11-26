@@ -34,8 +34,8 @@ module Wake
       test_reporter = Testing::Reporter.new(@stdout)
       test_format = Testing::JsonFormat.new
       executables.each do |executable|
-        @executor_service.submit(executable) do |line|
-          test_reporter.record(test_format.load(line))
+        @executor_service.submit(executable) do |single_test_result|
+          test_reporter.record(test_format.load(single_test_result))
         end
       end
       @executor_service.shutdown
