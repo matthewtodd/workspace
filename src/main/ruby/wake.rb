@@ -7,11 +7,11 @@ require 'wake/rules'
 require 'wake/testing'
 
 module Wake
-  def self.run(workspace_path, stdout)
+  def self.run(workspace_path, args, stdout)
     source_tree = Filesystem.new(workspace_path)
     executor_service = ExecutorService.new
     runner = Runner.new(source_tree, executor_service, stdout)
-    runner.run
+    runner.run(*args)
   end
 
   class Runner
@@ -21,7 +21,7 @@ module Wake
       @stdout = stdout
     end
 
-    def run
+    def run(*args)
       workspace = Workspace.new
       @source_tree.glob('**/BUILD') do |path, contents|
         workspace.load_package(File.dirname(path), contents)
