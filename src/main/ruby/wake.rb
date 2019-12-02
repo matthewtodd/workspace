@@ -26,6 +26,10 @@ module Wake
         workspace.load_package(File.dirname(path), contents)
       end
 
+      workspace.each do |target|
+        target.implementation(nil)
+      end
+
       executables = ExecutableBuilder.new(workspace, @source_tree)
       workspace.each do |target|
         target.accept(executables)

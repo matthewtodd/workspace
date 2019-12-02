@@ -78,6 +78,10 @@ module Wake
         @deps = deps
       end
 
+      def implementation(context)
+
+      end
+
       def accept(visitor)
         @deps.each do |label|
           visitor.visit_label(label)
@@ -100,6 +104,13 @@ module Wake
         @label = label
         @srcs = srcs
         @deps = deps
+      end
+
+      # TODO tease out roles here? "Context" is meaningless?
+      # NOTE context can encapsulate all the directory work.
+      def implementation(context)
+        # Return something like { executable, files, runfiles }...
+        # These *are* the actions? And context is a builder for them.
       end
 
       def accept(visitor)
