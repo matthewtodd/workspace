@@ -78,7 +78,7 @@ module Wake
         @deps = deps
       end
 
-      def implementation(context)
+      def actions(context)
 
       end
 
@@ -106,11 +106,9 @@ module Wake
         @deps = deps
       end
 
-      # TODO tease out roles here? "Context" is meaningless?
-      # NOTE context can encapsulate all the directory work.
-      def implementation(context)
-        # Return something like { executable, files, runfiles }...
-        # These *are* the actions? And context is a builder for them.
+      def actions(builder)
+        builder.test_executable(test_command)
+        builder.runfiles(@srcs, @deps)
       end
 
       def accept(visitor)

@@ -26,8 +26,9 @@ module Wake
         workspace.load_package(File.dirname(path), contents)
       end
 
+      actions = Actions.new
       workspace.each do |target|
-        target.implementation(nil)
+        target.actions(actions.scoped(target.label))
       end
 
       executables = ExecutableBuilder.new(workspace, @source_tree)
@@ -45,6 +46,26 @@ module Wake
       @executor_service.drain
       test_reporter.report
       test_reporter.all_green?
+    end
+  end
+
+  class Actions
+    def scoped(label)
+      Scoped.new(self, label)
+    end
+
+    class Scoped
+      def initialize(actions, label)
+
+      end
+
+      def test_executable(command)
+
+      end
+
+      def runfiles(direct, transitive)
+
+      end
     end
   end
 
