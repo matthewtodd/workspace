@@ -81,6 +81,10 @@ module Wake
       end
     end
 
+    def link_outputs(label, path)
+
+    end
+
     class Paths
       def initialize(filesystem, label)
         @filesystem = filesystem
@@ -145,6 +149,10 @@ module Wake
             @paths.package_relative_output(path),
             @paths.package_relative_runfiles(path)
           )
+        end
+
+        transitive.each do |label|
+          @actions.link_outputs(label, @paths.runfiles)
         end
       end
     end
