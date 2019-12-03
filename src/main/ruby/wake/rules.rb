@@ -107,9 +107,9 @@ module Wake
       end
 
       def actions(builder)
-        builder.outputs(@srcs)
+        builder.outputs(@srcs) # TODO wrong, want to be running things here.
         builder.test_executable(test_command)
-        builder.runfiles(@srcs, @deps)
+        builder.runfiles(@srcs, @deps) # TODO reconsider.
       end
 
       def accept(visitor)
