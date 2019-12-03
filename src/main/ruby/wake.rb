@@ -66,10 +66,18 @@ module Wake
     end
 
     def file(path, mode, contents)
+      # TODO should we pass these actions through the filesystem? Not yet sure what meaningful test we'd find in-memory...
       @actions << lambda do
         FileUtils.mkdir_p(File.dirname(path))
         File.open(path, 'w+') { |io| io.print(contents) }
         File.chmod(mode, path)
+      end
+    end
+
+    def link(source, target)
+      @actions << lambda do
+        FileUtils.mkdir_p(File.dirname(target))
+        FileUtils.ln(source, target, force: true)
       end
     end
 
@@ -79,7 +87,7 @@ module Wake
         @label = label
       end
 
-      def executable
+      def executable # TODO I think this new pattern means we don't need sandboxes so much.
         @filesystem.sandbox('bin', @label.package).absolute_path(@label.name)
       end
 
@@ -89,6 +97,14 @@ module Wake
 
       def runfiles
         @filesystem.sandbox('var/run', @label.path('runfiles')).absolute_path('.')
+      end
+
+      def package_relative_runfiles(path)
+        @filesystem.sandbox('var/run', @label.path('runfiles'), @label.package).absolute_path(path)
+      end
+
+      def package_relative_source(path)
+        @filesystem.sandbox(@label.package).absolute_path(path)
       end
     end
 
@@ -111,6 +127,12 @@ module Wake
         # direct is a list of label-relative paths
         # transitive is a list of labels from whom to pull outputs.
         # let's poke at it to see what we can get...
+        direct.each do |path|
+          @actions.link(
+            @paths.package_relative_source(path),
+            @paths.package_relative_runfiles(path)
+          )
+        end
       end
     end
   end
@@ -196,10 +218,6 @@ module Wake
         # Implicit dependency on wake/testing.
         # TODO depend on @wake//:testing or something?
         @run.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
-
-        target.each_source do |path|
-          @run.link(path, @source.absolute_path(path))
-        end
 
         @log.touch('stdout.log')
       end
