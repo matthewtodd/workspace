@@ -26,10 +26,12 @@ module Wake
         workspace.load_package(File.dirname(path), contents)
       end
 
-      actions = Actions.new
+      actions = Actions.new(@source_tree)
       workspace.each do |target|
         target.actions(actions.scoped(target.label))
       end
+
+      actions.each(&:call)
 
       executables = ExecutableBuilder.new(workspace, @source_tree)
       workspace.each do |target|
@@ -50,21 +52,65 @@ module Wake
   end
 
   class Actions
+    def initialize(filesystem)
+      @filesystem = filesystem
+      @actions = []
+    end
+
+    def each(&block)
+      @actions.each(&block)
+    end
+
     def scoped(label)
-      Scoped.new(self, label)
+      Scoped.new(self, Paths.new(@filesystem, label))
+    end
+
+    def file(path, mode, contents)
+      @actions << lambda do
+        FileUtils.mkdir_p(File.dirname(path))
+        File.open(path, 'w+') { |io| io.print(contents) }
+        File.chmod(mode, path)
+      end
+    end
+
+    class Paths
+      def initialize(filesystem, label)
+        @filesystem = filesystem
+        @label = label
+      end
+
+      def executable
+        @filesystem.sandbox('bin', @label.package).absolute_path(@label.name)
+      end
+
+      def executable_log
+        @filesystem.sandbox('var/log', @label.path).absolute_path('stdout.log')
+      end
+
+      def runfiles
+        @filesystem.sandbox('var/run', @label.path('runfiles')).absolute_path('.')
+      end
     end
 
     class Scoped
-      def initialize(actions, label)
-
+      def initialize(actions, paths)
+        @actions = actions
+        @paths = paths
       end
 
       def test_executable(command)
-
+        @actions.file(@paths.executable, 0755, <<~END)
+          #!/bin/sh
+          set -e
+          cd #{@paths.runfiles}
+          exec #{command.shelljoin} | tee #{@paths.executable_log}
+        END
       end
 
       def runfiles(direct, transitive)
-
+        # direct is a list of label-relative paths
+        # transitive is a list of labels from whom to pull outputs.
+        # let's poke at it to see what we can get...
       end
     end
   end
@@ -147,13 +193,6 @@ module Wake
       end
 
       def visit_ruby_test(target)
-        @bin.executable(target.label.name, <<~END)
-          #!/bin/sh
-          set -e
-          cd #{@run.absolute_path}
-          exec #{target.test_command.shelljoin} | tee #{@log.absolute_path('stdout.log') }
-        END
-
         # Implicit dependency on wake/testing.
         # TODO depend on @wake//:testing or something?
         @run.link('src/main/ruby/wake/testing.rb', Wake::Testing.source_location)
