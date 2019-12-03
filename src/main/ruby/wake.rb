@@ -27,14 +27,14 @@ module Wake
       end
 
       actions = Actions.new(@source_tree)
-      workspace.each do |target|
-        target.actions(actions.scoped(target.label))
+      workspace.each do |label, target|
+        target.actions(actions.scoped(label))
       end
 
       actions.each(&:call)
 
       executables = ExecutableBuilder.new(workspace, @source_tree)
-      workspace.each do |target|
+      workspace.each do |label, target|
         target.accept(executables)
       end
 
@@ -152,8 +152,8 @@ module Wake
 
     def each
       # TODO topological sort?
-      @targets.each_value do |target|
-        yield target
+      @targets.each do |label, target|
+        yield label, target
       end
     end
   end
