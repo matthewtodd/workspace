@@ -99,6 +99,10 @@ module Wake
         @filesystem.sandbox('var/run', @label.path('runfiles')).absolute_path('.')
       end
 
+      def package_relative_output(path)
+        @filesystem.sandbox('var/tmp', @label.package).absolute_path(path)
+      end
+
       def package_relative_runfiles(path)
         @filesystem.sandbox('var/run', @label.path('runfiles'), @label.package).absolute_path(path)
       end
@@ -112,6 +116,15 @@ module Wake
       def initialize(actions, paths)
         @actions = actions
         @paths = paths
+      end
+
+      def outputs(paths)
+        paths.each do |path|
+          @actions.link(
+            @paths.package_relative_source(path),
+            @paths.package_relative_output(path)
+          )
+        end
       end
 
       def test_executable(command)
@@ -129,7 +142,7 @@ module Wake
         # let's poke at it to see what we can get...
         direct.each do |path|
           @actions.link(
-            @paths.package_relative_source(path),
+            @paths.package_relative_output(path),
             @paths.package_relative_runfiles(path)
           )
         end
