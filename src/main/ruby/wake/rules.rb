@@ -79,7 +79,7 @@ module Wake
       end
 
       def actions(builder)
-        @srcs.each { |path| builder.output_link(path) }
+        builder.output_links(@srcs)
       end
 
       def accept(visitor)
@@ -107,7 +107,7 @@ module Wake
       end
 
       def actions(builder)
-        @srcs.each { |path| builder.output_link(path) }
+        builder.output_links(@srcs)
         builder.test_executable(test_command, @srcs, @deps)
       end
 
