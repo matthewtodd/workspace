@@ -108,8 +108,7 @@ module Wake
 
       def actions(builder)
         @srcs.each { |path| builder.output_link(path) }
-        builder.test_executable(test_command)
-        builder.runfiles(@srcs, @deps)
+        builder.test_executable(test_command, @srcs, @deps)
       end
 
       def accept(visitor)

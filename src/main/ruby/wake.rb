@@ -129,16 +129,14 @@ module Wake
         )
       end
 
-      def test_executable(command)
+      def test_executable(command, direct, transitive)
         @actions.file(@paths.executable, 0755, <<~END)
           #!/bin/sh
           set -e
           cd #{@paths.runfiles}
           exec #{command.shelljoin} | tee #{@paths.executable_log}
         END
-      end
 
-      def runfiles(direct, transitive)
         # direct is a list of label-relative paths
         # transitive is a list of labels from whom to pull outputs.
         # let's poke at it to see what we can get...
