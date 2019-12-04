@@ -122,13 +122,11 @@ module Wake
         @paths = paths
       end
 
-      def outputs(paths)
-        paths.each do |path|
-          @actions.link(
-            @paths.package_relative_source(path),
-            @paths.package_relative_output(path)
-          )
-        end
+      def output_link(path)
+        @actions.link(
+          @paths.package_relative_source(path),
+          @paths.package_relative_output(path)
+        )
       end
 
       def test_executable(command)

@@ -79,7 +79,7 @@ module Wake
       end
 
       def actions(builder)
-        builder.outputs(@srcs)
+        @srcs.each { |path| builder.output_link(path) }
       end
 
       def accept(visitor)
@@ -107,9 +107,9 @@ module Wake
       end
 
       def actions(builder)
-        builder.outputs(@srcs) # TODO wrong, want to be running things here.
+        @srcs.each { |path| builder.output_link(path) }
         builder.test_executable(test_command)
-        builder.runfiles(@srcs, @deps) # TODO reconsider.
+        builder.runfiles(@srcs, @deps)
       end
 
       def accept(visitor)
