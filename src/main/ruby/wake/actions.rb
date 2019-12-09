@@ -29,37 +29,6 @@ module Wake
       end
     end
 
-    class Paths
-      def initialize(filesystem, label)
-        @filesystem = filesystem
-        @label = label
-      end
-
-      def executable # TODO I think this new pattern means we don't need sandboxes so much.
-        @filesystem.sandbox('bin', @label.package).absolute_path(@label.name)
-      end
-
-      def executable_log
-        @filesystem.sandbox('var/log', @label.path).absolute_path('stdout.log')
-      end
-
-      def runfiles
-        @filesystem.sandbox('var/run', @label.path('runfiles')).absolute_path('.')
-      end
-
-      def package_relative_output(path)
-        @filesystem.sandbox('var/tmp', @label.package).absolute_path(path)
-      end
-
-      def package_relative_runfiles(path)
-        @filesystem.sandbox('var/run', @label.path('runfiles'), @label.package).absolute_path(path)
-      end
-
-      def package_relative_source(path)
-        @filesystem.sandbox(@label.package).absolute_path(path)
-      end
-    end
-
     class Scoped
       def initialize(actions, paths)
         @actions = actions
@@ -92,6 +61,37 @@ module Wake
             @paths.package_relative_runfiles(path)
           )
         end
+      end
+    end
+
+    class Paths
+      def initialize(filesystem, label)
+        @filesystem = filesystem
+        @label = label
+      end
+
+      def executable # TODO I think this new pattern means we don't need sandboxes so much.
+        @filesystem.sandbox('bin', @label.package).absolute_path(@label.name)
+      end
+
+      def executable_log
+        @filesystem.sandbox('var/log', @label.path).absolute_path('stdout.log')
+      end
+
+      def runfiles
+        @filesystem.sandbox('var/run', @label.path('runfiles')).absolute_path('.')
+      end
+
+      def package_relative_output(path)
+        @filesystem.sandbox('var/tmp', @label.package).absolute_path(path)
+      end
+
+      def package_relative_runfiles(path)
+        @filesystem.sandbox('var/run', @label.path('runfiles'), @label.package).absolute_path(path)
+      end
+
+      def package_relative_source(path)
+        @filesystem.sandbox(@label.package).absolute_path(path)
       end
     end
   end
