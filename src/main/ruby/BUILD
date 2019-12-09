@@ -14,6 +14,7 @@ ruby_lib(
   name: "wake",
   srcs: [
     "wake.rb",
+    "wake/actions.rb",
     "wake/label.rb",
     "wake/rules.rb",
   ],
