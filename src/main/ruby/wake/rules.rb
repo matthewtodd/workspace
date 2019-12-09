@@ -78,8 +78,8 @@ module Wake
         @deps = deps
       end
 
-      def actions(builder)
-        builder.output_links(@srcs)
+      def register(actions)
+        actions.output_links(@srcs)
       end
 
       def accept(visitor)
@@ -106,9 +106,9 @@ module Wake
         @deps = deps
       end
 
-      def actions(builder)
-        builder.output_links(@srcs)
-        builder.test_executable(test_command, @srcs, @deps)
+      def register(actions)
+        actions.output_links(@srcs)
+        actions.test_executable(test_command, @srcs, @deps)
       end
 
       def accept(visitor)

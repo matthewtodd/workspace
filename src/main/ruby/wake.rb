@@ -29,7 +29,7 @@ module Wake
 
       actions = Actions.new(@source_tree)
       workspace.each do |label, target|
-        target.actions(actions.scoped(label))
+        target.register(actions.scoped(label))
       end
 
       actions.each(&:call)
