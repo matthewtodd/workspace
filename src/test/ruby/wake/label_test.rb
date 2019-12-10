@@ -18,6 +18,11 @@ class LabelTest < Minitest::Test
     assert_equal 'package', label.package
   end
 
+  def test_parse_package_blank
+    label = Wake::Label.parse('//:name')
+    assert_equal '', label.package
+  end
+
   def test_parse_package_nested
     label = Wake::Label.parse('//path/to/package:name')
     assert_equal 'path/to/package', label.package

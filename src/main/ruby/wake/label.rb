@@ -2,7 +2,7 @@ module Wake
   class Label
     def self.parse(string)
       string.match %r{(?:@(\w+))?//(\w+(?:/\w+)*)?:(\w+)} do |match|
-        new(match[1], match[2], match[3])
+        new(match[1], match[2] || '', match[3])
       end
     end
 
