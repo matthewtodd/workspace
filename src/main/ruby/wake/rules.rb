@@ -1,4 +1,5 @@
 require 'rbconfig'
+require 'wake/label'
 
 module Wake
   module Rules

@@ -2,8 +2,6 @@ require 'concurrent'
 require 'filesystem'
 require 'shellwords'
 require 'wake/actions'
-require 'wake/label'
-require 'wake/rules'
 require 'wake/testing'
 require 'wake/workspace'
 
@@ -23,9 +21,10 @@ module Wake
     end
 
     def run(*args)
-      workspace = Workspace.new
-      @source_tree.glob('**/BUILD') do |path, contents|
-        workspace.load_package(File.dirname(path), contents)
+      workspace = Workspace.new do |builder|
+        @source_tree.glob('**/BUILD') do |path, contents|
+          builder.load_package(File.dirname(path), contents)
+        end
       end
 
       actions = Actions.new(@source_tree)
