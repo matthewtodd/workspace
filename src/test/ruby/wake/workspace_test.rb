@@ -4,7 +4,6 @@ require 'wake'
 
 class WorkspaceTest < Minitest::Test
   def test_navigates_up_deps
-    skip 'WIP'
     workspace = Wake::Workspace.new do |builder|
       builder.load_package('a', <<~END)
         ruby_lib(

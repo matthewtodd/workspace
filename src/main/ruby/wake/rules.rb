@@ -72,6 +72,7 @@ module Wake
 
     class RubyLib
       attr_reader :label
+      attr_reader :deps
 
       def initialize(label:, srcs:, deps:)
         @label = label
@@ -100,6 +101,7 @@ module Wake
 
     class RubyTest
       attr_reader :label
+      attr_reader :deps
 
       def initialize(label:, srcs:, deps:[])
         @label = label
