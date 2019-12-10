@@ -5,6 +5,7 @@ require 'wake/actions'
 require 'wake/label'
 require 'wake/rules'
 require 'wake/testing'
+require 'wake/workspace'
 
 module Wake
   def self.run(workspace_path, args, stdout)
@@ -49,27 +50,6 @@ module Wake
       @executor_service.drain
       test_reporter.report
       test_reporter.all_green?
-    end
-  end
-
-  class Workspace
-    def initialize
-      @targets = {}
-    end
-
-    def load_package(path, contents)
-      Rules.load(path, contents) { |target| @targets[target.label] = target }
-    end
-
-    def target(label)
-      @targets.fetch(label)
-    end
-
-    def each
-      # TODO topological sort?
-      @targets.each do |label, target|
-        yield label, target
-      end
     end
   end
 

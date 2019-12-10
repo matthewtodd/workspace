@@ -17,6 +17,7 @@ ruby_lib(
     "wake/actions.rb",
     "wake/label.rb",
     "wake/rules.rb",
+    "wake/workspace.rb",
   ],
   deps: [
     "//src/main/ruby:concurrent",
