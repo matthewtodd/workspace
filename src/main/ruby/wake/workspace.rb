@@ -36,7 +36,7 @@ module Wake
 
       def build
         @depths.each_value { |depth| depth.calculate(@depths) }
-        @targets.sort_by { |target| @depths.fetch(target.label) }.freeze
+        @targets.sort_by { |target| [@depths.fetch(target.label), target.label.to_s] }.freeze
       end
     end
 
