@@ -24,6 +24,6 @@ class WorkspaceTest < Minitest::Test
     end
 
     assert_equal %w{//:a //:d //:e //:f //:h //:i //:c //:g //:b},
-      workspace.enum_for(:each).map { |label, _| label.to_s }
+      workspace.enum_for(:each).map(&:label).map(&:to_s)
   end
 end

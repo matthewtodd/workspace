@@ -15,7 +15,7 @@ module Wake
 
     def each
       @targets.each do |target|
-        yield target.label, target
+        yield target
       end
     end
 

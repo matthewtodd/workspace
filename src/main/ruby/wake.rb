@@ -28,14 +28,14 @@ module Wake
       end
 
       actions = Actions.new(@source_tree)
-      workspace.each do |label, target|
-        target.register(actions.scoped(label))
+      workspace.each do |target|
+        target.register(actions.scoped(target.label))
       end
 
       actions.each(&:call)
 
       executables = ExecutableBuilder.new(workspace, @source_tree)
-      workspace.each do |label, target|
+      workspace.each do |target|
         target.accept(executables)
       end
 
