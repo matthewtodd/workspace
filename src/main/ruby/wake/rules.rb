@@ -52,6 +52,7 @@ module Wake
         @srcs = srcs
       end
 
+      # deprecated
       def accept(visitor)
 
       end
@@ -65,6 +66,7 @@ module Wake
         @deps = deps
       end
 
+      # deprecated
       def accept(visitor)
 
       end
@@ -84,6 +86,7 @@ module Wake
         actions.output_links(@srcs)
       end
 
+      # deprecated
       def accept(visitor)
         @deps.each do |label|
           visitor.visit_label(label)
@@ -92,6 +95,7 @@ module Wake
         visitor.visit_ruby_lib(self)
       end
 
+      # deprecated
       def each_source
         @srcs.each do |path|
           yield File.join(@label.package, path)
@@ -114,6 +118,7 @@ module Wake
         actions.test_executable(test_command, @srcs, @deps)
       end
 
+      # deprecated
       def accept(visitor)
         @deps.each do |label|
           visitor.visit_label(label)
@@ -122,11 +127,14 @@ module Wake
         visitor.visit_ruby_test(self)
       end
 
+      # deprecated
       def each_source
         @srcs.each do |path|
           yield File.join(@label.package, path)
         end
       end
+
+      private
 
       def test_command
         command = [ RbConfig.ruby, '-wU', '--disable-all']

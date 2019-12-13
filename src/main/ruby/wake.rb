@@ -27,13 +27,19 @@ module Wake
         end
       end
 
+      # TODO maybe take the block-to-the-constructor builder approach here, too.
       actions = Actions.new(@source_tree)
       workspace.each do |target|
         target.register(actions.scoped(target.label))
       end
 
+      # TODO this shape changes when we handle actions in parallel.
+      # - How to know when it's safe to proceed, i.e., when all my deps have been run?
+      # - Maybe we pass the executor service to the actions?
+      # - How to handle test running? Perhaps that's still a separate phase?
       actions.each(&:call)
 
+      # TODO this stanza goes away once the action graph is sufficient.
       executables = ExecutableBuilder.new(workspace, @source_tree)
       workspace.each do |target|
         target.accept(executables)
@@ -52,6 +58,7 @@ module Wake
     end
   end
 
+  # TODO Visitor goes away once the action graph is sufficient.
   class Visitor
     def visit_label(label)
 
@@ -66,6 +73,7 @@ module Wake
     end
   end
 
+  # TODO ExecutableBuilder goes away once the action graph is sufficient.
   class ExecutableBuilder < Visitor
     def initialize(workspace, source)
       @workspace = workspace
