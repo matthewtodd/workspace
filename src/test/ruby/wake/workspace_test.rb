@@ -26,4 +26,20 @@ class WorkspaceTest < Minitest::Test
     assert_equal %w{//:a //:d //:e //:f //:h //:i //:c //:g //:b},
       workspace.enum_for(:each).map(&:label).map(&:to_s)
   end
+
+  def test_handles_shared_dependencies
+    # a   b
+    #  \ /
+    #   c
+    workspace = Wake::Workspace.new do |builder|
+      builder.load_package('', <<~END)
+        ruby_lib(name: 'a', srcs: ['a.rb'], deps: ['//:c'])
+        ruby_lib(name: 'b', srcs: ['b.rb'], deps: ['//:c'])
+        ruby_lib(name: 'c', srcs: ['c.rb'])
+      END
+    end
+
+    assert_equal %w{//:c //:a //:b},
+      workspace.enum_for(:each).map(&:label).map(&:to_s)
+  end
 end
