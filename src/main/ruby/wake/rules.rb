@@ -83,7 +83,7 @@ module Wake
       end
 
       def register(actions)
-        actions.output_links(@srcs)
+        @srcs.each { |src| actions.link(src) }
       end
 
       # deprecated
@@ -114,7 +114,7 @@ module Wake
       end
 
       def register(actions)
-        actions.output_links(@srcs)
+        @srcs.each { |src| actions.link(src) }
         actions.test_executable(test_command, @srcs, @deps)
       end
 

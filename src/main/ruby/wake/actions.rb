@@ -10,7 +10,7 @@ module Wake
     end
 
     def scoped(label)
-      Scoped.new(self, Paths.new(@filesystem, label))
+      Scoped.new(self, label, Paths.new(@filesystem, label))
     end
 
     def file(path, mode, contents)
@@ -29,19 +29,31 @@ module Wake
       end
     end
 
+    def link_new(path)
+      @actions << Link.new(@filesystem, path)
+    end
+
+    class Link
+      def initialize(filesystem, path)
+        @source = filesystem.absolute_path(path)
+        @target = filesystem.sandbox('var/tmp').absolute_path(path)
+      end
+
+      def call
+        FileUtils.mkdir_p(File.dirname(@target))
+        FileUtils.ln(@source, @target, force: true)
+      end
+    end
+
     class Scoped
-      def initialize(actions, paths)
+      def initialize(actions, label, paths)
         @actions = actions
+        @label = label
         @paths = paths
       end
 
-      def output_links(paths)
-        paths.each do |path|
-          @actions.link(
-            @paths.package_relative_source(path),
-            @paths.package_relative_output(path)
-          )
-        end
+      def link(path)
+        @actions.link_new(File.join(@label.package, path))
       end
 
       def test_executable(command, direct, transitive)
