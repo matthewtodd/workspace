@@ -94,8 +94,8 @@ module Wake
         outputs = @srcs.map { |src| actions.link(src) }
         # TODO get back to repositories: I implicitly depend on @wake//:testing.
         outputs << actions.hardcoded_link(Wake::Testing.source_location, 'src/main/ruby/wake/testing.rb')
-        runfiles = actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
-        actions.test_executable(test_command, runfiles)
+        actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
+        actions.test_executable(test_command)
       end
 
       private

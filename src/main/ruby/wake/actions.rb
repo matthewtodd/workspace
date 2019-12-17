@@ -49,8 +49,8 @@ module Wake
         @runfiles.fetch(label)
       end
 
-      def test_executable(label, command, runfiles)
-        test_executable = TestExecutable.new(@filesystem, label, command, runfiles)
+      def test_executable(label, command)
+        test_executable = TestExecutable.new(@filesystem, label, command, runfiles_for(label))
         @actions << test_executable
         test_executable
       end
@@ -83,8 +83,8 @@ module Wake
         @actions.runfiles_for(label)
       end
 
-      def test_executable(command, runfiles)
-        @actions.test_executable(@label, command, runfiles)
+      def test_executable(command)
+        @actions.test_executable(@label, command)
       end
     end
 
