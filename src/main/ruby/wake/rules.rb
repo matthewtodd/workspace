@@ -51,11 +51,6 @@ module Wake
         @label = label
         @srcs = srcs
       end
-
-      # deprecated
-      def accept(visitor)
-
-      end
     end
 
     class KtJvmTest
@@ -64,11 +59,6 @@ module Wake
       def initialize(label:, deps:)
         @label = label
         @deps = deps
-      end
-
-      # deprecated
-      def accept(visitor)
-
       end
     end
 
@@ -85,22 +75,6 @@ module Wake
       def register(actions)
         outputs = @srcs.map { |src| actions.link(src) }
         actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
-      end
-
-      # deprecated
-      def accept(visitor)
-        @deps.each do |label|
-          visitor.visit_label(label)
-        end
-
-        visitor.visit_ruby_lib(self)
-      end
-
-      # deprecated
-      def each_source
-        @srcs.each do |path|
-          yield File.join(@label.package, path)
-        end
       end
     end
 
@@ -120,22 +94,6 @@ module Wake
         outputs << actions.hardcoded_link(Wake::Testing.source_location, 'src/main/ruby/wake/testing.rb')
         runfiles = actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
         actions.test_executable(test_command, runfiles)
-      end
-
-      # deprecated
-      def accept(visitor)
-        @deps.each do |label|
-          visitor.visit_label(label)
-        end
-
-        visitor.visit_ruby_test(self)
-      end
-
-      # deprecated
-      def each_source
-        @srcs.each do |path|
-          yield File.join(@label.package, path)
-        end
       end
 
       private

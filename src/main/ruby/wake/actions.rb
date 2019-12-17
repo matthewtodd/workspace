@@ -6,8 +6,15 @@ module Wake
       @actions = builder.build
     end
 
-    def each(&block)
-      @actions.each(&block)
+    def perform
+      @actions.each(&:call)
+    end
+
+    def each_test(&block)
+      @actions.
+        select { |action| TestExecutable === action }.
+        map    { |action| action.executable }.
+        each(&block)
     end
 
     class Builder
@@ -115,6 +122,8 @@ module Wake
     end
 
     class TestExecutable
+      attr_reader :executable
+
       def initialize(filesystem, label, command, runfiles)
         @executable = filesystem.sandbox('bin', label.package).absolute_path(label.name)
         @pwd = filesystem.sandbox('var/run', label.path('runfiles'))
