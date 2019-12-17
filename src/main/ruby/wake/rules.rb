@@ -83,7 +83,7 @@ module Wake
       end
 
       def register(actions)
-        outputs = @srcs.each { |src| actions.link(src) }
+        outputs = @srcs.map { |src| actions.link(src) }
         actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
       end
 
@@ -116,9 +116,10 @@ module Wake
 
       def register(actions)
         outputs = @srcs.map { |src| actions.link(src) }
-        actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
-        # then replace this test_executable call...
-        actions.test_executable(test_command, @srcs, @deps)
+        # TODO get back to repositories: I implicitly depend on @wake//:testing.
+        outputs << actions.hardcoded_link(Wake::Testing.source_location, 'src/main/ruby/wake/testing.rb')
+        runfiles = actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
+        actions.test_executable(test_command, runfiles)
       end
 
       # deprecated

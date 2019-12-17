@@ -18,27 +18,20 @@ module Wake
       end
 
       def analyze(target)
-        target.register(Scoped.new(self, target.label, Paths.new(@filesystem, target.label)))
+        target.register(Scoped.new(self, target.label))
       end
 
-      def file(path, mode, contents)
-        # TODO should we pass these actions through the filesystem? Not yet sure what meaningful test we'd find in-memory...
-        @actions << lambda do
-          FileUtils.mkdir_p(File.dirname(path))
-          File.open(path, 'w+') { |io| io.print(contents) }
-          File.chmod(mode, path)
-        end
+      # deprecated
+      def hardcoded_link(source_path, workspace_relative_path)
+        link = HardcodedLink.new(@filesystem, source_path, workspace_relative_path)
+        @actions << link
+        link
       end
 
-      def link(source, target)
-        @actions << lambda do
-          FileUtils.mkdir_p(File.dirname(target))
-          FileUtils.ln(source, target, force: true)
-        end
-      end
-
-      def link_new(path)
-        @actions << Link.new(@filesystem, path)
+      def link(path)
+        link = Link.new(@filesystem, path)
+        @actions << link
+        link
       end
 
       def runfiles(label, direct, transitive)
@@ -49,32 +42,30 @@ module Wake
         @runfiles.fetch(label)
       end
 
+      def test_executable(label, command, runfiles)
+        test_executable = TestExecutable.new(@filesystem, label, command, runfiles)
+        @actions << test_executable
+        test_executable
+      end
+
       def build
         @actions.freeze
       end
     end
 
-    class Link
-      def initialize(filesystem, path)
-        @source = filesystem.absolute_path(path)
-        @target = filesystem.sandbox('var/tmp').absolute_path(path)
-      end
-
-      def call
-        FileUtils.mkdir_p(File.dirname(@target))
-        FileUtils.ln(@source, @target, force: true)
-      end
-    end
-
     class Scoped
-      def initialize(actions, label, paths)
+      def initialize(actions, label)
         @actions = actions
         @label = label
-        @paths = paths
+      end
+
+      # deprecated
+      def hardcoded_link(source_path, workspace_relative_path)
+        @actions.hardcoded_link(source_path, workspace_relative_path)
       end
 
       def link(path)
-        @actions.link_new(File.join(@label.package, path))
+        @actions.link(File.join(@label.package, path))
       end
 
       def runfiles(direct, transitive)
@@ -85,54 +76,79 @@ module Wake
         @actions.runfiles_for(label)
       end
 
-      def test_executable(command, direct, transitive)
-        @actions.file(@paths.executable, 0755, <<~END)
-          #!/bin/sh
-          set -e
-          cd #{@paths.runfiles}
-          exec #{command.shelljoin} | tee #{@paths.executable_log}
-        END
-
-        # direct is a list of label-relative paths
-        # transitive is a list of labels from whom to pull outputs.
-        # let's poke at it to see what we can get...
-        direct.each do |path|
-          @actions.link(
-            @paths.package_relative_output(path),
-            @paths.package_relative_runfiles(path)
-          )
-        end
+      def test_executable(command, runfiles)
+        @actions.test_executable(@label, command, runfiles)
       end
     end
 
-    class Paths
-      def initialize(filesystem, label)
-        @filesystem = filesystem
-        @label = label
+    # deprecated
+    class HardcodedLink
+      attr_reader :path
+      attr_reader :workspace_relative_path
+
+      def initialize(filesystem, source_path, workspace_relative_path)
+        @source = source_path
+        @path = filesystem.sandbox('var/tmp').absolute_path(workspace_relative_path)
+        @workspace_relative_path = workspace_relative_path
       end
 
-      def executable # TODO I think this new pattern means we don't need sandboxes so much.
-        @filesystem.sandbox('bin', @label.package).absolute_path(@label.name)
+      def call
+        FileUtils.mkdir_p(File.dirname(@path))
+        FileUtils.ln(@source, @path, force: true)
+      end
+    end
+
+    class Link
+      attr_reader :path
+      attr_reader :workspace_relative_path
+
+      def initialize(filesystem, path)
+        @source = filesystem.absolute_path(path)
+        @path = filesystem.sandbox('var/tmp').absolute_path(path)
+        @workspace_relative_path = path
       end
 
-      def executable_log
-        @filesystem.sandbox('var/log', @label.path).absolute_path('stdout.log')
+      def call
+        FileUtils.mkdir_p(File.dirname(@path))
+        FileUtils.ln(@source, @path, force: true)
+      end
+    end
+
+    class TestExecutable
+      def initialize(filesystem, label, command, runfiles)
+        @executable = filesystem.sandbox('bin', label.package).absolute_path(label.name)
+        @pwd = filesystem.sandbox('var/run', label.path('runfiles'))
+        @runfiles = runfiles
+        @command = command
+        @log = filesystem.sandbox('var/log', label.path).absolute_path('stdout.log')
       end
 
-      def runfiles
-        @filesystem.sandbox('var/run', @label.path('runfiles')).absolute_path('.')
+      # TODO maybe I hang onto sandboxed-fs instead and do all this work through them
+      def call
+        FileUtils.mkdir_p(File.dirname(@executable))
+        File.open(@executable, 'w+') { |io| io.print(script) }
+        File.chmod(0755, @executable)
+
+        @runfiles.flatten.each do |output|
+          source = output.path
+          target = @pwd.absolute_path(output.workspace_relative_path)
+          FileUtils.mkdir_p(File.dirname(target))
+          FileUtils.ln(source, target, force: true)
+        end
+
+        FileUtils.mkdir_p(File.dirname(@log))
+        FileUtils.touch(@log)
       end
 
-      def package_relative_output(path)
-        @filesystem.sandbox('var/tmp', @label.package).absolute_path(path)
-      end
+      private
 
-      def package_relative_runfiles(path)
-        @filesystem.sandbox('var/run', @label.path('runfiles'), @label.package).absolute_path(path)
-      end
-
-      def package_relative_source(path)
-        @filesystem.sandbox(@label.package).absolute_path(path)
+      def script
+        <<~END
+          #!/bin/sh
+          set -e
+          cd #{@pwd.absolute_path('.')}
+          exec #{@command.shelljoin} | tee #{@log}
+        END
       end
     end
   end
