@@ -83,7 +83,8 @@ module Wake
       end
 
       def register(actions)
-        @srcs.each { |src| actions.link(src) }
+        outputs = @srcs.each { |src| actions.link(src) }
+        actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
       end
 
       # deprecated
@@ -114,7 +115,9 @@ module Wake
       end
 
       def register(actions)
-        @srcs.each { |src| actions.link(src) }
+        outputs = @srcs.map { |src| actions.link(src) }
+        actions.runfiles(outputs, @deps.map { |dep| actions.runfiles_for(dep) })
+        # then replace this test_executable call...
         actions.test_executable(test_command, @srcs, @deps)
       end
 

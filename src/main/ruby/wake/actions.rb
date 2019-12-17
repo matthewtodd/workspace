@@ -14,6 +14,7 @@ module Wake
       def initialize(filesystem)
         @filesystem = filesystem
         @actions = []
+        @runfiles = {}
       end
 
       def analyze(target)
@@ -38,6 +39,14 @@ module Wake
 
       def link_new(path)
         @actions << Link.new(@filesystem, path)
+      end
+
+      def runfiles(label, direct, transitive)
+        @runfiles[label] = [direct, transitive]
+      end
+
+      def runfiles_for(label)
+        @runfiles.fetch(label)
       end
 
       def build
@@ -66,6 +75,14 @@ module Wake
 
       def link(path)
         @actions.link_new(File.join(@label.package, path))
+      end
+
+      def runfiles(direct, transitive)
+        @actions.runfiles(@label, direct, transitive)
+      end
+
+      def runfiles_for(label)
+        @actions.runfiles_for(label)
       end
 
       def test_executable(command, direct, transitive)
