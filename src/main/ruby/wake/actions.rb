@@ -7,7 +7,7 @@ module Wake
     end
 
     def perform
-      @actions.each(&:call)
+      @actions.each(&:perform)
     end
 
     def each_test(&block)
@@ -99,7 +99,7 @@ module Wake
         @workspace_relative_path = workspace_relative_path
       end
 
-      def call
+      def perform
         FileUtils.mkdir_p(File.dirname(@path))
         FileUtils.ln(@source, @path, force: true)
       end
@@ -115,7 +115,7 @@ module Wake
         @workspace_relative_path = path
       end
 
-      def call
+      def perform
         FileUtils.mkdir_p(File.dirname(@path))
         FileUtils.ln(@source, @path, force: true)
       end
@@ -133,7 +133,7 @@ module Wake
       end
 
       # TODO maybe I hang onto sandboxed-fs instead and do all this work through them
-      def call
+      def perform
         FileUtils.mkdir_p(File.dirname(@executable))
         File.open(@executable, 'w+') { |io| io.print(script) }
         File.chmod(0755, @executable)
