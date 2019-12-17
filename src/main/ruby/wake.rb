@@ -30,7 +30,7 @@ module Wake
       # TODO maybe take the block-to-the-constructor builder approach here, too.
       actions = Actions.new(@source_tree)
       workspace.each do |target|
-        target.register(actions.scoped(target.label))
+        actions.analyze(target)
       end
 
       # TODO this shape changes when we handle actions in parallel.

@@ -9,8 +9,8 @@ module Wake
       @actions.each(&block)
     end
 
-    def scoped(label)
-      Scoped.new(self, label, Paths.new(@filesystem, label))
+    def analyze(target)
+      target.register(Scoped.new(self, target.label, Paths.new(@filesystem, target.label)))
     end
 
     def file(path, mode, contents)
