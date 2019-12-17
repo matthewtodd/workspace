@@ -27,10 +27,10 @@ module Wake
         end
       end
 
-      # TODO maybe take the block-to-the-constructor builder approach here, too.
-      actions = Actions.new(@source_tree)
-      workspace.each do |target|
-        actions.analyze(target)
+      actions = Actions.new(@source_tree) do |builder|
+        workspace.each do |target|
+          builder.analyze(target)
+        end
       end
 
       # TODO this shape changes when we handle actions in parallel.

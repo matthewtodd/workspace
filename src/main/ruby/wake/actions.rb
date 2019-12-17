@@ -1,36 +1,48 @@
 module Wake
   class Actions
     def initialize(filesystem)
-      @filesystem = filesystem
-      @actions = []
+      builder = Builder.new(filesystem)
+      yield builder
+      @actions = builder.build
     end
 
     def each(&block)
       @actions.each(&block)
     end
 
-    def analyze(target)
-      target.register(Scoped.new(self, target.label, Paths.new(@filesystem, target.label)))
-    end
-
-    def file(path, mode, contents)
-      # TODO should we pass these actions through the filesystem? Not yet sure what meaningful test we'd find in-memory...
-      @actions << lambda do
-        FileUtils.mkdir_p(File.dirname(path))
-        File.open(path, 'w+') { |io| io.print(contents) }
-        File.chmod(mode, path)
+    class Builder
+      def initialize(filesystem)
+        @filesystem = filesystem
+        @actions = []
       end
-    end
 
-    def link(source, target)
-      @actions << lambda do
-        FileUtils.mkdir_p(File.dirname(target))
-        FileUtils.ln(source, target, force: true)
+      def analyze(target)
+        target.register(Scoped.new(self, target.label, Paths.new(@filesystem, target.label)))
       end
-    end
 
-    def link_new(path)
-      @actions << Link.new(@filesystem, path)
+      def file(path, mode, contents)
+        # TODO should we pass these actions through the filesystem? Not yet sure what meaningful test we'd find in-memory...
+        @actions << lambda do
+          FileUtils.mkdir_p(File.dirname(path))
+          File.open(path, 'w+') { |io| io.print(contents) }
+          File.chmod(mode, path)
+        end
+      end
+
+      def link(source, target)
+        @actions << lambda do
+          FileUtils.mkdir_p(File.dirname(target))
+          FileUtils.ln(source, target, force: true)
+        end
+      end
+
+      def link_new(path)
+        @actions << Link.new(@filesystem, path)
+      end
+
+      def build
+        @actions.freeze
+      end
     end
 
     class Link
