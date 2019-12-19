@@ -8,11 +8,6 @@ module Wake
       @targets = builder.build
     end
 
-    # deprecated
-    def target(label)
-      @targets.find { |target| target.label == label } || raise
-    end
-
     def each
       @targets.each do |target|
         yield target
