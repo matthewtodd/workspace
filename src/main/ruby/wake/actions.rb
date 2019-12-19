@@ -155,8 +155,8 @@ module Wake
 
       def script
         <<~END
-          #!/bin/sh
-          set -e
+          #!/bin/bash
+          set -euo pipefail
           cd #{@pwd.absolute_path('.')}
           exec #{@command.shelljoin} | tee #{@log}
         END
