@@ -43,9 +43,8 @@ class LabelTest < Minitest::Test
     assert_equal 'package/name.suffix', label.path('suffix')
   end
 
-  def really_skip_test_parse_path_external
-    skip 'Not yet sure what to do here.'
+  def test_parse_path_external
     label = Wake::Label.parse('@repository//package:name')
-    assert_equal 'lib/repository/package/name', label.path
+    assert_equal 'external/repository/package/name', label.path
   end
 end

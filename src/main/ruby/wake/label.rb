@@ -17,7 +17,13 @@ module Wake
     end
 
     def path(suffix = nil)
-      File.join(@package, [@name, suffix].compact.join('.'))
+      base = File.join(@package, [@name, suffix].compact.join('.'))
+
+      if @repository
+        File.join('external', @repository, base)
+      else
+        base
+      end
     end
 
     def ==(other)
