@@ -125,7 +125,7 @@ module Wake
       attr_reader :executable
 
       def initialize(filesystem, label, command, runfiles)
-        @executable = filesystem.sandbox('bin', label.package).absolute_path(label.name)
+        @executable = filesystem.sandbox('var/run').absolute_path(label.path)
         @pwd = filesystem.sandbox('var/run', label.path('runfiles'))
         @runfiles = runfiles
         @command = command
