@@ -23,6 +23,11 @@ module Wake
         self
       end
 
+      def ruby_gem(name:, version:, sha256:)
+        @collector.call RubyGem.new(label: label(name), version: version, sha256: sha256)
+        self
+      end
+
       def ruby_lib(name:, srcs:, deps:[])
         @collector.call RubyLib.new(label: label(name), srcs: srcs, deps: parse(deps))
         self
@@ -59,6 +64,22 @@ module Wake
       def initialize(label:, deps:)
         @label = label
         @deps = deps
+      end
+    end
+
+    class RubyGem
+      attr_reader :label
+      attr_reader :deps
+
+      def initialize(label:, version:, sha256:)
+        @label = label
+        @version = version
+        @sha256 = sha256
+        @deps = [] # TODO hinky that we have to support these now...
+      end
+
+      def register(actions)
+
       end
     end
 
