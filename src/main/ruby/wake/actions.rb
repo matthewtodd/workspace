@@ -138,6 +138,8 @@ module Wake
         File.open(@executable, 'w+') { |io| io.print(script) }
         File.chmod(0755, @executable)
 
+        # TODO consider sandboxing?
+        # https://jmmv.dev/2019/02/sandboxfs-0-1-0.html
         @runfiles.flatten.each do |output|
           source = output.path
           target = @pwd.absolute_path(output.workspace_relative_path)
