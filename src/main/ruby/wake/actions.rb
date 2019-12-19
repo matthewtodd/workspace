@@ -97,8 +97,8 @@ module Wake
 
       def initialize(filesystem, label, command, runfiles)
         @pwd = filesystem.sandbox('var/run', label.path('runfiles'))
-        @executable = @pwd.absolute_path('bin')
-        @log = @pwd.absolute_path('log')
+        @executable = @pwd.sandbox('bin').absolute_path(label.name)
+        @log = @pwd.sandbox('var/log').absolute_path(label.name)
         @runfiles = runfiles
         @command = command
       end
