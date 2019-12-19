@@ -125,11 +125,11 @@ module Wake
       attr_reader :executable
 
       def initialize(filesystem, label, command, runfiles)
-        @executable = filesystem.sandbox('var/run').absolute_path(label.path)
         @pwd = filesystem.sandbox('var/run', label.path('runfiles'))
+        @executable = @pwd.absolute_path('bin')
+        @log = @pwd.absolute_path('log')
         @runfiles = runfiles
         @command = command
-        @log = filesystem.sandbox('var/log', label.path).absolute_path('stdout.log')
       end
 
       # TODO maybe I hang onto sandboxed-fs instead and do all this work through them
