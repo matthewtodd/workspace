@@ -87,15 +87,14 @@ module Wake
       def initialize(label:, srcs:, deps:[])
         @label = label
         @srcs = srcs
-        @deps = deps
+        @deps = deps + [
+          Label.parse('//src/main/ruby:wake_testing')
+        ]
       end
 
       def register(actions)
-        # TODO get back to repositories: I implicitly depend on @wake//:testing.
-        wake_testing = actions.hardcoded_link(Wake::Testing.source_location, 'src/main/ruby/wake/testing.rb')
-
         actions.runfiles(
-          @srcs.map { |src| actions.link(src) }.push(wake_testing),
+          @srcs.map { |src| actions.link(src) },
           @deps.map { |dep| actions.runfiles_for(dep) }
         )
 

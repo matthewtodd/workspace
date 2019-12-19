@@ -28,13 +28,6 @@ module Wake
         target.register(Scoped.new(self, target.label))
       end
 
-      # deprecated
-      def hardcoded_link(source_path, workspace_relative_path)
-        link = HardcodedLink.new(@filesystem, source_path, workspace_relative_path)
-        @actions << link
-        link
-      end
-
       def link(path)
         link = Link.new(@filesystem, path)
         @actions << link
@@ -66,11 +59,6 @@ module Wake
         @label = label
       end
 
-      # deprecated
-      def hardcoded_link(source_path, workspace_relative_path)
-        @actions.hardcoded_link(source_path, workspace_relative_path)
-      end
-
       def link(path)
         @actions.link(File.join(@label.package, path))
       end
@@ -85,23 +73,6 @@ module Wake
 
       def test_executable(command)
         @actions.test_executable(@label, command)
-      end
-    end
-
-    # deprecated
-    class HardcodedLink
-      attr_reader :path
-      attr_reader :workspace_relative_path
-
-      def initialize(filesystem, source_path, workspace_relative_path)
-        @source = source_path
-        @path = filesystem.sandbox('var/tmp').absolute_path(workspace_relative_path)
-        @workspace_relative_path = workspace_relative_path
-      end
-
-      def perform
-        FileUtils.mkdir_p(File.dirname(@path))
-        FileUtils.ln(@source, @path, force: true)
       end
     end
 
