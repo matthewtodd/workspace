@@ -99,18 +99,21 @@ module Wake
           @deps.map { |dep| actions.runfiles_for(dep) }
         )
 
-        actions.test_executable(test_command)
-      end
-
-      private
-
-      def test_command
-        command = [ RbConfig.ruby, '-wU', '--disable-all']
-        command += ['-I', 'src/main/ruby'] # TODO uniq load paths of all deps, plus me?
-        command += ['-r', 'wake/testing']
-        command += @srcs.flat_map { |src| ['-r', File.join('.', @label.package, src)] }
-        command += ['-e', "Wake::Testing::Minitest.run(#{@label.name}, STDOUT)"]
-        command
+        actions.test_executable(
+          [
+            RbConfig.ruby,
+            '-wU',
+            '--disable-all',
+            '-I', 'src/main/ruby',
+            '-r', 'wake/testing'
+          ].concat(
+            @srcs.flat_map { |src|
+              ['-r', File.join('.', @label.package, src)]
+            }
+          ).concat([
+            '-e', "Wake::Testing::Minitest.run(#{@label.name}, STDOUT)"
+          ])
+        )
       end
     end
   end
