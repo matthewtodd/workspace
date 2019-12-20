@@ -79,9 +79,31 @@ module Wake
       end
 
       def register(actions)
-        # actions.download("https://rubygems.org/gems/#{@label.name}-#{@version}.gem", @sha256)
-        # actions.extract(@sha256) { |source, target| Gem::Package.new(source).extract_files(target) }
-        # ...
+        # TODO I wonder if I'll need earlier-running "repository rules."
+        # For now, it's nice to treat them just the same as all the others.
+
+        # -> var/cache/sha256
+        actions.download("https://rubygems.org/gems/#{@label.name}-#{@version}.gem", @sha256)
+
+        # -> var/lib/path/to/package/name
+        actions.extract(@sha256) do |source, target|
+          package = Gem::Package.new(source)
+          package.extract_files(target)
+          IO.write("#{target}/gemspec.yaml", package.spec.to_yaml)
+        end
+
+        # -> var/tmp/path/to/package/name
+        # TODO
+        # link,
+        # runfiles,
+        # ruby_lib provider with require_paths, bubbling up like runfiles
+        actions.extracted do |extracted|
+          spec = Gem::Specification.from_yaml(IO.read(extracted['gemspec.yaml']))
+          actions.runfiles(
+            spec.files.map { |src| extracted.link(src) },
+            [],
+          )
+        end
       end
     end
 

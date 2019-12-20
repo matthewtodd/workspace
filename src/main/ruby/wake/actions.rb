@@ -28,6 +28,18 @@ module Wake
         target.register(Scoped.new(self, target.label))
       end
 
+      def download(url, sha256)
+        download = Download.new(@filesystem, url, sha256) # TODO inject network access?
+        @actions << download
+        download
+      end
+
+      def extract(label, sha256, &extractor)
+        extract = Extract.new(@filesystem, label, sha256, &extractor)
+        @actions << extract
+        extract
+      end
+
       def link(path)
         link = Link.new(@filesystem, path)
         @actions << link
@@ -59,6 +71,17 @@ module Wake
         @label = label
       end
 
+      def download(url, sha256)
+        @actions.download(url, sha256)
+      end
+
+      def extract(sha256, &extractor)
+        @actions.extract(@label, sha256, &extractor)
+      end
+
+      def extracted
+      end
+
       def link(path)
         @actions.link(File.join(@label.package, path))
       end
@@ -73,6 +96,22 @@ module Wake
 
       def test_executable(command)
         @actions.test_executable(@label, command)
+      end
+    end
+
+    class Download
+      def initialize(filesystem, url, sha256)
+      end
+
+      def perform
+      end
+    end
+
+    class Extract
+      def initialize(filesystem, label, sha256, &extractor)
+      end
+
+      def perform
       end
     end
 
