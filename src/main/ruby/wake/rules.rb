@@ -79,7 +79,9 @@ module Wake
       end
 
       def register(actions)
-
+        # actions.download("https://rubygems.org/gems/#{@label.name}-#{@version}.gem", @sha256)
+        # actions.extract(@sha256) { |source, target| Gem::Package.new(source).extract_files(target) }
+        # ...
       end
     end
 
