@@ -1,3 +1,6 @@
+require 'net/http'
+require 'tempfile'
+
 module Wake
   class Actions
     def initialize(filesystem)
@@ -101,9 +104,25 @@ module Wake
 
     class Download
       def initialize(filesystem, url, sha256)
+        @cache = filesystem.sandbox('var/cache')
+        @url = URI.parse(url)
+        @sha256 = sha256
       end
 
       def perform
+        unless @cache.exists?(@sha256)
+          Net::HTTP.get_response(@url) do |response|
+            Tempfile.open do |scratch|
+              scratch.binmode
+              response.read_body { |segment| scratch.write(segment) }
+              scratch.flush
+
+              if Digest::SHA256.file(scratch.path).hexdigest == @sha256
+                @cache.link(@sha256, scratch.path)
+              end
+            end
+          end
+        end
       end
     end
 

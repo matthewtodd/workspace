@@ -16,6 +16,10 @@ class Filesystem
     File.chmod(0755, path)
   end
 
+  def exists?(path)
+    File.exist?(absolute_path(path))
+  end
+
   def glob(pattern)
     Dir.glob(File.join(@path, pattern)).each do |path|
       yield relative_path(path), IO.read(path)
