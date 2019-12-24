@@ -128,9 +128,18 @@ module Wake
 
     class Extract
       def initialize(filesystem, label, sha256, &extractor)
+        raise unless label.path.start_with?('lib/')
+        @cache = filesystem.sandbox('var/cache').absolute_path(sha256)
+        @lib = filesystem.sandbox('var/lib').absolute_path(label.path.sub(%r{^lib/}, ''))
+        @extractor = extractor
       end
 
       def perform
+        raise unless File.exist?(@cache)
+
+        if !File.exist?(@lib) || File.mtime(@lib) < File.mtime(@cache)
+          @extractor.call(@cache, @lib)
+        end
       end
     end
 

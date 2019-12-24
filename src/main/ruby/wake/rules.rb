@@ -1,4 +1,6 @@
 require 'rbconfig'
+require 'rubygems'
+require 'rubygems/package'
 require 'wake/label'
 
 module Wake
