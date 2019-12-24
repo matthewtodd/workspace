@@ -1,2 +1,5 @@
 language: generic
 script: ruby -wU --disable-all wake
+cache:
+  directories:
+  - var/cache

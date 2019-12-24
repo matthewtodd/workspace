@@ -6,6 +6,12 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-ruby@v1
+      - uses: actions/cache@v1
+        with:
+          path: var/cache
+          key: ${{ runner.os }}-var-cache-${{ hashFiles('lib/**/BUILD') }}
+          restore-keys: |
+            ${{ runner.os }}-var-cache-
         # https://github.community/t5/GitHub-Actions/Ruby-World-writable-directory-in-PATH/m-p/37552#M2994
       - run: echo $PATH
       - run: |
