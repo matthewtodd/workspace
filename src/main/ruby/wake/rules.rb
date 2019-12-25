@@ -99,13 +99,6 @@ module Wake
         # link,
         # runfiles,
         # ruby_lib provider with require_paths, bubbling up like runfiles
-        actions.extracted do |extracted|
-          spec = Gem::Specification.from_yaml(IO.read(extracted['gemspec.yaml']))
-          actions.runfiles(
-            spec.files.map { |src| extracted.link(src) },
-            [],
-          )
-        end
       end
     end
 

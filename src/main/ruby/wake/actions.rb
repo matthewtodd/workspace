@@ -82,9 +82,6 @@ module Wake
         @actions.extract(@label, sha256, &extractor)
       end
 
-      def extracted
-      end
-
       def link(path)
         @actions.link(File.join(@label.package, path))
       end
