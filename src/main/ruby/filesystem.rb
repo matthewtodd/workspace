@@ -9,13 +9,6 @@ class Filesystem
     File.absolute_path(File.join(@path, path))
   end
 
-  def executable(path, contents)
-    path = absolute_path(path)
-    FileUtils.mkdir_p(File.dirname(path))
-    File.open(path, 'w+') { |io| io.print(contents) }
-    File.chmod(0755, path)
-  end
-
   def exists?(path)
     File.exist?(absolute_path(path))
   end
@@ -34,12 +27,6 @@ class Filesystem
 
   def sandbox(*segments)
     Filesystem.new(File.join(@path, *segments))
-  end
-
-  def touch(path)
-    path = absolute_path(path)
-    FileUtils.mkdir_p(File.dirname(path))
-    FileUtils.touch(path)
   end
 
   private
