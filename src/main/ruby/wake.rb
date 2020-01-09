@@ -2,6 +2,7 @@ require 'concurrent'
 require 'filesystem'
 require 'shellwords'
 require 'wake/actions'
+require 'wake/fetcher'
 require 'wake/testing'
 require 'wake/workspace'
 
@@ -21,7 +22,7 @@ module Wake
     end
 
     def run(*args)
-      workspace = Workspace.new do |builder|
+      workspace = Workspace.new(Rules.new(Fetcher.new(@source_tree))) do |builder|
         @source_tree.glob('**/BUILD') do |path, contents|
           builder.load_package(File.dirname(path), contents)
         end
@@ -51,4 +52,5 @@ module Wake
       test_reporter.all_green?
     end
   end
+
 end

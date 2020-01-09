@@ -15,6 +15,7 @@ ruby_lib(
   srcs: [
     "wake.rb",
     "wake/actions.rb",
+    "wake/fetcher.rb",
     "wake/label.rb",
     "wake/rules.rb",
     "wake/workspace.rb",

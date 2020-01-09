@@ -1,6 +1,3 @@
-require 'net/http'
-require 'tempfile'
-
 module Wake
   class Actions
     def initialize(filesystem)
@@ -29,18 +26,6 @@ module Wake
 
       def analyze(target)
         target.register(Scoped.new(self, target.label))
-      end
-
-      def download(url, sha256)
-        download = Download.new(@filesystem, url, sha256) # TODO inject network access?
-        @actions << download
-        download
-      end
-
-      def extract(label, sha256, &extractor)
-        extract = Extract.new(@filesystem, label, sha256, &extractor)
-        @actions << extract
-        extract
       end
 
       def link(path)
@@ -74,14 +59,6 @@ module Wake
         @label = label
       end
 
-      def download(url, sha256)
-        @actions.download(url, sha256)
-      end
-
-      def extract(sha256, &extractor)
-        @actions.extract(@label, sha256, &extractor)
-      end
-
       def link(path)
         @actions.link(File.join(@label.package, path))
       end
@@ -96,47 +73,6 @@ module Wake
 
       def test_executable(command)
         @actions.test_executable(@label, command)
-      end
-    end
-
-    class Download
-      def initialize(filesystem, url, sha256)
-        @cache = filesystem.sandbox('var/cache')
-        @url = URI.parse(url)
-        @sha256 = sha256
-      end
-
-      def perform
-        unless @cache.exists?(@sha256)
-          Net::HTTP.get_response(@url) do |response|
-            Tempfile.open do |scratch|
-              scratch.binmode
-              response.read_body { |segment| scratch.write(segment) }
-              scratch.flush
-
-              if Digest::SHA256.file(scratch.path).hexdigest == @sha256
-                @cache.link(@sha256, scratch.path)
-              end
-            end
-          end
-        end
-      end
-    end
-
-    class Extract
-      def initialize(filesystem, label, sha256, &extractor)
-        raise unless label.path.start_with?('lib/')
-        @cache = filesystem.sandbox('var/cache').absolute_path(sha256)
-        @lib = filesystem.sandbox('var/lib').absolute_path(label.path.sub(%r{^lib/}, ''))
-        @extractor = extractor
-      end
-
-      def perform
-        raise unless File.exist?(@cache)
-
-        if !File.exist?(@lib) || File.mtime(@lib) < File.mtime(@cache)
-          @extractor.call(@cache, @lib)
-        end
       end
     end
 

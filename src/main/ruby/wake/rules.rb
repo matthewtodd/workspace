@@ -4,14 +4,19 @@ require 'rubygems/package'
 require 'wake/label'
 
 module Wake
-  module Rules
-    def self.load(path, contents, &collector)
-      Dsl.new(path, collector).instance_eval(contents)
+  class Rules
+    def initialize(fetcher)
+      @fetcher = fetcher
+    end
+
+    def load(path, contents, &collector)
+      Dsl.new(path, @fetcher, collector).instance_eval(contents)
     end
 
     class Dsl
-      def initialize(path, collector)
+      def initialize(path, fetcher, collector)
         @path = path
+        @fetcher = fetcher
         @collector = collector
       end
 
@@ -26,7 +31,11 @@ module Wake
       end
 
       def ruby_gem(name:, version:, sha256:)
-        @collector.call RubyGem.new(label: label(name), version: version, sha256: sha256)
+        @fetcher.fetch("https://rubygems.org/gems/#{name}-#{version}.gem", sha256, label(name)) do |source, target|
+          package = Gem::Package.new(source)
+          package.extract_files(target)
+        end
+
         self
       end
 
@@ -50,6 +59,8 @@ module Wake
         deps.map { |string| Label.parse(string) }
       end
     end
+
+
 
     class KtJvmLib
       attr_reader :label

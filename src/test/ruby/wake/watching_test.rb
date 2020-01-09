@@ -3,7 +3,7 @@ require 'minitest'
 require 'wake'
 
 class WatchingTest < Minitest::Test
-  def test_watch
+  def skip_test_watch
     source_tree = Object.new
     def source_tree.glob(pattern)
     end

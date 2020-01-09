@@ -2,8 +2,8 @@ require 'wake/rules'
 
 module Wake
   class Workspace
-    def initialize
-      builder = Builder.new
+    def initialize(rules)
+      builder = Builder.new(rules)
       yield builder
       @targets = builder.build
     end
@@ -17,13 +17,14 @@ module Wake
     private
 
     class Builder
-      def initialize
+      def initialize(rules)
+        @rules = rules
         @targets = []
         @depths = {}
       end
 
       def load_package(path, contents)
-        Rules.load(path, contents) do |target|
+        @rules.load(path, contents) do |target|
           @targets << target
           @depths[target.label] = Depth.new(target.deps)
         end

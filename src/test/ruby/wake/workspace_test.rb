@@ -9,7 +9,7 @@ class WorkspaceTest < Minitest::Test
     #      c   f  h   i
     #     / \
     #    d   e
-    workspace = Wake::Workspace.new do |builder|
+    workspace = Wake::Workspace.new(Wake::Rules.new(nil)) do |builder|
       builder.load_package('', <<~END)
         ruby_lib(name: 'a', srcs: ['a.rb'])
         ruby_lib(name: 'b', srcs: ['b.rb'], deps: ['//:c', '//:f'])
@@ -31,7 +31,7 @@ class WorkspaceTest < Minitest::Test
     # a   b
     #  \ /
     #   c
-    workspace = Wake::Workspace.new do |builder|
+    workspace = Wake::Workspace.new(Wake::Rules.new(nil)) do |builder|
       builder.load_package('', <<~END)
         ruby_lib(name: 'a', srcs: ['a.rb'], deps: ['//:c'])
         ruby_lib(name: 'b', srcs: ['b.rb'], deps: ['//:c'])
