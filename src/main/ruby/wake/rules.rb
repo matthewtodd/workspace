@@ -1,22 +1,25 @@
+require 'net/http'
 require 'rbconfig'
 require 'rubygems'
 require 'rubygems/package'
+require 'tempfile'
 require 'wake/label'
+require 'yaml'
 
 module Wake
   class Rules
-    def initialize(fetcher)
-      @fetcher = fetcher
+    def initialize(filesystem)
+      @filesystem = filesystem
     end
 
     def load(path, contents, &collector)
-      Dsl.new(path, @fetcher, collector).instance_eval(contents)
+      Dsl.new(path, @filesystem, collector).instance_eval(contents)
     end
 
     class Dsl
-      def initialize(path, fetcher, collector)
+      def initialize(path, filesystem, collector)
         @path = path
-        @fetcher = fetcher
+        @filesystem = filesystem
         @collector = collector
       end
 
@@ -31,10 +34,58 @@ module Wake
       end
 
       def ruby_gem(name:, version:, sha256:)
-        @fetcher.fetch("https://rubygems.org/gems/#{name}-#{version}.gem", sha256, label(name)) do |source, target|
-          package = Gem::Package.new(source)
-          package.extract_files(target)
+        # TODO extract an object or two out of here, once I can get something
+        # working. I tried at first, but the boundaries were more than I could
+        # reason about at the time.
+
+        raise unless @path.start_with?('lib/')
+
+        cache = @filesystem.sandbox('var/cache')
+
+        unless cache.exists?(sha256)
+          Net::HTTP.get_response(URI.parse("https://rubygems.org/gems/#{name}-#{version}.gem")) do |response|
+            Tempfile.open do |scratch|
+              scratch.binmode
+              response.read_body { |segment| scratch.write(segment) }
+              scratch.flush
+
+              if Digest::SHA256.file(scratch.path).hexdigest == sha256
+                cache.link(sha256, scratch.path)
+              end
+            end
+          end
         end
+
+        label = label(name)
+        lib = @filesystem.sandbox('var')
+        compressed = cache.absolute_path(sha256)
+        extracted = lib.absolute_path(label.path)
+
+        if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
+          package = Gem::Package.new(compressed)
+          package.extract_files(extracted)
+          # I considered writing a BUILD file here, but on balance maybe (at
+          # least while I'm developing here) it's nice to not have to re-run
+          # the extraction when I change something.
+          IO.write("#{extracted}/gemspec.yaml", package.spec.to_yaml)
+        end
+
+        # gemspec = YAML.load_file("#{extracted}/gemspec.yaml")
+
+        # Need at least two things here:
+        #
+        # 1. Add a "minitest" somewhere.
+        #    As it is, we have //lib/rubygems:minitest for our label and we are trying to link
+        #    /Users/matthew/workspace/lib/rubygems/lib/hoe/minitest.rb,
+        #    /Users/matthew/workspace/var/tmp/lib/rubygems/lib/hoe/minitest.rb
+        #
+        # 2. Pass a separate filesystem sandbox to actions.link so that it
+        #    looks in var for the source. Some modeling might emerge.
+        #
+        # ruby_lib(
+        #   name: name,
+        #   srcs: gemspec.files.select { |path| gemspec.require_paths.any? { |require_path| path.start_with?(require_path) } },
+        # )
 
         self
       end
@@ -59,8 +110,6 @@ module Wake
         deps.map { |string| Label.parse(string) }
       end
     end
-
-
 
     class KtJvmLib
       attr_reader :label
