@@ -70,22 +70,16 @@ module Wake
           IO.write("#{extracted}/gemspec.yaml", package.spec.to_yaml)
         end
 
-        # gemspec = YAML.load_file("#{extracted}/gemspec.yaml")
+        gemspec = YAML.load_file("#{extracted}/gemspec.yaml")
 
-        # Need at least two things here:
-        #
-        # 1. Add a "minitest" somewhere.
-        #    As it is, we have //lib/rubygems:minitest for our label and we are trying to link
-        #    /Users/matthew/workspace/lib/rubygems/lib/hoe/minitest.rb,
-        #    /Users/matthew/workspace/var/tmp/lib/rubygems/lib/hoe/minitest.rb
-        #
-        # 2. Pass a separate filesystem sandbox to actions.link so that it
-        #    looks in var for the source. Some modeling might emerge.
-        #
-        # ruby_lib(
-        #   name: name,
-        #   srcs: gemspec.files.select { |path| gemspec.require_paths.any? { |require_path| path.start_with?(require_path) } },
-        # )
+        files_on_the_require_path = gemspec.files.select { |path|
+          gemspec.require_paths.any? { |require_path| path.start_with?(require_path) }
+        }
+
+        ruby_lib(
+          name: name,
+          srcs: files_on_the_require_path.map { |path| File.join(name, path) },
+        )
 
         self
       end
@@ -126,39 +120,6 @@ module Wake
       def initialize(label:, deps:)
         @label = label
         @deps = deps
-      end
-    end
-
-    class RubyGem
-      attr_reader :label
-      attr_reader :deps
-
-      def initialize(label:, version:, sha256:)
-        @label = label
-        @version = version
-        @sha256 = sha256
-        @deps = [] # TODO hinky that we have to support these now...
-      end
-
-      def register(actions)
-        # TODO I wonder if I'll need earlier-running "repository rules."
-        # For now, it's nice to treat them just the same as all the others.
-
-        # -> var/cache/sha256
-        actions.download("https://rubygems.org/gems/#{@label.name}-#{@version}.gem", @sha256)
-
-        # -> var/lib/path/to/package/name
-        actions.extract(@sha256) do |source, target|
-          package = Gem::Package.new(source)
-          package.extract_files(target)
-          IO.write("#{target}/gemspec.yaml", package.spec.to_yaml)
-        end
-
-        # -> var/tmp/path/to/package/name
-        # TODO
-        # link,
-        # runfiles,
-        # ruby_lib provider with require_paths, bubbling up like runfiles
       end
     end
 

@@ -81,7 +81,7 @@ module Wake
       attr_reader :workspace_relative_path
 
       def initialize(filesystem, path)
-        @source = filesystem.absolute_path(path)
+        @source = path.start_with?('lib/') ? filesystem.sandbox('var').absolute_path(path) : filesystem.absolute_path(path)
         @path = filesystem.sandbox('var/tmp').absolute_path(path)
         @workspace_relative_path = path
       end
