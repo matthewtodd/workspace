@@ -161,7 +161,7 @@ module Wake
         @label = label
         @srcs = srcs
         @deps = deps + [
-          Label.parse('//src/main/ruby:wake_testing')
+          Label.parse('//src/main/ruby/wake:testing')
         ]
       end
 

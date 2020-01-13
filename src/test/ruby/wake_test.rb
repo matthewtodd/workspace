@@ -171,15 +171,16 @@ class WakeTest < Minitest::Test
 
       # ruby_test implicitly depends on //src/main/ruby:wake_testing
       # TODO reconsider something like local_repository if this gets more complicated?
-      # Maybe hard-code @wake//src/main/ruby:wake_testing as the dependency, then
+      # Maybe hard-code @wake//src/main/ruby/wake:testing as the dependency, then
       # - These test sandboxes get opt/BUILD with local_repository('@wake')
       # - This main repo gets the same?
       FileUtils.mkdir_p("#{path}/src/main/ruby/wake")
       FileUtils.ln(Wake::Testing.source_location, "#{path}/src/main/ruby/wake/testing.rb", force: true)
-      IO.write("#{path}/src/main/ruby/BUILD", <<~END)
+      IO.write("#{path}/src/main/ruby/wake/BUILD", <<~END)
         ruby_lib(
-          name: 'wake_testing',
-          srcs: ['wake/testing.rb'],
+          name: 'testing',
+          srcs: ['testing.rb'],
+          load_path: '..',
         )
       END
 
