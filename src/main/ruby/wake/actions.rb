@@ -21,7 +21,6 @@ module Wake
       def initialize(filesystem)
         @filesystem = filesystem
         @actions = []
-        @runfiles = {}
         @info = Hash.new { |hash, key| hash[key] = {} }
       end
 
@@ -43,17 +42,8 @@ module Wake
         link
       end
 
-      # TODO refactor to use info
-      def runfiles(label, direct, transitive)
-        @runfiles[label] = [direct, transitive]
-      end
-
-      def runfiles_for(label)
-        @runfiles.fetch(label)
-      end
-
       def test_executable(label, command)
-        test_executable = TestExecutable.new(@filesystem, label, command, runfiles_for(label))
+        test_executable = TestExecutable.new(@filesystem, label, command, info_for(label, :runfiles))
         @actions << test_executable
         test_executable
       end
@@ -79,14 +69,6 @@ module Wake
 
       def link(path)
         @actions.link(File.join(@label.package, path))
-      end
-
-      def runfiles(direct, transitive)
-        @actions.runfiles(@label, direct, transitive)
-      end
-
-      def runfiles_for(label)
-        @actions.runfiles_for(label)
       end
 
       def test_executable(command)

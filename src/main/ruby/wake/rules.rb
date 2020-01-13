@@ -146,9 +146,9 @@ module Wake
           @deps.map { |dep| actions.info_for(dep, :ruby_load_path) }
         )
 
-        actions.runfiles(
+        actions.info(:runfiles,
           @srcs.map { |src| actions.link(src) },
-          @deps.map { |dep| actions.runfiles_for(dep) }
+          @deps.map { |dep| actions.info_for(dep, :runfiles) }
         )
       end
     end
@@ -166,9 +166,9 @@ module Wake
       end
 
       def register(actions)
-        actions.runfiles(
+        actions.info(:runfiles,
           @srcs.map { |src| actions.link(src) },
-          @deps.map { |dep| actions.runfiles_for(dep) }
+          @deps.map { |dep| actions.info_for(dep, :runfiles) }
         )
 
         load_paths = @deps.map { |dep| actions.info_for(dep, :ruby_load_path) }.flatten.sort.uniq
