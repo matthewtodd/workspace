@@ -23,7 +23,7 @@ class ConcurrentTest < Minitest::Test
     queue = Queue.new
     10.times { latch.increment; queue.enq :foo }
     assert !queue.empty?
-    10.times { Thread.new { latch.decrement; queue.deq } }
+    10.times { Thread.new { queue.deq; latch.decrement } }
     latch.await
     assert queue.empty?
   end
