@@ -1,4 +1,5 @@
 require 'net/http'
+require 'pathname'
 require 'rbconfig'
 require 'rubygems'
 require 'rubygems/package'
@@ -72,20 +73,21 @@ module Wake
 
         gemspec = YAML.load_file("#{extracted}/gemspec.yaml")
 
-        files_on_the_require_path = gemspec.files.select { |path|
-          gemspec.require_paths.any? { |require_path| path.start_with?(require_path) }
+        files_on_the_load_path = gemspec.files.select { |path|
+          path.start_with?(gemspec.require_path)
         }
 
         ruby_lib(
           name: name,
-          srcs: files_on_the_require_path.map { |path| File.join(name, path) },
+          srcs: files_on_the_load_path.map { |path| File.join(name, path) },
+          load_path: File.join(name, gemspec.require_path),
         )
 
         self
       end
 
-      def ruby_lib(name:, srcs:, deps:[])
-        @collector.call RubyLib.new(label: label(name), srcs: srcs, deps: parse(deps))
+      def ruby_lib(name:, srcs:, deps:[], load_path: '.')
+        @collector.call RubyLib.new(label: label(name), srcs: srcs, deps: parse(deps), load_path: canonical_load_path(load_path))
         self
       end
 
@@ -102,6 +104,10 @@ module Wake
 
       def parse(deps)
         deps.map { |string| Label.parse(string) }
+      end
+
+      def canonical_load_path(load_path)
+        Pathname.new(@path).join(load_path).cleanpath.to_s
       end
     end
 
@@ -127,13 +133,19 @@ module Wake
       attr_reader :label
       attr_reader :deps
 
-      def initialize(label:, srcs:, deps:)
+      def initialize(label:, srcs:, deps:, load_path:)
         @label = label
         @srcs = srcs
         @deps = deps
+        @load_path = load_path
       end
 
       def register(actions)
+        actions.info(:ruby_load_path,
+          @load_path,
+          @deps.map { |dep| actions.info_for(dep, :ruby_load_path) }
+        )
+
         actions.runfiles(
           @srcs.map { |src| actions.link(src) },
           @deps.map { |dep| actions.runfiles_for(dep) }
@@ -159,14 +171,18 @@ module Wake
           @deps.map { |dep| actions.runfiles_for(dep) }
         )
 
+        load_paths = @deps.map { |dep| actions.info_for(dep, :ruby_load_path) }.flatten.sort.uniq
+
         actions.test_executable(
           [
             RbConfig.ruby,
             '-wU',
             '--disable-all',
-            '-I', 'src/main/ruby',
-            '-r', 'wake/testing'
           ].concat(
+            load_paths.flat_map { |path| ['-I', path] }
+          ).concat([
+            '-r', 'wake/testing'
+          ]).concat(
             @srcs.flat_map { |src|
               ['-r', File.join('.', @label.package, src)]
             }

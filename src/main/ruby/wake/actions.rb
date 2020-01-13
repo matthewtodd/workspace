@@ -22,10 +22,19 @@ module Wake
         @filesystem = filesystem
         @actions = []
         @runfiles = {}
+        @info = Hash.new { |hash, key| hash[key] = {} }
       end
 
       def analyze(target)
         target.register(Scoped.new(self, target.label))
+      end
+
+      def info(label, key, direct, transitive)
+        @info[label][key] = [direct, transitive]
+      end
+
+      def info_for(label, key)
+        @info.fetch(label).fetch(key)
       end
 
       def link(path)
@@ -34,6 +43,7 @@ module Wake
         link
       end
 
+      # TODO refactor to use info
       def runfiles(label, direct, transitive)
         @runfiles[label] = [direct, transitive]
       end
@@ -57,6 +67,14 @@ module Wake
       def initialize(actions, label)
         @actions = actions
         @label = label
+      end
+
+      def info(key, direct, transitive)
+        @actions.info(@label, key, direct, transitive)
+      end
+
+      def info_for(label, key)
+        @actions.info_for(label, key)
       end
 
       def link(path)
