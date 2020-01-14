@@ -161,8 +161,10 @@ module Wake
         @label = label
         @srcs = srcs
         @deps = deps + [
-          Label.parse('//src/main/ruby/wake:testing')
+          Label.parse('//src/main/ruby/minitest:wake_plugin')
         ]
+
+        fail unless @srcs.length == 1
       end
 
       def register(actions)
@@ -180,15 +182,9 @@ module Wake
             '--disable-all',
           ].concat(
             load_paths.flat_map { |path| ['-I', path] }
-          ).concat([
-            '-r', 'wake/testing'
-          ]).concat(
-            @srcs.flat_map { |src|
-              ['-r', File.join('.', @label.package, src)]
-            }
-          ).concat([
-            '-e', "Wake::Testing::Minitest.run(#{@label.name}, STDOUT)"
-          ])
+          ).concat(
+            @srcs.map { |src| File.join(@label.package, src) }
+          )
         )
       end
     end

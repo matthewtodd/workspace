@@ -2,10 +2,6 @@ require 'json'
 
 module Wake
   module Testing
-    def self.source_location
-      method(:source_location).source_location.first
-    end
-
     class Reporter
       def initialize(io)
         @io = io

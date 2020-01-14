@@ -1,5 +1,4 @@
-require 'rubygems'
-require 'minitest'
+require 'minitest/autorun'
 require 'wake/testing'
 
 class TestingTest < Minitest::Test
@@ -48,14 +47,14 @@ class TestingTest < Minitest::Test
         1) Error:
       #test_erroring:
       RuntimeError: Boom!
-          src/test/ruby/wake/testing_test.rb:11:in `test_erroring'
+          src/test/ruby/wake/testing_test.rb:10:in `test_erroring'
 
         2) Failure:
-      #test_failing [src/test/ruby/wake/testing_test.rb:15]:
+      #test_failing [src/test/ruby/wake/testing_test.rb:14]:
       Expected false to be truthy.
 
         3) Failure:
-      #test_failing_diff [src/test/ruby/wake/testing_test.rb:19]:
+      #test_failing_diff [src/test/ruby/wake/testing_test.rb:18]:
       --- expected
       +++ actual
       @@ -1,3 +1,3 @@
@@ -66,7 +65,7 @@ class TestingTest < Minitest::Test
 
 
         4) Skipped:
-      #test_skipping [src/test/ruby/wake/testing_test.rb:27]:
+      #test_skipping [src/test/ruby/wake/testing_test.rb:26]:
       Skipped, no message given
     END
 

@@ -1,5 +1,4 @@
-require 'rubygems'
-require 'minitest'
+require 'minitest/autorun'
 require 'concurrent'
 
 class ConcurrentTest < Minitest::Test

@@ -1,5 +1,4 @@
-require 'rubygems'
-require 'minitest'
+require 'minitest/autorun'
 require 'wake'
 
 class WakeTest < Minitest::Test
@@ -54,7 +53,7 @@ class WakeTest < Minitest::Test
 
       IO.write("#{path}/singleton_present_test.rb", <<~END)
         require 'rubygems'
-        require 'minitest'
+        require 'minitest/autorun'
         require 'singleton'
 
         class SingletonPresentTest < Minitest::Test
@@ -67,7 +66,7 @@ class WakeTest < Minitest::Test
 
       IO.write("#{path}/singleton_absent_test.rb", <<~END)
         require 'rubygems'
-        require 'minitest'
+        require 'minitest/autorun'
 
         class SingletonAbsentTest < Minitest::Test
           def test_hookup
@@ -93,7 +92,7 @@ class WakeTest < Minitest::Test
 
       IO.write("#{path}/foo_test.rb", <<~END)
         require 'rubygems'
-        require 'minitest'
+        require 'minitest/autorun'
 
         class FooTest < Minitest::Test
           def test_bar_is_inaccessible
@@ -124,7 +123,7 @@ class WakeTest < Minitest::Test
 
       IO.write("#{path}/failing_test.rb", <<~END)
         require 'rubygems'
-        require 'minitest'
+        require 'minitest/autorun'
 
         class FailingTest < Minitest::Test
           def test_failing
@@ -149,7 +148,7 @@ class WakeTest < Minitest::Test
 
       IO.write("#{path}/skipped_test.rb", <<~END)
         require 'rubygems'
-        require 'minitest'
+        require 'minitest/autorun'
 
         class SkippedTest < Minitest::Test
           def test_skipping
@@ -166,25 +165,23 @@ class WakeTest < Minitest::Test
   private
 
   def workspace
-    Dir.mktmpdir("#{self.class.name}##{self.name}-") do |workspace_path|
-      path = File.realpath(workspace_path)
+    path = File.realpath(Dir.mktmpdir("#{self.class.name}##{self.name}-"))
 
-      # ruby_test implicitly depends on //src/main/ruby:wake_testing
-      # TODO reconsider something like local_repository if this gets more complicated?
-      # Maybe hard-code @wake//src/main/ruby/wake:testing as the dependency, then
-      # - These test sandboxes get opt/BUILD with local_repository('@wake')
-      # - This main repo gets the same?
-      FileUtils.mkdir_p("#{path}/src/main/ruby/wake")
-      FileUtils.ln(Wake::Testing.source_location, "#{path}/src/main/ruby/wake/testing.rb", force: true)
-      IO.write("#{path}/src/main/ruby/wake/BUILD", <<~END)
+    begin
+      # ruby_test implicitly depends on //src/main/ruby/minitest:wake_plugin
+      FileUtils.mkdir_p("#{path}/src/main/ruby/minitest")
+      FileUtils.ln(File.expand_path('../../../main/ruby/minitest/wake_plugin.rb', __FILE__), "#{path}/src/main/ruby/minitest/wake_plugin.rb", force: true)
+      IO.write("#{path}/src/main/ruby/minitest/BUILD", <<~END)
         ruby_lib(
-          name: 'testing',
-          srcs: ['testing.rb'],
+          name: 'wake_plugin',
+          srcs: ['wake_plugin.rb'],
           load_path: '..',
         )
       END
 
       yield path
+    ensure
+      FileUtils.remove_entry(path)
     end
   end
 
