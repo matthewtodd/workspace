@@ -43,11 +43,13 @@ class WakeTest < Minitest::Test
         ruby_test(
           name: "SingletonPresentTest",
           srcs: ["singleton_present_test.rb"],
+          deps: ["//minitest:wake_plugin"],
         )
 
         ruby_test(
           name: "SingletonAbsentTest",
           srcs: ["singleton_absent_test.rb"],
+          deps: ["//minitest:wake_plugin"],
         )
       END
 
@@ -87,6 +89,7 @@ class WakeTest < Minitest::Test
         ruby_test(
           name: 'FooTest',
           srcs: ['foo_test.rb'],
+          deps: ["//minitest:wake_plugin"],
         )
       END
 
@@ -118,6 +121,7 @@ class WakeTest < Minitest::Test
         ruby_test(
           name: "FailingTest",
           srcs: ["failing_test.rb"],
+          deps: ["//minitest:wake_plugin"],
         )
       END
 
@@ -143,6 +147,7 @@ class WakeTest < Minitest::Test
         ruby_test(
           name: "SkippedTest",
           srcs: ["skipped_test.rb"],
+          deps: ["//minitest:wake_plugin"],
         )
       END
 
@@ -168,10 +173,9 @@ class WakeTest < Minitest::Test
     path = File.realpath(Dir.mktmpdir("#{self.class.name}##{self.name}-"))
 
     begin
-      # ruby_test implicitly depends on //src/main/ruby/minitest:wake_plugin
-      FileUtils.mkdir_p("#{path}/src/main/ruby/minitest")
-      FileUtils.ln(File.expand_path('../../../main/ruby/minitest/wake_plugin.rb', __FILE__), "#{path}/src/main/ruby/minitest/wake_plugin.rb", force: true)
-      IO.write("#{path}/src/main/ruby/minitest/BUILD", <<~END)
+      FileUtils.mkdir_p("#{path}/minitest")
+      FileUtils.ln(File.expand_path('../../../main/ruby/minitest/wake_plugin.rb', __FILE__), "#{path}/minitest/wake_plugin.rb", force: true)
+      IO.write("#{path}/minitest/BUILD", <<~END)
         ruby_lib(
           name: 'wake_plugin',
           srcs: ['wake_plugin.rb'],

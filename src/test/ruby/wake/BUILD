@@ -5,7 +5,8 @@ ruby_test(
   srcs: ["label_test.rb"],
   deps: [
     "//lib/rubygems:minitest",
-    "//src/main/ruby:wake"
+    "//src/main/ruby/minitest:wake_plugin",
+    "//src/main/ruby:wake",
   ],
 )
 
@@ -14,7 +15,8 @@ ruby_test(
   srcs: ["testing_test.rb"],
   deps: [
     "//lib/rubygems:minitest",
-    "//src/main/ruby:wake"
+    "//src/main/ruby/minitest:wake_plugin",
+    "//src/main/ruby:wake",
   ],
 )
 
@@ -23,7 +25,8 @@ ruby_test(
   srcs: ["watching_test.rb"],
   deps: [
     "//lib/rubygems:minitest",
-    "//src/main/ruby:wake"
+    "//src/main/ruby/minitest:wake_plugin",
+    "//src/main/ruby:wake",
   ],
 )
 
@@ -32,6 +35,7 @@ ruby_test(
   srcs: ["workspace_test.rb"],
   deps: [
     "//lib/rubygems:minitest",
-    "//src/main/ruby:wake"
+    "//src/main/ruby/minitest:wake_plugin",
+    "//src/main/ruby:wake",
   ],
 )

@@ -160,9 +160,7 @@ module Wake
       def initialize(label:, srcs:, deps:[])
         @label = label
         @srcs = srcs
-        @deps = deps + [
-          Label.parse('//src/main/ruby/minitest:wake_plugin')
-        ]
+        @deps = deps
 
         fail unless @srcs.length == 1
       end
