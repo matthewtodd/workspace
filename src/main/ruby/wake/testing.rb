@@ -150,10 +150,6 @@ module Wake
     end
 
     class JsonFormat
-      def dump(result)
-        result.as_json.to_json
-      end
-
       def load(line)
         TestCase.json_create(JSON.parse(line))
       end
@@ -169,14 +165,6 @@ module Wake
             object.fetch('backtrace')
           )
         end
-
-        def as_json(*)
-          {
-            'type' => type,
-            'message' => message,
-            'backtrace' => backtrace,
-          }
-        end
       end
 
       class Failure < Struct.new(:message, :location)
@@ -186,13 +174,6 @@ module Wake
             object.fetch('location')
           )
         end
-
-        def as_json(*)
-          {
-            'message' => message,
-            'location' => location,
-          }
-        end
       end
 
       class Skipped < Struct.new(:message, :location)
@@ -201,13 +182,6 @@ module Wake
             object.fetch('message'),
             object.fetch('location')
           )
-        end
-
-        def as_json(*)
-          {
-            'message' => message,
-            'location' => location,
-          }
         end
       end
 
@@ -247,20 +221,6 @@ module Wake
         @skip_count = @skipped.length
       end
 
-      def as_json(*)
-        {
-          'class_name' => @class_name,
-          'name' => @name,
-          'assertion_count' => @assertion_count,
-          'time' => @time,
-          'skipped' => @skipped.map(&:as_json),
-          'errors' => @errors.map(&:as_json),
-          'failures' => @failures.map(&:as_json),
-          'system_out' => @system_out,
-          'system_err' => @system_err,
-        }
-      end
-
       def passed?
         @skipped.empty? && @errors.empty? && @failures.empty?
       end
@@ -295,120 +255,6 @@ module Wake
 
       def each_skip
         @skipped.each { |s| yield s }
-      end
-
-      class Builder
-        def initialize
-          @class_name = 'UNSET CLASS NAME'
-          @name = 'UNSET NAME'
-          @assertion_count = 0
-          @time = 0
-          @skipped = []
-          @errors = []
-          @failures = []
-          @system_out = ''
-          @system_err = ''
-        end
-
-        def class_name(class_name)
-          @class_name = class_name
-          self
-        end
-
-        def name(name)
-          @name = name
-          self
-        end
-
-        def assertion_count(assertion_count)
-          @assertion_count = assertion_count
-          self
-        end
-
-        def time(time)
-          @time = time
-          self
-        end
-
-        def error(type, message, backtrace)
-          @errors << Error.new(type, message, backtrace)
-          self
-        end
-
-        def failure(message, location)
-          @failures << Failure.new(message, location)
-          self
-        end
-
-        def skipped(message, location)
-          @skipped << Skipped.new(message, location)
-          self
-        end
-
-        def build
-          TestCase.new(
-            class_name: @class_name,
-            name: @name,
-            assertion_count: @assertion_count,
-            time: @time,
-            skipped: @skipped,
-            errors: @errors,
-            failures: @failures,
-            system_out: @system_out,
-            system_err: @system_err
-          )
-        end
-      end
-    end
-
-    module Minitest
-      def self.run(test_class, stdout)
-        test_class.run(WireReporter.new(stdout), {})
-      end
-
-      class WireReporter
-        def initialize(io)
-          @io = io
-          @semaphore = Mutex.new
-          @format = JsonFormat.new
-          @translator = ResultTranslator.new
-        end
-
-        def prerecord(klass, name)
-          # no-op
-        end
-
-        def record(result)
-          @io.puts(@format.dump(@translator.call(result)))
-          @io.flush
-        end
-
-        def synchronize
-          @semaphore.synchronize { yield }
-        end
-      end
-
-      class ResultTranslator
-        def call(result)
-          test_case = TestCase::Builder.new
-            .class_name(result.respond_to?(:class_name) ? result.class_name : result.class.name)
-            .name(result.name)
-            .assertion_count(result.assertions)
-            .time(result.time)
-
-          result.failures.each do |failure|
-            case failure.result_label
-            when 'Error'
-              test_case.error(failure.error.class.name, failure.error.message, ::Minitest.filter_backtrace(failure.error.backtrace))
-            when 'Failure'
-              test_case.failure(failure.error.message, failure.location)
-            when 'Skipped'
-              test_case.skipped(failure.message, failure.location)
-            end
-          end
-
-          test_case.build
-        end
       end
     end
   end

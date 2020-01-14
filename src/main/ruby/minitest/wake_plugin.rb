@@ -11,14 +11,6 @@ module Minitest
     # https://stackoverflow.com/questions/4922867/what-is-the-junit-xml-format-specification-that-hudson-supports/9691131#9691131
     class TestCase
       class Error < Struct.new(:type, :message, :backtrace)
-        def self.json_create(object)
-          new(
-            object.fetch('type'),
-            object.fetch('message'),
-            object.fetch('backtrace')
-          )
-        end
-
         def as_json(*)
           {
             'type' => type,
@@ -29,13 +21,6 @@ module Minitest
       end
 
       class Failure < Struct.new(:message, :location)
-        def self.json_create(object)
-          new(
-            object.fetch('message'),
-            object.fetch('location')
-          )
-        end
-
         def as_json(*)
           {
             'message' => message,
@@ -45,13 +30,6 @@ module Minitest
       end
 
       class Skipped < Struct.new(:message, :location)
-        def self.json_create(object)
-          new(
-            object.fetch('message'),
-            object.fetch('location')
-          )
-        end
-
         def as_json(*)
           {
             'message' => message,
@@ -65,20 +43,6 @@ module Minitest
       attr_reader :failure_count
       attr_reader :skip_count
       attr_reader :time
-
-      def self.json_create(object)
-        new(
-          class_name: object.fetch('class_name'),
-          name: object.fetch('name'),
-          assertion_count: object.fetch('assertion_count'),
-          time: object.fetch('time'),
-          skipped: object.fetch('skipped', []).map(&Skipped.method(:json_create)),
-          errors: object.fetch('errors', []).map(&Error.method(:json_create)),
-          failures: object.fetch('failures', []).map(&Failure.method(:json_create)),
-          system_out: object.fetch('system_out'),
-          system_err: object.fetch('system_err'),
-        )
-      end
 
       def initialize(**kwargs)
         @class_name = kwargs.fetch(:class_name)

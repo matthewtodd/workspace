@@ -30,7 +30,7 @@ class TestingTest < Minitest::Test
 
   def test_reporting_a_minitest_run
     pipe = StringIO.new
-    Wake::Testing::Minitest.run(@test_class, pipe)
+    @test_class.run(Minitest::Wake::Reporter.new(pipe))
     pipe.rewind
 
     output = StringIO.new
@@ -78,7 +78,7 @@ class TestingTest < Minitest::Test
 
   def test_reporting_nothing
     pipe = StringIO.new
-    Wake::Testing::Minitest.run(Class.new(Minitest::Test), pipe)
+    Class.new(Minitest::Test).run(Minitest::Wake::Reporter.new(pipe))
     pipe.rewind
 
     output = StringIO.new
@@ -99,7 +99,7 @@ class TestingTest < Minitest::Test
 
   def test_colored_output
     pipe = StringIO.new
-    Wake::Testing::Minitest.run(@test_class, pipe)
+    @test_class.run(Minitest::Wake::Reporter.new(pipe))
     pipe.rewind
 
     output = StringIO.new
