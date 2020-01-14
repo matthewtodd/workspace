@@ -14,7 +14,7 @@ ruby_test(
   srcs: ["testing_test.rb"],
   deps: [
     "//lib/rubygems:minitest",
-    "//src/main/ruby/wake:testing"
+    "//src/main/ruby:wake"
   ],
 )
 

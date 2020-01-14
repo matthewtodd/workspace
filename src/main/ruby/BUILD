@@ -17,11 +17,11 @@ ruby_lib(
     "wake/actions.rb",
     "wake/label.rb",
     "wake/rules.rb",
+    "wake/testing.rb",
     "wake/workspace.rb",
   ],
   deps: [
     "//src/main/ruby:concurrent",
     "//src/main/ruby:filesystem",
-    "//src/main/ruby/wake:testing",
   ],
 )
