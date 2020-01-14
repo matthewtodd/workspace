@@ -1,29 +1,21 @@
 module Wake
   class Label
     def self.parse(string)
-      string.match %r{(?:@(\w+))?//(\w+(?:/\w+)*)?:(\w+)} do |match|
-        new(match[1], match[2] || '', match[3])
+      string.match %r{//(\w+(?:/\w+)*)?:(\w+)} do |match|
+        new(match[1] || '', match[2])
       end
     end
 
-    attr_reader :repository
     attr_reader :package
     attr_reader :name
 
-    def initialize(repository, package, name)
-      @repository = repository
+    def initialize(package, name)
       @package = package
       @name = name
     end
 
     def path(suffix = nil)
-      base = File.join(@package, [@name, suffix].compact.join('.'))
-
-      if @repository
-        File.join('external', @repository, base)
-      else
-        base
-      end
+      File.join(@package, [@name, suffix].compact.join('.'))
     end
 
     def ==(other)

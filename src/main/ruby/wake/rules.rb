@@ -99,7 +99,7 @@ module Wake
       private
 
       def label(name)
-        Label.new(nil, @path, name)
+        Label.new(@path, name)
       end
 
       def parse(deps)
