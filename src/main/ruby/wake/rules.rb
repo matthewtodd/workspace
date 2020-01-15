@@ -24,6 +24,40 @@ module Wake
         @collector = collector
       end
 
+      def kotlin_compiler(name:, version:, sha256:)
+        raise unless @path.start_with?('lib/')
+
+        cache = @filesystem.sandbox('var/cache')
+
+        unless cache.exists?(sha256)
+          response = Net::HTTP.get_response(URI.parse("https://github.com/JetBrains/kotlin/releases/download/v#{version}/kotlin-compiler-#{version}.zip"))
+          response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
+
+          Tempfile.open do |scratch|
+            scratch.binmode
+            scratch.write(response.body)
+            scratch.flush
+
+            if Digest::SHA256.file(scratch.path).hexdigest == sha256
+              cache.link(sha256, scratch.path)
+            end
+          end
+        end
+
+        label = label(name)
+        lib = @filesystem.sandbox('var')
+        compressed = cache.absolute_path(sha256)
+        extracted = lib.absolute_path(label.path)
+
+        if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
+          FileUtils.mkdir_p(extracted)
+          system('unzip', '-jq', compressed, 'kotlinc/bin/*', '-x', '*.bat', '-d', File.join(extracted, 'bin')) || fail($?)
+          system('unzip', '-jq', compressed, 'kotlinc/lib/*', '-d', File.join(extracted, 'lib')) || fail($?)
+        end
+
+        self
+      end
+
       def kt_jvm_lib(name:, srcs:)
         @collector.call KtJvmLib.new(label: label(name), srcs: srcs)
         self
