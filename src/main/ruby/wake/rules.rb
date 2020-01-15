@@ -24,13 +24,13 @@ module Wake
         @collector = collector
       end
 
-      def kotlin_compiler(name:, version:, sha256:)
+      def http_archive(name:, url:, sha256:, &rules)
         raise unless @path.start_with?('lib/')
 
         cache = @filesystem.sandbox('var/cache')
 
         unless cache.exists?(sha256)
-          response = Net::HTTP.get_response(URI.parse("https://github.com/JetBrains/kotlin/releases/download/v#{version}/kotlin-compiler-#{version}.zip"))
+          response = Net::HTTP.get_response(URI.parse(url))
           response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
 
           Tempfile.open do |scratch|
@@ -48,12 +48,30 @@ module Wake
         lib = @filesystem.sandbox('var')
         compressed = cache.absolute_path(sha256)
         extracted = lib.absolute_path(label.path)
+        extractor = case File.extname(url)
+          when '.gem'
+            lambda do |compressed, extracted|
+              package = Gem::Package.new(compressed)
+              package.extract_files(extracted)
+              # I considered writing a BUILD file here, but on balance maybe (at
+              # least while I'm developing here) it's nice to not have to re-run
+              # the extraction when I change something.
+              IO.write("#{extracted}/gemspec.yaml", package.spec.to_yaml)
+            end
+          when '.zip'
+            lambda do |compressed, extracted|
+              FileUtils.mkdir_p(extracted)
+              system('unzip', '-q', compressed, '-d', extracted) || fail($?)
+            end
+          else
+            fail 'Unsupported file extension.'
+          end
 
         if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
-          FileUtils.mkdir_p(extracted)
-          system('unzip', '-jq', compressed, 'kotlinc/bin/*', '-x', '*.bat', '-d', File.join(extracted, 'bin')) || fail($?)
-          system('unzip', '-jq', compressed, 'kotlinc/lib/*', '-d', File.join(extracted, 'lib')) || fail($?)
+          extractor.call(compressed, extracted)
         end
+
+        rules.call(extracted)
 
         self
       end
@@ -69,53 +87,19 @@ module Wake
       end
 
       def ruby_gem(name:, version:, sha256:)
-        # TODO extract an object or two out of here, once I can get something
-        # working. I tried at first, but the boundaries were more than I could
-        # reason about at the time.
+        http_archive(name: name, url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256) do |extracted|
+          gemspec = YAML.load_file("#{extracted}/gemspec.yaml")
 
-        raise unless @path.start_with?('lib/')
+          files_on_the_load_path = gemspec.files.select { |path|
+            path.start_with?(gemspec.require_path)
+          }
 
-        cache = @filesystem.sandbox('var/cache')
-
-        unless cache.exists?(sha256)
-          Net::HTTP.get_response(URI.parse("https://rubygems.org/gems/#{name}-#{version}.gem")) do |response|
-            Tempfile.open do |scratch|
-              scratch.binmode
-              response.read_body { |segment| scratch.write(segment) }
-              scratch.flush
-
-              if Digest::SHA256.file(scratch.path).hexdigest == sha256
-                cache.link(sha256, scratch.path)
-              end
-            end
-          end
+          ruby_lib(
+            name: name,
+            srcs: files_on_the_load_path.map { |path| File.join(name, path) },
+            load_path: File.join(name, gemspec.require_path),
+          )
         end
-
-        label = label(name)
-        lib = @filesystem.sandbox('var')
-        compressed = cache.absolute_path(sha256)
-        extracted = lib.absolute_path(label.path)
-
-        if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
-          package = Gem::Package.new(compressed)
-          package.extract_files(extracted)
-          # I considered writing a BUILD file here, but on balance maybe (at
-          # least while I'm developing here) it's nice to not have to re-run
-          # the extraction when I change something.
-          IO.write("#{extracted}/gemspec.yaml", package.spec.to_yaml)
-        end
-
-        gemspec = YAML.load_file("#{extracted}/gemspec.yaml")
-
-        files_on_the_load_path = gemspec.files.select { |path|
-          path.start_with?(gemspec.require_path)
-        }
-
-        ruby_lib(
-          name: name,
-          srcs: files_on_the_load_path.map { |path| File.join(name, path) },
-          load_path: File.join(name, gemspec.require_path),
-        )
 
         self
       end
