@@ -6,24 +6,21 @@ module Wake
       end
     end
 
-    attr_reader :package
-    attr_reader :name
-
     def initialize(package, name)
       @package = package
       @name = name
     end
 
     def path(suffix = nil)
-      File.join(@package, [@name, suffix].compact.join('.'))
+      path_to [@name, suffix].compact.join('.')
     end
 
-    def ==(other)
-      @package == other.package && @name == other.name
+    def path_to(path)
+      @package.empty? ? path : File.join(@package, path)
     end
 
     def eql?(other)
-      self == other
+      to_s == other.to_s
     end
 
     def hash

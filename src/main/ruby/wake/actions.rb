@@ -68,7 +68,7 @@ module Wake
       end
 
       def link(path)
-        @actions.link(File.join(@label.package, path))
+        @actions.link(@label.path_to(path))
       end
 
       def test_executable(command)
@@ -97,8 +97,8 @@ module Wake
 
       def initialize(filesystem, label, command, runfiles)
         @pwd = filesystem.sandbox('var/run', label.path('runfiles'))
-        @executable = @pwd.sandbox('bin').absolute_path(label.name)
-        @log = @pwd.sandbox('var/log').absolute_path(label.name)
+        @executable = @pwd.sandbox('bin').absolute_path('run')
+        @log = @pwd.sandbox('var/log').absolute_path('stdout.log')
         @runfiles = runfiles
         @command = command
       end

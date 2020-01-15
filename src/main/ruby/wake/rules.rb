@@ -99,7 +99,7 @@ module Wake
       private
 
       def label(name)
-        Label.new(@path, name)
+        @path == '.' ? Label.new('', name) : Label.new(@path, name)
       end
 
       def parse(deps)
@@ -181,7 +181,7 @@ module Wake
           ].concat(
             load_paths.flat_map { |path| ['-I', path] }
           ).concat(
-            @srcs.map { |src| File.join(@label.package, src) }
+            @srcs.map { |src| @label.path_to(src) }
           )
         )
       end
