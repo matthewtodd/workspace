@@ -53,7 +53,7 @@ module Wake
           string += "Error:\n"
           string += "#{result.location}:\n"
           string += "#{error.type}: #{error.message}\n"
-          string += "    #{error.backtrace.join("    \n")}\n"
+          string += "    #{error.backtrace.join("\n    ")}\n"
         end
 
         result.each_failure do |failure|
@@ -72,7 +72,7 @@ module Wake
       end
 
       def with_workspace_relative_paths(string)
-        string.gsub %r{(/[^/]+)+/\w+\.runfiles/}, ''
+        string.gsub %r{(/\w+)+/\w+\.runfiles/}, ''
       end
 
       def maybe_color_result_code(result_code)
