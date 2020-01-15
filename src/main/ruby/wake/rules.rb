@@ -113,19 +113,30 @@ module Wake
 
     class KtJvmLib
       attr_reader :label
+      attr_reader :deps
 
       def initialize(label:, srcs:)
         @label = label
         @srcs = srcs
+        @deps = []
+      end
+
+      def register(actions)
+
       end
     end
 
     class KtJvmTest
       attr_reader :label
+      attr_reader :deps
 
       def initialize(label:, deps:)
         @label = label
         @deps = deps
+      end
+
+      def register(actions)
+
       end
     end
 

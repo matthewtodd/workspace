@@ -3,8 +3,6 @@ require 'wake'
 
 class WakeTest < Minitest::Test
   def test_kt_jvm_test
-    skip 'WIP'
-
     workspace do |path|
       IO.write("#{path}/BUILD", <<~END)
         kt_jvm_lib(
