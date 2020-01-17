@@ -24,7 +24,7 @@ module Wake
         @collector = collector
       end
 
-      def http_archive(name:, url:, sha256:, &rules)
+      def http_archive(name:, url:, sha256:, build_file: nil)
         raise unless @path.start_with?('lib/')
 
         cache = @filesystem.sandbox('var/cache')
@@ -53,10 +53,15 @@ module Wake
             lambda do |compressed, extracted|
               package = Gem::Package.new(compressed)
               package.extract_files(extracted)
-              # I considered writing a BUILD file here, but on balance maybe (at
-              # least while I'm developing here) it's nice to not have to re-run
-              # the extraction when I change something.
-              IO.write("#{extracted}/gemspec.yaml", package.spec.to_yaml)
+              srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
+              load_path = package.spec.require_path
+              IO.write("#{extracted}/BUILD", <<~END)
+                ruby_lib(
+                  name: #{name.inspect},
+                  srcs: #{srcs.inspect},
+                  load_path: #{load_path.inspect},
+                )
+              END
             end
           when '.zip'
             lambda do |compressed, extracted|
@@ -69,9 +74,8 @@ module Wake
 
         if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
           extractor.call(compressed, extracted)
+          IO.write("#{extracted}/BUILD", build_file) if build_file
         end
-
-        rules.call(extracted)
 
         self
       end
@@ -87,21 +91,7 @@ module Wake
       end
 
       def ruby_gem(name:, version:, sha256:)
-        http_archive(name: name, url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256) do |extracted|
-          gemspec = YAML.load_file("#{extracted}/gemspec.yaml")
-
-          files_on_the_load_path = gemspec.files.select { |path|
-            path.start_with?(gemspec.require_path)
-          }
-
-          ruby_lib(
-            name: name,
-            srcs: files_on_the_load_path.map { |path| File.join(name, path) },
-            load_path: File.join(name, gemspec.require_path),
-          )
-        end
-
-        self
+        http_archive(name: name, url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
       end
 
       def ruby_lib(name:, srcs:, deps:[], load_path: '.')

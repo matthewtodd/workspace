@@ -4,21 +4,21 @@ require 'wake'
 class WakeTest < Minitest::Test
   def test_ruby_test_runs_tests_with_isolated_load_paths
     workspace do |path|
-      IO.write("#{path}/BUILD", <<~END)
+      IO.write("#{path}/src/BUILD", <<~END)
         ruby_test(
           name: "SingletonPresentTest",
           srcs: ["singleton_present_test.rb"],
-          deps: ["//minitest:wake_plugin"],
+          deps: ["//src/minitest:wake_plugin"],
         )
 
         ruby_test(
           name: "SingletonAbsentTest",
           srcs: ["singleton_absent_test.rb"],
-          deps: ["//minitest:wake_plugin"],
+          deps: ["//src/minitest:wake_plugin"],
         )
       END
 
-      IO.write("#{path}/singleton_present_test.rb", <<~END)
+      IO.write("#{path}/src/singleton_present_test.rb", <<~END)
         require 'rubygems'
         require 'minitest/autorun'
         require 'singleton'
@@ -31,7 +31,7 @@ class WakeTest < Minitest::Test
         end
       END
 
-      IO.write("#{path}/singleton_absent_test.rb", <<~END)
+      IO.write("#{path}/src/singleton_absent_test.rb", <<~END)
         require 'rubygems'
         require 'minitest/autorun'
 
@@ -50,15 +50,15 @@ class WakeTest < Minitest::Test
 
   def test_ruby_test_runs_tests_with_only_the_files_they_depend_on
     workspace do |path|
-      IO.write("#{path}/BUILD", <<~END)
+      IO.write("#{path}/src/BUILD", <<~END)
         ruby_test(
           name: 'FooTest',
           srcs: ['foo_test.rb'],
-          deps: ["//minitest:wake_plugin"],
+          deps: ["//src/minitest:wake_plugin"],
         )
       END
 
-      IO.write("#{path}/foo_test.rb", <<~END)
+      IO.write("#{path}/src/foo_test.rb", <<~END)
         require 'rubygems'
         require 'minitest/autorun'
 
@@ -71,7 +71,7 @@ class WakeTest < Minitest::Test
         end
       END
 
-      IO.write("#{path}/bar.rb", <<~END)
+      IO.write("#{path}/src/bar.rb", <<~END)
         # Here I am!
       END
 
@@ -82,15 +82,15 @@ class WakeTest < Minitest::Test
 
   def test_ruby_test_exits_non_zero_when_tests_fail
     workspace do |path|
-      IO.write("#{path}/BUILD", <<~END)
+      IO.write("#{path}/src/BUILD", <<~END)
         ruby_test(
           name: "FailingTest",
           srcs: ["failing_test.rb"],
-          deps: ["//minitest:wake_plugin"],
+          deps: ["//src/minitest:wake_plugin"],
         )
       END
 
-      IO.write("#{path}/failing_test.rb", <<~END)
+      IO.write("#{path}/src/failing_test.rb", <<~END)
         require 'rubygems'
         require 'minitest/autorun'
 
@@ -108,15 +108,15 @@ class WakeTest < Minitest::Test
 
   def test_ruby_test_exits_zero_when_tests_are_skipped
     workspace do |path|
-      IO.write("#{path}/BUILD", <<~END)
+      IO.write("#{path}/src/BUILD", <<~END)
         ruby_test(
           name: "SkippedTest",
           srcs: ["skipped_test.rb"],
-          deps: ["//minitest:wake_plugin"],
+          deps: ["//src/minitest:wake_plugin"],
         )
       END
 
-      IO.write("#{path}/skipped_test.rb", <<~END)
+      IO.write("#{path}/src/skipped_test.rb", <<~END)
         require 'rubygems'
         require 'minitest/autorun'
 
@@ -138,9 +138,9 @@ class WakeTest < Minitest::Test
     path = File.realpath(Dir.mktmpdir("#{self.class.name}##{self.name}-"))
 
     begin
-      FileUtils.mkdir_p("#{path}/minitest")
-      FileUtils.ln(File.expand_path('../../../main/ruby/minitest/wake_plugin.rb', __FILE__), "#{path}/minitest/wake_plugin.rb", force: true)
-      IO.write("#{path}/minitest/BUILD", <<~END)
+      FileUtils.mkdir_p("#{path}/src/minitest")
+      FileUtils.ln(File.expand_path('../../../main/ruby/minitest/wake_plugin.rb', __FILE__), "#{path}/src/minitest/wake_plugin.rb", force: true)
+      IO.write("#{path}/src/minitest/BUILD", <<~END)
         ruby_lib(
           name: 'wake_plugin',
           srcs: ['wake_plugin.rb'],

@@ -22,7 +22,15 @@ module Wake
 
     def run(*args)
       workspace = Workspace.new(Rules.new(@source_tree)) do |builder|
-        @source_tree.glob('**/BUILD') do |path, contents|
+        @source_tree.glob('lib/**/BUILD') do |path, contents|
+          builder.load_package(File.dirname(path), contents)
+        end
+
+        @source_tree.sandbox('var').glob('lib/**/BUILD') do |path, contents|
+          builder.load_package(File.dirname(path), contents)
+        end
+
+        @source_tree.glob('src/**/BUILD') do |path, contents|
           builder.load_package(File.dirname(path), contents)
         end
       end
@@ -51,5 +59,4 @@ module Wake
       test_reporter.all_green?
     end
   end
-
 end
