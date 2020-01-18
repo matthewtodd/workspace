@@ -48,32 +48,28 @@ module Wake
         lib = @filesystem.sandbox('var')
         compressed = cache.absolute_path(sha256)
         extracted = lib.absolute_path(label.path)
-        extractor = case File.extname(url)
+
+        if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
+          case File.extname(url)
           when '.gem'
-            lambda do |compressed, extracted|
-              package = Gem::Package.new(compressed)
-              package.extract_files(extracted)
-              srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
-              load_path = package.spec.require_path
-              IO.write("#{extracted}/BUILD", <<~END)
-                ruby_lib(
-                  name: #{name.inspect},
-                  srcs: #{srcs.inspect},
-                  load_path: #{load_path.inspect},
-                )
-              END
-            end
+            package = Gem::Package.new(compressed)
+            package.extract_files(extracted)
+            srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
+            load_path = package.spec.require_path
+            IO.write("#{extracted}/BUILD", <<~END)
+              ruby_lib(
+                name: #{name.inspect},
+                srcs: #{srcs.inspect},
+                load_path: #{load_path.inspect},
+              )
+            END
           when '.zip'
-            lambda do |compressed, extracted|
-              FileUtils.mkdir_p(extracted)
-              system('unzip', '-q', compressed, '-d', extracted) || fail($?)
-            end
+            FileUtils.mkdir_p(extracted)
+            system('unzip', '-q', compressed, '-d', extracted) || fail($?)
           else
             fail 'Unsupported file extension.'
           end
 
-        if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
-          extractor.call(compressed, extracted)
           IO.write("#{extracted}/BUILD", build_file) if build_file
         end
 
