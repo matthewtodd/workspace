@@ -69,6 +69,19 @@ module Wake
                 load_path: #{load_path.inspect},
               )
             END
+          elsif url.end_with?('.tar.gz')
+            Dir.mktmpdir do |tmp|
+              system('tar', 'xzf', compressed, '--directory', tmp) || fail($?.to_s)
+              includes.each do |pattern|
+                Dir.glob(pattern, base: tmp) do |path|
+                  src = File.join(tmp, path)
+                  if File.file?(src)
+                    dest = path.split('/', strip_components.next).last
+                    extracted.link(dest, src)
+                  end
+                end
+              end
+            end
           elsif url.end_with?('.zip')
             Dir.mktmpdir do |tmp|
               system('unzip', '-q', compressed, '-d', tmp) || fail($?.to_s)
