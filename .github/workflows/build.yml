@@ -19,9 +19,9 @@ jobs:
           sudo chmod go-w /opt
           sudo chmod go-w /opt/hostedtoolcache
           sudo chmod go-w /opt/hostedtoolcache/Ruby
-          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.6.3
-          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.6.3/x64
-          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.6.3/x64/bin
+          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.7.0
+          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.7.0/x64
+          sudo chmod go-w /opt/hostedtoolcache/Ruby/2.7.0/x64/bin
           sudo chmod go-w /sbin
           sudo chmod go-w /snap
           sudo chmod go-w /usr
