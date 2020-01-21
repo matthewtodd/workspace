@@ -24,7 +24,7 @@ module Wake
         @collector = collector
       end
 
-      def http_archive(name:, url:, sha256:, build_file: nil)
+      def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file: nil)
         raise unless @path.start_with?('lib/')
 
         user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
@@ -54,30 +54,39 @@ module Wake
         label = label(name)
         lib = @filesystem.sandbox('var')
         compressed = cache.absolute_path(sha256)
-        extracted = lib.absolute_path(label.path)
+        extracted = lib.sandbox(label.path)
 
-        if !File.exist?(extracted) || File.mtime(extracted) < File.mtime(compressed)
-          case File.extname(url)
-          when '.gem'
+        if !extracted.exists? || extracted.mtime < File.mtime(compressed)
+          if url.end_with?('.gem')
             package = Gem::Package.new(compressed)
-            package.extract_files(extracted)
+            package.extract_files(extracted.mkpath)
             srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
             load_path = package.spec.require_path
-            IO.write("#{extracted}/BUILD", <<~END)
+            IO.write(extracted.absolute_path('BUILD'), <<~END)
               ruby_lib(
                 name: #{name.inspect},
                 srcs: #{srcs.inspect},
                 load_path: #{load_path.inspect},
               )
             END
-          when '.zip'
-            FileUtils.mkdir_p(extracted)
-            system('unzip', '-q', compressed, '-d', extracted) || fail($?)
+          elsif url.end_with?('.zip')
+            Dir.mktmpdir do |tmp|
+              system('unzip', '-q', compressed, '-d', tmp) || fail($?.to_s)
+              includes.each do |pattern|
+                Dir.glob(pattern, base: tmp) do |path|
+                  src = File.join(tmp, path)
+                  if File.file?(src)
+                    dest = path.split('/', strip_components.next).last
+                    extracted.link(dest, src)
+                  end
+                end
+              end
+            end
           else
-            fail 'Unsupported file extension.'
+            fail "Unsupported file extension for #{File.basename(url)}"
           end
 
-          IO.write("#{extracted}/BUILD", build_file) if build_file
+          IO.write(extracted.absolute_path('BUILD'), build_file) if build_file
         end
 
         self
