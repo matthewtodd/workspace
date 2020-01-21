@@ -27,9 +27,11 @@ module Wake
       def http_archive(name:, url:, sha256:, build_file: nil)
         raise unless @path.start_with?('lib/')
 
-        cache = @filesystem.sandbox('var/cache')
+        user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
+        user_cache_home.mkpath
+        user_cache = user_cache_home.join(sha256)
 
-        unless cache.exists?(sha256)
+        unless user_cache.exist?
           response = Net::HTTP.get_response(URI.parse(url))
           response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
 
@@ -39,9 +41,14 @@ module Wake
             scratch.flush
 
             if Digest::SHA256.file(scratch.path).hexdigest == sha256
-              cache.link(sha256, scratch.path)
+              user_cache.make_link(scratch.path)
             end
           end
+        end
+
+        cache = @filesystem.sandbox('var/cache')
+        unless cache.exists?(sha256)
+          cache.link(sha256, user_cache.to_s)
         end
 
         label = label(name)
