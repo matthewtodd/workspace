@@ -22,46 +22,12 @@ module Wake
         @path = path
         @filesystem = filesystem
         @collector = collector
-        @fetcher = Fetcher.new(@filesystem.sandbox('var/cache'))
-      end
-
-      class Fetcher
-        def initialize(cache)
-          @cache = cache
-        end
-
-        def fetch(url:, sha256:)
-          user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
-          user_cache_home.mkpath
-          user_cache = user_cache_home.join(sha256)
-
-          unless user_cache.exist?
-            response = Net::HTTP.get_response(URI.parse(url))
-            response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
-
-            Tempfile.open do |scratch|
-              scratch.binmode
-              scratch.write(response.body)
-              scratch.flush
-
-              if Digest::SHA256.file(scratch.path).hexdigest == sha256
-                user_cache.make_link(scratch.path)
-              end
-            end
-          end
-
-          unless @cache.exists?(sha256)
-            @cache.link(sha256, user_cache.to_s)
-          end
-
-          @cache.absolute_path(sha256)
-        end
       end
 
       def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file:)
         raise("http_archive only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
-        compressed = @fetcher.fetch(url: url, sha256: sha256)
+        compressed = fetch(url: url, sha256: sha256)
 
         producing(name, from: compressed) do |extracted|
           if url.end_with?('.tar.gz')
@@ -117,7 +83,7 @@ module Wake
       def ruby_gem(name:, version:, sha256:)
         raise("ruby_gem only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
-        compressed = @fetcher.fetch(url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
+        compressed = fetch(url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
 
         producing(name, from: compressed) do |extracted|
           package = Gem::Package.new(compressed)
@@ -147,6 +113,35 @@ module Wake
       end
 
       private
+
+      def fetch(url:, sha256:)
+        user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
+        user_cache_home.mkpath
+        user_cache = user_cache_home.join(sha256)
+
+        unless user_cache.exist?
+          response = Net::HTTP.get_response(URI.parse(url))
+          response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
+
+          Tempfile.open do |scratch|
+            scratch.binmode
+            scratch.write(response.body)
+            scratch.flush
+
+            if Digest::SHA256.file(scratch.path).hexdigest == sha256
+              user_cache.make_link(scratch.path)
+            end
+          end
+        end
+
+        cache = @filesystem.sandbox('var/cache')
+
+        unless cache.exists?(sha256)
+          cache.link(sha256, user_cache.to_s)
+        end
+
+        cache.absolute_path(sha256)
+      end
 
       def label(name)
         @path == '.' ? Label.new('', name) : Label.new(@path, name)
