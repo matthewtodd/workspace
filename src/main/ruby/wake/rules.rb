@@ -58,7 +58,7 @@ module Wake
         end
       end
 
-      def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file: nil)
+      def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file:)
         raise("http_archive only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
         label = label(name)
@@ -67,19 +67,7 @@ module Wake
         extracted = lib.sandbox(label.path)
 
         if !extracted.exists? || extracted.mtime < File.mtime(compressed)
-          if url.end_with?('.gem')
-            package = Gem::Package.new(compressed)
-            package.extract_files(extracted.mkpath)
-            srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
-            load_path = package.spec.require_path
-            IO.write(extracted.absolute_path('BUILD'), <<~END)
-              ruby_lib(
-                name: #{name.inspect},
-                srcs: #{srcs.inspect},
-                load_path: #{load_path.inspect},
-              )
-            END
-          elsif url.end_with?('.tar.gz')
+          if url.end_with?('.tar.gz')
             Dir.mktmpdir do |tmp|
               system('tar', 'xzf', compressed, '--directory', tmp) || fail($?.to_s)
               includes.each do |pattern|
@@ -109,7 +97,7 @@ module Wake
             fail "Unsupported file extension for #{File.basename(url)}"
           end
 
-          IO.write(extracted.absolute_path('BUILD'), build_file) if build_file
+          IO.write(extracted.absolute_path('BUILD'), build_file)
         end
 
         self
@@ -130,7 +118,28 @@ module Wake
       end
 
       def ruby_gem(name:, version:, sha256:)
-        http_archive(name: name, url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
+        raise("ruby_gem only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
+
+        label = label(name)
+        lib = @filesystem.sandbox('var')
+        compressed = @fetcher.fetch(url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
+        extracted = lib.sandbox(label.path)
+
+        if !extracted.exists? || extracted.mtime < File.mtime(compressed)
+          package = Gem::Package.new(compressed)
+          package.extract_files(extracted.mkpath)
+          srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
+          load_path = package.spec.require_path
+          IO.write(extracted.absolute_path('BUILD'), <<~END)
+            ruby_lib(
+              name: #{name.inspect},
+              srcs: #{srcs.inspect},
+              load_path: #{load_path.inspect},
+            )
+          END
+        end
+
+        self
       end
 
       def ruby_lib(name:, srcs:, deps:[], load_path: '.')
