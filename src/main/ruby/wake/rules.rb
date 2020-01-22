@@ -22,38 +22,48 @@ module Wake
         @path = path
         @filesystem = filesystem
         @collector = collector
+        @fetcher = Fetcher.new(@filesystem.sandbox('var/cache'))
+      end
+
+      class Fetcher
+        def initialize(cache)
+          @cache = cache
+        end
+
+        def fetch(url:, sha256:)
+          user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
+          user_cache_home.mkpath
+          user_cache = user_cache_home.join(sha256)
+
+          unless user_cache.exist?
+            response = Net::HTTP.get_response(URI.parse(url))
+            response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
+
+            Tempfile.open do |scratch|
+              scratch.binmode
+              scratch.write(response.body)
+              scratch.flush
+
+              if Digest::SHA256.file(scratch.path).hexdigest == sha256
+                user_cache.make_link(scratch.path)
+              end
+            end
+          end
+
+          unless @cache.exists?(sha256)
+            @cache.link(sha256, user_cache.to_s)
+          end
+
+          @cache.absolute_path(sha256)
+        end
       end
 
       def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file: nil)
         raise("http_archive only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
-        user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
-        user_cache_home.mkpath
-        user_cache = user_cache_home.join(sha256)
-
-        unless user_cache.exist?
-          response = Net::HTTP.get_response(URI.parse(url))
-          response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
-
-          Tempfile.open do |scratch|
-            scratch.binmode
-            scratch.write(response.body)
-            scratch.flush
-
-            if Digest::SHA256.file(scratch.path).hexdigest == sha256
-              user_cache.make_link(scratch.path)
-            end
-          end
-        end
-
-        cache = @filesystem.sandbox('var/cache')
-        unless cache.exists?(sha256)
-          cache.link(sha256, user_cache.to_s)
-        end
-
         label = label(name)
         lib = @filesystem.sandbox('var')
-        compressed = cache.absolute_path(sha256)
+        compressed = @fetcher.fetch(url: url, sha256: sha256)
         extracted = lib.sandbox(label.path)
 
         if !extracted.exists? || extracted.mtime < File.mtime(compressed)
@@ -113,6 +123,10 @@ module Wake
       def kt_jvm_test(name:, deps:[])
         @collector.call KtJvmTest.new(label: label(name), deps: parse(deps))
         self
+      end
+
+      def maven_jar(artifact:, sha256:)
+
       end
 
       def ruby_gem(name:, version:, sha256:)
