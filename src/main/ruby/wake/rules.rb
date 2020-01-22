@@ -61,12 +61,9 @@ module Wake
       def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file:)
         raise("http_archive only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
-        label = label(name)
-        lib = @filesystem.sandbox('var')
         compressed = @fetcher.fetch(url: url, sha256: sha256)
-        extracted = lib.sandbox(label.path)
 
-        if !extracted.exists? || extracted.mtime < File.mtime(compressed)
+        producing(name, from: compressed) do |extracted|
           if url.end_with?('.tar.gz')
             Dir.mktmpdir do |tmp|
               system('tar', 'xzf', compressed, '--directory', tmp) || fail($?.to_s)
@@ -120,12 +117,9 @@ module Wake
       def ruby_gem(name:, version:, sha256:)
         raise("ruby_gem only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
-        label = label(name)
-        lib = @filesystem.sandbox('var')
         compressed = @fetcher.fetch(url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
-        extracted = lib.sandbox(label.path)
 
-        if !extracted.exists? || extracted.mtime < File.mtime(compressed)
+        producing(name, from: compressed) do |extracted|
           package = Gem::Package.new(compressed)
           package.extract_files(extracted.mkpath)
           srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
@@ -160,6 +154,15 @@ module Wake
 
       def parse(deps)
         deps.map { |string| Label.parse(string) }
+      end
+
+      def producing(name, from:, &extractor)
+        label = label(name)
+        lib = @filesystem.sandbox('var')
+        extracted = lib.sandbox(label.path)
+        if !extracted.exists? || extracted.mtime < File.mtime(from)
+          extractor.call(extracted)
+        end
       end
 
       def canonical_load_path(load_path)
