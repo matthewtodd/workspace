@@ -25,7 +25,7 @@ module Wake
       end
 
       def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file: nil)
-        raise unless @path.start_with?('lib/')
+        raise("http_archive only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
         user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
         user_cache_home.mkpath
