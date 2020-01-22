@@ -132,7 +132,7 @@ module Wake
             else
               Tempfile.open do |scratch|
                 scratch.binmode
-                scratch.write(response.body)
+                response.read_body { |chunk| scratch.write(chunk) }
                 scratch.flush
 
                 if Digest::SHA256.file(scratch.path).hexdigest == sha256
