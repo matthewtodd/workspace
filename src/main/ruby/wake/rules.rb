@@ -27,12 +27,12 @@ module Wake
       def http_archive(name:, url:, sha256:, strip_components: 0, includes: [], build_file:)
         raise("http_archive only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
-        compressed = fetch(url: url, sha256: sha256)
+        archive = fetch(url, sha256: sha256)
 
-        producing(name, from: compressed) do |extracted|
+        producing(name, from: archive) do |extracted|
           if url.end_with?('.tar.gz')
             Dir.mktmpdir do |tmp|
-              system('tar', 'xzf', compressed, '--directory', tmp) || fail($?.to_s)
+              system('tar', 'xzf', archive, '--directory', tmp) || fail($?.to_s)
               includes.each do |pattern|
                 Dir.glob(pattern, base: tmp) do |path|
                   src = File.join(tmp, path)
@@ -45,7 +45,7 @@ module Wake
             end
           elsif url.end_with?('.zip')
             Dir.mktmpdir do |tmp|
-              system('unzip', '-q', compressed, '-d', tmp) || fail($?.to_s)
+              system('unzip', '-q', archive, '-d', tmp) || fail($?.to_s)
               includes.each do |pattern|
                 Dir.glob(pattern, base: tmp) do |path|
                   src = File.join(tmp, path)
@@ -83,10 +83,10 @@ module Wake
       def ruby_gem(name:, version:, sha256:)
         raise("ruby_gem only works inside lib [#{@path.inspect}]") unless @path.split('/').first == 'lib'
 
-        compressed = fetch(url: "https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
+        archive = fetch("https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
 
-        producing(name, from: compressed) do |extracted|
-          package = Gem::Package.new(compressed)
+        producing(name, from: archive) do |extracted|
+          package = Gem::Package.new(archive)
           package.extract_files(extracted.mkpath)
           srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
           load_path = package.spec.require_path
@@ -114,13 +114,13 @@ module Wake
 
       private
 
-      def fetch(url:, sha256:)
+      def fetch(url, sha256:)
         @filesystem.sandbox('var/cache')
-          .link(sha256, fetch_into_user_cache(url: url, sha256: sha256))
+          .link(sha256, fetch_into_user_cache(url, sha256: sha256))
           .absolute_path(sha256)
       end
 
-      def fetch_into_user_cache(url:, sha256:)
+      def fetch_into_user_cache(url, sha256:)
         user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
         user_cache_home.mkpath
         user_cache = user_cache_home.join(sha256)
@@ -128,7 +128,7 @@ module Wake
         unless user_cache.exist?
           Net::HTTP.get_response(URI.parse(url)) do |response|
             if Net::HTTPRedirection === response
-              fetch(url: response['location'], sha256: sha256)
+              fetch_into_user_cache(response['location'], sha256: sha256)
             else
               Tempfile.open do |scratch|
                 scratch.binmode
