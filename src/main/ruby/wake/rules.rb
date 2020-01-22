@@ -115,32 +115,35 @@ module Wake
       private
 
       def fetch(url:, sha256:)
+        @filesystem.sandbox('var/cache')
+          .link(sha256, fetch_into_user_cache(url: url, sha256: sha256))
+          .absolute_path(sha256)
+      end
+
+      def fetch_into_user_cache(url:, sha256:)
         user_cache_home = Pathname.new(ENV.fetch('XDG_CACHE_HOME', File.join(ENV.fetch('HOME'), '.cache'))).join('wake')
         user_cache_home.mkpath
         user_cache = user_cache_home.join(sha256)
 
         unless user_cache.exist?
-          response = Net::HTTP.get_response(URI.parse(url))
-          response = Net::HTTP.get_response(URI.parse(response['location'])) if Net::HTTPRedirection === response
+          Net::HTTP.get_response(URI.parse(url)) do |response|
+            if Net::HTTPRedirection === response
+              fetch(url: response['location'], sha256: sha256)
+            else
+              Tempfile.open do |scratch|
+                scratch.binmode
+                scratch.write(response.body)
+                scratch.flush
 
-          Tempfile.open do |scratch|
-            scratch.binmode
-            scratch.write(response.body)
-            scratch.flush
-
-            if Digest::SHA256.file(scratch.path).hexdigest == sha256
-              user_cache.make_link(scratch.path)
+                if Digest::SHA256.file(scratch.path).hexdigest == sha256
+                  user_cache.make_link(scratch.path)
+                end
+              end
             end
           end
         end
 
-        cache = @filesystem.sandbox('var/cache')
-
-        unless cache.exists?(sha256)
-          cache.link(sha256, user_cache.to_s)
-        end
-
-        cache.absolute_path(sha256)
+        user_cache.to_s
       end
 
       def label(name)
