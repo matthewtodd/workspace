@@ -38,12 +38,6 @@ module Minitest
         end
       end
 
-      attr_reader :assertion_count
-      attr_reader :error_count
-      attr_reader :failure_count
-      attr_reader :skip_count
-      attr_reader :time
-
       def initialize(**kwargs)
         @class_name = kwargs.fetch(:class_name)
         @name = kwargs.fetch(:name)
@@ -54,10 +48,6 @@ module Minitest
         @failures = kwargs.fetch(:failures)
         @system_out = kwargs.fetch(:system_out)
         @system_err = kwargs.fetch(:system_err)
-
-        @error_count = @errors.length
-        @failure_count = @failures.length
-        @skip_count = @skipped.length
       end
 
       def as_json(*)
@@ -72,42 +62,6 @@ module Minitest
           'system_out' => @system_out,
           'system_err' => @system_err,
         }
-      end
-
-      def passed?
-        @skipped.empty? && @errors.empty? && @failures.empty?
-      end
-
-      def skipped?
-        !@skipped.empty? && @errors.empty? && @failures.empty?
-      end
-
-      def result_code
-        if @skipped.any?
-          'S'
-        elsif @errors.any?
-          'E'
-        elsif @failures.any?
-          'F'
-        else
-          '.'
-        end
-      end
-
-      def location
-        "#{@class_name}##{@name}"
-      end
-
-      def each_error
-        @errors.each { |e| yield e }
-      end
-
-      def each_failure
-        @failures.each { |f| yield f }
-      end
-
-      def each_skip
-        @skipped.each { |s| yield s }
       end
 
       class Builder
