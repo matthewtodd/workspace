@@ -5,7 +5,6 @@ set -euo pipefail
 function join { local IFS="$1"; shift; echo "$*"; }
 
 export DIR=$(cd `dirname $0`; pwd)
-export JAVA_HOME=${DIR}/var/lib/jdk
 
 if [ ! -f "junit-platform-console-standalone-1.6.0.jar" ]; then
   curl -qLO https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.6.0/junit-platform-console-standalone-1.6.0.jar
@@ -30,13 +29,25 @@ TEST_RUNTIME=(
   ${DIR}/example-test.jar
 )
 
-# TODO make a jar
+# TODO make a jar, maybe with my own utility!
+# https://github.com/JetBrains/kotlin/blob/master/compiler/cli/src/org/jetbrains/kotlin/cli/jvm/compiler/CompileEnvironmentUtil.java#L57-L72
+# It might be nice to avoid the possible pollution of intermediate class files on the filesystem.
 ${DIR}/var/lib/jdk/bin/javac \
   -cp $(join : ${LAUNCHER_COMPILE[@]}) \
   src/main/java/org/matthewtodd/junit/WakeLauncher.java
 
-# TODO unpack kotlinc to just be a java command
-${DIR}/var/lib/kotlin/bin/kotlinc \
+# ${DIR}/var/lib/kotlin/bin/kotlinc \
+  # -cp $(join : ${TEST_COMPILE[@]}) \
+  # -d ${DIR}/example-test.jar \
+  # ${DIR}/src/test/kotlin/ExampleTest.kt
+
+# TODO investigate possibly using some lower-level command?
+# Will be considering having long-running workers if it seems they could reduce latency.
+${DIR}/var/lib/jdk/bin/java \
+  -cp ${DIR}/var/lib/kotlin/lib/kotlin-preloader.jar \
+  org.jetbrains.kotlin.preloading.Preloader \
+  -cp ${DIR}/var/lib/kotlin/lib/kotlin-compiler.jar \
+  org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
   -cp $(join : ${TEST_COMPILE[@]}) \
   -d ${DIR}/example-test.jar \
   ${DIR}/src/test/kotlin/ExampleTest.kt
