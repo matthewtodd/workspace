@@ -23,7 +23,6 @@ module Wake
           @io.puts "\n%3d) %s" % [i+1, maybe_color_result(format_result(result))]
         end
         @io.puts # separate dots from summary when green
-        @io.puts @summarizer.timing
         @io.puts maybe_color(@summarizer.counts, @summarizer.success? ? GREEN : RED)
       end
 
@@ -117,14 +116,6 @@ module Wake
 
         def each
           @errors_failures_skips.sort_by(&:result_code).each
-        end
-
-        def timing
-          "Finished in %.6fs, %.4f runs/s, %.4f assertions/s." % [
-            @total_time,
-            @total_time.zero? ? 0 : @test_count / @total_time,
-            @total_time.zero? ? 0 : @assertion_count / @total_time
-          ]
         end
 
         def counts

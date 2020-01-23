@@ -41,7 +41,7 @@ class TestingTest < Minitest::Test
     end
     reporter.report
 
-    assert_equal <<~END, output.string.lines[0..-4].join
+    assert_equal <<~END, output.string.lines[0..-3].join
       EFF.S
 
         1) Error:
@@ -69,8 +69,6 @@ class TestingTest < Minitest::Test
       Skipped, no message given
     END
 
-    # Finished in 0.005599s, 357.2066 runs/s, 535.8100 assertions/s.
-
     assert_equal <<~END, output.string.lines.last
       5 tests, 3 assertions, 2 failures, 1 error, 1 skip.
     END
@@ -92,7 +90,6 @@ class TestingTest < Minitest::Test
     assert_equal <<~END, output.string
 
 
-      Finished in 0.000000s, 0.0000 runs/s, 0.0000 assertions/s.
       0 tests, 0 assertions, 0 failures, 0 errors, 0 skips.
     END
   end
