@@ -16,33 +16,33 @@ module Minitest
 
       def translate(result)
         {
-          'class_name' => result.respond_to?(:class_name) ?
+          class_name: result.respond_to?(:class_name) ?
               result.class_name :
               result.class.name,
-          'name' => result.name,
-          'assertion_count' => result.assertions,
-          'time' => result.time,
-          'errors' => result.failures.
+          name: result.name,
+          assertion_count: result.assertions,
+          time: result.time,
+          errors: result.failures.
               select { |failure| failure.result_label == 'Error' }.
               map { |failure| {
-                'type' => failure.error.class.name,
-                'message' => failure.error.message,
-                'backtrace' => ::Minitest.filter_backtrace(failure.error.backtrace),
+                type: failure.error.class.name,
+                message: failure.error.message,
+                backtrace: ::Minitest.filter_backtrace(failure.error.backtrace),
               }},
-          'failures' => result.failures.
+          failures: result.failures.
               select { |failure| failure.result_label == 'Failure' }.
               map { |failure| {
-                'message' => failure.error.message,
-                'location' => failure.location,
+                message: failure.error.message,
+                location: failure.location,
               }},
-          'skipped' => result.failures.
+          skipped: result.failures.
               select { |failure| failure.result_label == 'Skipped' }.
               map { |failure| {
-                'message' => failure.message,
-                'location' => failure.location,
+                message: failure.message,
+                location: failure.location,
               }},
-          'system_out' => '',
-          'system_err' => '',
+          system_out: '',
+          system_err: '',
         }
       end
     end
