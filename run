@@ -1,0 +1,47 @@
+#!/bin/sh
+
+set -euo pipefail
+
+function join { local IFS="$1"; shift; echo "$*"; }
+
+export DIR=$(cd `dirname $0`; pwd)
+export JAVA_HOME=${DIR}/var/lib/jdk
+
+if [ ! -f "junit-platform-console-standalone-1.6.0.jar" ]; then
+  curl -qLO https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.6.0/junit-platform-console-standalone-1.6.0.jar
+fi
+
+# TODO get finer-grained dependencies
+LAUNCHER_COMPILE=(
+  ${DIR}/junit-platform-console-standalone-1.6.0.jar
+)
+
+TEST_COMPILE=(
+  ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
+  ${DIR}/var/lib/kotlin/lib/kotlin-test-junit5.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter/junit-jupiter-api.jar
+)
+
+TEST_RUNTIME=(
+  ${DIR}/src/main/java
+  ${DIR}/var/lib/kotlin/lib/kotlin-stdlib.jar
+  ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
+  ${DIR}/junit-platform-console-standalone-1.6.0.jar
+  ${DIR}/example-test.jar
+)
+
+# TODO make a jar
+${DIR}/var/lib/jdk/bin/javac \
+  -cp $(join : ${LAUNCHER_COMPILE[@]}) \
+  src/main/java/org/matthewtodd/junit/WakeLauncher.java
+
+# TODO unpack kotlinc to just be a java command
+${DIR}/var/lib/kotlin/bin/kotlinc \
+  -cp $(join : ${TEST_COMPILE[@]}) \
+  -d ${DIR}/example-test.jar \
+  ${DIR}/src/test/kotlin/ExampleTest.kt
+
+${DIR}/var/lib/jdk/bin/java \
+  -cp $(join : ${TEST_RUNTIME[@]}) \
+  org.matthewtodd.junit.WakeLauncher \
+  ExampleTest
