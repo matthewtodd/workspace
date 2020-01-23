@@ -19,8 +19,8 @@ public class WakeLauncher {
   // so maybe we let wake do the parallelism, making individual test classes small and counting on dependency tracking to avoid unnecessary execution?
   public static void main(String... args) {
     Launcher launcher = LauncherFactory.create(builder().
-        enableTestExecutionListenerAutoRegistration(false).
         enableTestEngineAutoRegistration(false).
+        enableTestExecutionListenerAutoRegistration(false).
         addTestEngines(new JupiterTestEngine()).
         addTestExecutionListeners(new WakeListener()).
         build());
