@@ -49,7 +49,7 @@ public class WakeLauncher {
           executionSkipped(child, reason);
         }
       } else {
-        // TODO handle other kinds of sources
+        // TODO handle other kinds of sources as needed.
         MethodSource source = (MethodSource) testIdentifier.getSource().get();
 
         System.out.println(new JsonObject().
@@ -60,7 +60,7 @@ public class WakeLauncher {
             addArray("failures").
             addArray("skipped", new JsonObject().
                 add("message", reason).
-                add("location", "")). // TODO
+                add("location", "")). // TODO can we get this anywhere?
             add("system_out", "").
             add("system_err", ""));
       }
