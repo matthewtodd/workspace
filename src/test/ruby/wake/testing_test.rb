@@ -70,7 +70,7 @@ class TestingTest < Minitest::Test
     END
 
     assert_equal <<~END, output.string.lines.last
-      5 tests, 3 assertions, 2 failures, 1 error, 1 skip.
+      5 tests, 2 failures, 1 error, 1 skip.
     END
   end
 
@@ -90,7 +90,7 @@ class TestingTest < Minitest::Test
     assert_equal <<~END, output.string
 
 
-      0 tests, 0 assertions, 0 failures, 0 errors, 0 skips.
+      0 tests, 0 failures, 0 errors, 0 skips.
     END
   end
 
@@ -115,6 +115,6 @@ class TestingTest < Minitest::Test
     assert_equal "\e[36m@@ -1,3 +1,3 @@\e[0m", lines[15].chomp
     assert_equal "\e[31m-foo\e[0m", lines[17].chomp
     assert_equal "\e[32m+bar\e[0m", lines[18].chomp
-    assert_equal "\e[31m5 tests, 3 assertions, 2 failures, 1 error, 1 skip.\e[0m", lines.last.chomp
+    assert_equal "\e[31m5 tests, 2 failures, 1 error, 1 skip.\e[0m", lines.last.chomp
   end
 end

@@ -20,7 +20,6 @@ module Minitest
               result.class_name :
               result.class.name,
           name: result.name,
-          assertion_count: result.assertions,
           time: result.time,
           errors: result.failures.
               select { |failure| failure.result_label == 'Error' }.

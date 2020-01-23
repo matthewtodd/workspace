@@ -96,7 +96,6 @@ module Wake
       class Summarizer
         def initialize
           @test_count = 0
-          @assertion_count = 0
           @error_count = 0
           @failure_count = 0
           @skip_count = 0
@@ -106,7 +105,6 @@ module Wake
 
         def record(result)
           @test_count += 1
-          @assertion_count += result.assertion_count
           @error_count += result.error_count
           @failure_count += result.failure_count
           @skip_count += result.skip_count
@@ -121,7 +119,6 @@ module Wake
         def counts
           counts = []
           counts << pluralize(@test_count, 'test')
-          counts << pluralize(@assertion_count, 'assertion')
           counts << pluralize(@failure_count, 'failure')
           counts << pluralize(@error_count, 'error')
           counts << pluralize(@skip_count, 'skip')
@@ -176,7 +173,6 @@ module Wake
         end
       end
 
-      attr_reader :assertion_count
       attr_reader :error_count
       attr_reader :failure_count
       attr_reader :skip_count
@@ -186,7 +182,6 @@ module Wake
         new(
           class_name: object.fetch('class_name'),
           name: object.fetch('name'),
-          assertion_count: object.fetch('assertion_count'),
           time: object.fetch('time'),
           skipped: object.fetch('skipped', []).map(&Skipped.method(:json_create)),
           errors: object.fetch('errors', []).map(&Error.method(:json_create)),
@@ -199,7 +194,6 @@ module Wake
       def initialize(**kwargs)
         @class_name = kwargs.fetch(:class_name)
         @name = kwargs.fetch(:name)
-        @assertion_count = kwargs.fetch(:assertion_count)
         @time = kwargs.fetch(:time)
         @skipped = kwargs.fetch(:skipped)
         @errors = kwargs.fetch(:errors)

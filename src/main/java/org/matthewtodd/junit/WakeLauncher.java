@@ -55,7 +55,6 @@ public class WakeLauncher {
         System.out.println(new JsonObject().
             add("class_name", source.getClassName()).
             add("name", source.getMethodName()).
-            add("assertion_count", 0).
             add("time", 0).
             addArray("errors").
             addArray("failures").
@@ -81,7 +80,6 @@ public class WakeLauncher {
         JsonObject json = new JsonObject().
             add("class_name", source.getClassName()).
             add("name", source.getMethodName()).
-            add("assertion_count", 0). // TODO how to get assertion count?
             add("time", currentTimeMillis() - startTimes.get(testIdentifier));
 
         switch(testExecutionResult.getStatus()) {
