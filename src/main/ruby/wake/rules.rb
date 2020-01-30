@@ -82,7 +82,7 @@ module Wake
         group_id, artifact_id, version = artifact.split(':')
         jar = fetch("https://repo1.maven.org/maven2/#{group_id.gsub('.', '/')}/#{artifact_id}/#{version}/#{artifact_id}-#{version}.jar", sha256: sha256)
 
-        producing(group_id.gsub('.', '_'), from: jar) do |extracted|
+        producing([group_id.gsub('.', '_'), artifact_id.gsub('-', '_')].join('_'), from: jar) do |extracted|
           extracted.link("#{artifact_id}.jar", jar)
         end
       end

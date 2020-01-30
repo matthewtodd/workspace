@@ -6,29 +6,30 @@ function join { local IFS="$1"; shift; echo "$*"; }
 
 export DIR=$(cd `dirname $0`; pwd)
 
-if [ ! -f "junit-platform-console-standalone-1.6.0.jar" ]; then
-  curl -qLO https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.6.0/junit-platform-console-standalone-1.6.0.jar
-fi
-
 LAUNCHER_COMPILE=(
-  ${DIR}/var/lib/maven/org_apiguardian/apiguardian-api.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter/junit-jupiter-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit-platform-commons.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit-platform-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit-platform-launcher.jar
+  ${DIR}/var/lib/maven/org_apiguardian_apiguardian_api/apiguardian-api.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_engine/junit-jupiter-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_commons/junit-platform-commons.jar
+  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_engine/junit-platform-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_launcher/junit-platform-launcher.jar
 )
 
 TEST_COMPILE=(
   ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
   ${DIR}/var/lib/kotlin/lib/kotlin-test-junit5.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter/junit-jupiter-api.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_api/junit-jupiter-api.jar
 )
 
 TEST_RUNTIME=(
   ${DIR}/src/main/java
-  ${DIR}/var/lib/kotlin/lib/kotlin-stdlib.jar
-  ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
-  ${DIR}/junit-platform-console-standalone-1.6.0.jar
+  # ${DIR}/var/lib/kotlin/lib/kotlin-stdlib.jar
+  # ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_api/junit-jupiter-api.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_engine/junit-jupiter-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_commons/junit-platform-commons.jar
+  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_engine/junit-platform-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_launcher/junit-platform-launcher.jar
+  ${DIR}/var/lib/maven/org_opentest4j_opentest4j/opentest4j.jar
   ${DIR}/example-test.jar
 )
 
