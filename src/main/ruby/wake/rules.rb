@@ -29,7 +29,7 @@ module Wake
 
         archive = fetch(url, sha256: sha256)
 
-        producing(name, from: archive) do |extracted|
+        producing(subpackage(name), from: archive) do |extracted|
           if url.end_with?('.tar.gz')
             Dir.mktmpdir do |tmp|
               system('tar', 'xzf', archive, '--directory', tmp) || fail($?.to_s)
@@ -82,7 +82,7 @@ module Wake
         group_id, artifact_id, version = artifact.split(':')
         jar = fetch("https://repo1.maven.org/maven2/#{group_id.gsub('.', '/')}/#{artifact_id}/#{version}/#{artifact_id}-#{version}.jar", sha256: sha256)
 
-        producing([group_id.gsub('.', '_'), artifact_id.gsub('-', '_')].join('_'), from: jar) do |extracted|
+        producing(subpackage(group_id.gsub('.', '_'), artifact_id.gsub('-', '_')), from: jar) do |extracted|
           extracted.link("#{artifact_id}.jar", jar)
         end
       end
@@ -92,7 +92,7 @@ module Wake
 
         archive = fetch("https://rubygems.org/gems/#{name}-#{version}.gem", sha256: sha256)
 
-        producing(name, from: archive) do |extracted|
+        producing(subpackage(name), from: archive) do |extracted|
           package = Gem::Package.new(archive)
           package.extract_files(extracted.mkpath)
           srcs = package.spec.files.select { |path| path.start_with?(package.spec.require_path) }
@@ -157,14 +157,17 @@ module Wake
         @path == '.' ? Label.new('', name) : Label.new(@path, name)
       end
 
+      def subpackage(*components)
+        @path == '.' ? File.join(*components) : File.join(@path, *components)
+      end
+
       def parse(deps)
         deps.map { |string| Label.parse(string) }
       end
 
-      def producing(name, from:, &extractor)
-        label = label(name)
+      def producing(path, from:, &extractor)
         lib = @filesystem.sandbox('var')
-        extracted = lib.sandbox(label.path)
+        extracted = lib.sandbox(path)
         if !extracted.exists? || extracted.mtime < File.mtime(from)
           extractor.call(extracted)
         end

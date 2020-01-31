@@ -4,34 +4,44 @@ set -euo pipefail
 
 function join { local IFS="$1"; shift; echo "$*"; }
 
+function validate {
+  for file in $*; do
+    [[ -e $file ]] || (echo "${file} is missing." && exit 1)
+  done
+}
+
 export DIR=$(cd `dirname $0`; pwd)
 
 LAUNCHER_COMPILE=(
-  ${DIR}/var/lib/maven/org_apiguardian_apiguardian_api/apiguardian-api.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_engine/junit-jupiter-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_commons/junit-platform-commons.jar
-  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_engine/junit-platform-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_launcher/junit-platform-launcher.jar
+  ${DIR}/var/lib/maven/org_apiguardian/apiguardian_api/apiguardian-api.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_engine/junit-jupiter-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_commons/junit-platform-commons.jar
+  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_engine/junit-platform-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_launcher/junit-platform-launcher.jar
 )
 
 TEST_COMPILE=(
   ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
   ${DIR}/var/lib/kotlin/lib/kotlin-test-junit5.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_api/junit-jupiter-api.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_api/junit-jupiter-api.jar
 )
 
 TEST_RUNTIME=(
   ${DIR}/src/main/java
   # ${DIR}/var/lib/kotlin/lib/kotlin-stdlib.jar
   # ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_api/junit-jupiter-api.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter_junit_jupiter_engine/junit-jupiter-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_commons/junit-platform-commons.jar
-  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_engine/junit-platform-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform_junit_platform_launcher/junit-platform-launcher.jar
-  ${DIR}/var/lib/maven/org_opentest4j_opentest4j/opentest4j.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_api/junit-jupiter-api.jar
+  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_engine/junit-jupiter-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_commons/junit-platform-commons.jar
+  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_engine/junit-platform-engine.jar
+  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_launcher/junit-platform-launcher.jar
+  ${DIR}/var/lib/maven/org_opentest4j/opentest4j/opentest4j.jar
   ${DIR}/example-test.jar
 )
+
+validate ${LAUNCHER_COMPILE[@]}
+validate ${TEST_COMPILE[@]}
+validate ${TEST_RUNTIME[@]}
 
 # TODO make a jar, maybe with my own utility!
 # https://github.com/JetBrains/kotlin/blob/master/compiler/cli/src/org/jetbrains/kotlin/cli/jvm/compiler/CompileEnvironmentUtil.java#L57-L72
