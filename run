@@ -39,13 +39,11 @@ TEST_RUNTIME=(
   ${DIR}/example-test.jar
 )
 
-validate ${LAUNCHER_COMPILE[@]}
-validate ${TEST_COMPILE[@]}
-validate ${TEST_RUNTIME[@]}
-
 # TODO make a jar, maybe with my own utility!
 # https://github.com/JetBrains/kotlin/blob/master/compiler/cli/src/org/jetbrains/kotlin/cli/jvm/compiler/CompileEnvironmentUtil.java#L57-L72
 # It might be nice to avoid the possible pollution of intermediate class files on the filesystem.
+validate ${LAUNCHER_COMPILE[@]}
+
 ${DIR}/var/lib/jdk/bin/javac \
   -cp $(join : ${LAUNCHER_COMPILE[@]}) \
   src/main/java/org/matthewtodd/junit/WakeLauncher.java
@@ -57,6 +55,8 @@ ${DIR}/var/lib/jdk/bin/javac \
 
 # TODO investigate possibly using some lower-level command?
 # Will be considering having long-running workers if it seems they could reduce latency.
+validate ${TEST_COMPILE[@]}
+
 ${DIR}/var/lib/jdk/bin/java \
   -cp ${DIR}/var/lib/kotlin/lib/kotlin-preloader.jar \
   org.jetbrains.kotlin.preloading.Preloader \
@@ -65,6 +65,8 @@ ${DIR}/var/lib/jdk/bin/java \
   -cp $(join : ${TEST_COMPILE[@]}) \
   -d ${DIR}/example-test.jar \
   ${DIR}/src/test/kotlin/ExampleTest.kt
+
+validate ${TEST_RUNTIME[@]}
 
 ${DIR}/var/lib/jdk/bin/java \
   -cp $(join : ${TEST_RUNTIME[@]}) \

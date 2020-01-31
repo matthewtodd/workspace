@@ -66,6 +66,16 @@ module Wake
         self
       end
 
+      def java_import(name:, jar:)
+        @collector.call JavaImport.new(label: label(name), jar: jar)
+        self
+      end
+
+      def java_lib(name:, srcs:, deps:[], javac:)
+        @collector.call JavaLib.new(label: label(name), srcs: srcs, deps: parse(deps), javac: Label.parse(javac))
+        self
+      end
+
       def kt_jvm_lib(name:, srcs:)
         @collector.call KtJvmLib.new(label: label(name), srcs: srcs)
         self
@@ -84,6 +94,13 @@ module Wake
 
         producing(subpackage(group_id.gsub('.', '_'), artifact_id.gsub('-', '_')), from: jar) do |extracted|
           extracted.link("#{artifact_id}.jar", jar)
+
+          IO.write(extracted.absolute_path('BUILD'), <<~END)
+            java_import(
+              name: 'jar',
+              jar: '#{artifact_id}.jar',
+            )
+          END
         end
       end
 
@@ -175,6 +192,39 @@ module Wake
 
       def canonical_load_path(load_path)
         Pathname.new(@path).join(load_path).cleanpath.to_s
+      end
+    end
+
+    class JavaImport
+      attr_reader :label
+      attr_reader :deps
+
+      def initialize(label:, jar:)
+        @label = label
+        @jar = jar
+        @deps = [] # hinky
+      end
+
+      def register(actions)
+        link = actions.link(@jar)
+        actions.info(:java_classpath, link, [])
+        actions.info(:runfiles, link, [])
+      end
+    end
+
+    class JavaLib
+      attr_reader :label
+      attr_reader :deps
+
+      def initialize(label:, srcs:, deps:, javac:)
+        @label = label
+        @srcs = srcs
+        @deps = deps
+        @javac = javac
+      end
+
+      def register(actions)
+        # actions.run(javac, '-classpath', classpath(deps), '-d', tmpdir, @srcs)
       end
     end
 
