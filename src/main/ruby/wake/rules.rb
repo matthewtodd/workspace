@@ -224,7 +224,22 @@ module Wake
       end
 
       def register(actions)
-        # actions.run(javac, '-classpath', classpath(deps), '-d', tmpdir, @srcs)
+        # inputs = []
+        # output = label.path('jar')
+
+        # jar = actions.run(inputs:inputs, output:output) do |execroot, tmpdir|
+
+        # end
+
+        # actions.info(:java_classpath,
+        #   jar,
+        #   @deps.map { |dep| actions.info_for(dep, :java_classpath) }
+        # )
+
+        # actions.info(:runfiles,
+        #   jar,
+        #   @deps.map { |dep| actions.info_for(dep, :runfiles) }
+        # )
       end
     end
 
