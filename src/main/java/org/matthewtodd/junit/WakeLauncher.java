@@ -39,11 +39,11 @@ public class WakeLauncher {
     private Map<TestIdentifier, Long> startTimes = new LinkedHashMap<>();
     private TestPlan testPlan;
 
-    public void testPlanExecutionStarted(TestPlan testPlan) {
+    @Override public void testPlanExecutionStarted(TestPlan testPlan) {
       this.testPlan = testPlan;
     }
 
-    public void executionSkipped(TestIdentifier testIdentifier, String reason) {
+    @Override public void executionSkipped(TestIdentifier testIdentifier, String reason) {
       if (testIdentifier.isContainer()) {
         for (TestIdentifier child : testPlan.getChildren(testIdentifier)) {
           executionSkipped(child, reason);
@@ -66,13 +66,13 @@ public class WakeLauncher {
       }
     }
 
-    public void executionStarted(TestIdentifier testIdentifier) {
+    @Override public void executionStarted(TestIdentifier testIdentifier) {
       if (testIdentifier.isTest()) {
         startTimes.put(testIdentifier, currentTimeMillis());
       }
     }
 
-    public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
+    @Override public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
       if (testIdentifier.isTest()) {
         // TODO handle other kinds of sources
         MethodSource source = (MethodSource) testIdentifier.getSource().get();
