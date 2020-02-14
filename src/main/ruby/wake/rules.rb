@@ -284,12 +284,23 @@ module Wake
       end
 
       def register(actions)
+        # outputs = actions.run(inputs: @srcs, outputs: @srcs) do |execroot, tmpdir|
+        #   @srcs.map { |src| [
+        #     FileUtils.join(execroot, src),
+        #     FileUtils.join(tmpdir, src)
+        #   ]}.each { |src, dest|
+        #     FileUtils.mkdir_p(File.dirname(dest))
+        #     FileUtils.ln(src, dest)
+        #   }
+        # end
+
         actions.info(:ruby_load_path,
           @load_path,
           @deps.map { |dep| actions.info_for(dep, :ruby_load_path) }
         )
 
         actions.info(:runfiles,
+          # outputs,
           @srcs.map { |src| actions.link(src) },
           @deps.map { |dep| actions.info_for(dep, :runfiles) }
         )
