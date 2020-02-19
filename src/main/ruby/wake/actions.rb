@@ -68,7 +68,7 @@ module Wake
       end
 
       def link(path)
-        @actions.link(@label.path_to(path))
+        @actions.link(path)
       end
 
       def test_executable(command)

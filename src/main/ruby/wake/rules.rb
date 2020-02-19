@@ -67,12 +67,18 @@ module Wake
       end
 
       def java_import(name:, jar:)
-        @collector.call JavaImport.new(label: label(name), jar: jar)
+        label = label(name)
+        jar = label.path_to(jar)
+        @collector.call JavaImport.new(label: label, jar: jar)
         self
       end
 
       def java_lib(name:, srcs:, deps:[], javac:)
-        @collector.call JavaLib.new(label: label(name), srcs: srcs, deps: parse(deps), javac: Label.parse(javac))
+        label = label(name)
+        srcs = srcs.map { |src| label.path_to(src) }
+        deps = parse(deps)
+        javac = Label.parse(javac)
+        @collector.call JavaLib.new(label: label, srcs: srcs, deps: deps, javac: javac)
         self
       end
 
@@ -127,12 +133,19 @@ module Wake
       end
 
       def ruby_lib(name:, srcs:, deps:[], load_path: '.')
-        @collector.call RubyLib.new(label: label(name), srcs: srcs, deps: parse(deps), load_path: canonical_load_path(load_path))
+        label = label(name)
+        srcs = srcs.map { |src| label.path_to(src) }
+        deps = parse(deps)
+        load_path = canonical_load_path(load_path)
+        @collector.call RubyLib.new(label: label, srcs: srcs, deps: deps, load_path: load_path)
         self
       end
 
       def ruby_test(name:, srcs:, deps:[])
-        @collector.call RubyTest.new(label: label(name), srcs: srcs, deps: parse(deps))
+        label = label(name)
+        srcs = srcs.map { |src| label.path_to(src) }
+        deps = parse(deps)
+        @collector.call RubyTest.new(label: label, srcs: srcs, deps: deps)
         self
       end
 
@@ -335,7 +348,7 @@ module Wake
           ].concat(
             load_paths.flat_map { |path| ['-I', path] }
           ).concat(
-            @srcs.map { |src| @label.path_to(src) }
+            @srcs
           )
         )
       end
