@@ -1,6 +1,1521 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env ruby -wU --disable-all
 
-WORKSPACE_PATH = File.expand_path('..', __FILE__)
-$:.unshift(File.join(WORKSPACE_PATH, 'src/main/ruby'))
-require 'wake'
-exit Wake.run(WORKSPACE_PATH, ARGV, STDOUT)
+require "digest/sha2"
+require "net/http"
+require "pathname"
+require "rbconfig"
+require "rubygems" # TODO write a simple version of Gem::Package::TarReader?
+require "rubygems/package"
+require "set"
+require "stringio"
+require "uri"
+require "zlib"
+
+module Wake
+  def self.run(registry)
+    targets = registry.resolve(
+      platform: Platform.from_ruby_config,
+      downloader: HttpDownloader.new,
+      cache: FilesystemCache.new(Pathname.new("var/cache")),
+    )
+
+    plan = ExecutionPlan.new(targets.keys) { |label| targets.fetch(label).dependencies }
+
+    # command = GraphvizCommand.new
+    command = TestCommand.new
+    plan.each { |label| command.visit(label, targets.fetch(label)) }
+    command.run
+
+    0
+  end
+
+  class BuildCommand
+    def visit(label, target)
+      puts "BUILD #{label}"
+    end
+
+    def run
+    end
+  end
+
+  class TestCommand
+    def initialize
+      @build = BuildCommand.new
+    end
+
+    def visit(label, target)
+      @build.visit(label, target)
+    end
+
+    def run
+    end
+  end
+
+  class GraphvizCommand
+    def initialize
+      @nodes = []
+      @edges = []
+    end
+
+    def visit(label, target)
+      @nodes << label
+      target.dependencies.each do |dependency|
+        @edges << [label, dependency]
+      end
+    end
+
+    def run
+      IO.popen("dot -Tpng", "r+") do |dot|
+        dot.write <<~END
+                    digraph D {
+                      rankdir="LR"
+                      #{@nodes.map { |label| "\"#{label}\"" }.join("\n  ")}
+                      #{@edges.map { |label, dep| "\"#{label}\" -> \"#{dep}\"" }.join("\n  ")}
+                    }
+                  END
+        dot.close_write
+        system("open -f -a /System/Applications/Preview.app", in: dot)
+      end
+    end
+  end
+
+  if Kernel.const_defined? :Minitest
+    Test = Minitest::Test
+  else
+    Test = Object
+  end
+
+  class Platform
+    def self.from_ruby_config(config = RbConfig::CONFIG)
+      new(host_os: config.fetch("host_os"))
+    end
+
+    def initialize(host_os:)
+      @host_os = host_os
+    end
+
+    def host_os
+      case @host_os
+      when /darwin/
+        :macos
+      when /linux/
+        :linux
+      end
+    end
+  end
+
+  class PlatformTest < Test
+    def test_host_os_darwin_macos
+      assert_equal :macos, Platform.new(host_os: "darwin19").host_os
+    end
+
+    def test_host_os_linux_linux
+      assert_equal :linux, Platform.new(host_os: "i686-linux").host_os
+    end
+  end
+
+  class Registry
+    def initialize
+      @alias_rule = Rule.new(attributes: { actual: Attribute.new(Label) })
+      @dsl = Class.new(Dsl)
+      @repositories = []
+      @targets = {}
+      @toolchains = []
+    end
+
+    def new_rule(rule_name, **kwargs, &implementation)
+      rule = Rule.new(**kwargs, &implementation)
+
+      # can I define the method with explicit parameters and defaults?
+      @dsl.define_method(rule_name) do |name:, **attributes|
+        @registry.new_target(
+          label: Label.new(package: @package, name: name),
+          rule: rule,
+          attributes: rule.parse(attributes, package: @package).freeze,
+        )
+      end
+    end
+
+    def new_repository_rule(rule_name, **attributes)
+      rule = RepositoryRule.new(**attributes)
+
+      # can I define the method with explicit parameters and defaults?
+      @dsl.define_method(rule_name) do |**attributes|
+        @registry.new_repository(
+          package: @package,
+          rule: rule,
+          attributes: rule.parse(attributes, package: @package).freeze,
+        )
+      end
+    end
+
+    def new_package(package)
+      @dsl.new(registry: self, package: package)
+    end
+
+    def new_repository(package:, rule:, attributes:)
+      @repositories << Repository.new(package: package, rule: rule, attributes: attributes)
+    end
+
+    def new_target(label:, rule:, attributes:)
+      @targets[label] = Target.new(rule: rule, attributes: attributes)
+    end
+
+    def new_toolchain_type(package:, name:)
+    end
+
+    def new_toolchain(package:, name:, os:, toolchain:, toolchain_type:)
+      @toolchains << Toolchain.new(
+        os: os,
+        toolchain: Label.parse(toolchain, package: package),
+        toolchain_type: Label.parse(toolchain_type, package: package),
+      )
+    end
+
+    # TODO might downloader and cache be better passed in the Repository constructor?
+    # TODO reshape Platform to be easy to stub with something from the stdlib.
+    def resolve(platform:, downloader:, cache:)
+      result = @targets.dup
+
+      # TODO lazily include toolchains as we will repository targets!
+      # So, don't bother with //lib/java:compiler unless one of my targets depends on it.
+      @toolchains.select { |toolchain| toolchain.supports?(platform) }.each do |toolchain|
+        result[toolchain.toolchain_type] = Target.new(
+          rule: @alias_rule,
+          attributes: { actual: toolchain.toolchain },
+        )
+      end
+
+      registries = @repositories.map { |repository| repository.load(dsl: @dsl) }
+
+      result.values.
+        map(&:dependencies).
+        reduce(Set.new, &:+).
+        select { |label| !result.key?(label) }.
+        each do |dependency|
+        registries.each do |registry|
+          registry.resolve(dependency, downloader: downloader, cache: cache) do |label, target|
+            result[label] = target
+          end
+        end
+      end
+
+      result.freeze
+    end
+
+    private
+
+    class Dsl
+      def initialize(registry:, package:)
+        @registry = registry
+        @package = package
+      end
+
+      def toolchain_type(name:)
+        @registry.new_toolchain_type(package: @package, name: name)
+      end
+
+      def toolchain(name:, os:, toolchain:, toolchain_type:)
+        @registry.new_toolchain(package: @package, name: name, os: os, toolchain: toolchain, toolchain_type: toolchain_type)
+      end
+    end
+
+    class Toolchain < Struct.new(:os, :toolchain, :toolchain_type, keyword_init: true)
+      def supports?(platform)
+        os == platform.host_os
+      end
+    end
+  end
+
+  class RegistryTest < Test
+    def test_downloading_extracting_selecting
+      registry = Registry.new
+
+      registry.new_repository_rule(
+        :http_archive,
+        url: Attribute.new(URI),
+        name: Attribute.new(String),
+        build: Attribute.new(Proc),
+        implementation: ->(context, name:, url:, build:) {
+          context.package(name).download(
+            url,
+            extractor: Gzip.new(Tar.new(PathCleaner.new(strip_components: 0))),
+          )
+          context.package(name, &build)
+        },
+      )
+
+      registry.new_rule(
+        :file_group,
+        attributes: {
+          srcs: Attribute.new(Label, list: true),
+        },
+      )
+
+      registry.new_rule(
+        :aka,
+        attributes: {
+          actual: Attribute.new(Label),
+        },
+      )
+
+      registry.new_package("lib").instance_exec do
+        http_archive(
+          name: "stuff",
+          url: "https://example.com/stuff.tgz",
+          build: ->() {
+            file_group(
+              name: "files",
+              srcs: [
+                "path/to/foo.txt",
+                "path/to/bar.txt",
+              ],
+            )
+          },
+        )
+
+        aka(
+          name: "files",
+          actual: "//lib/stuff:files",
+        )
+      end
+
+      # Let's make a tarball!
+      io = StringIO.new
+
+      Zlib::GzipWriter.wrap(io) do |gz|
+        Gem::Package::TarWriter.new(gz) do |tar|
+          tar.add_file_simple("path/to/foo.txt", 0644, 0)
+          tar.add_file_simple("path/to/bar.txt", 0644, 0)
+          tar.add_file_simple("path/to/baz.txt", 0644, 0)
+        end
+      end
+
+      targets = registry.resolve(
+        platform: Platform.from_ruby_config,
+        downloader: InMemoryDownloader.new(
+          "https://example.com/stuff.tgz" => io.string,
+        ),
+        cache: InMemoryCache.new,
+      )
+
+      assert_equal [
+        Label["//lib:files"],
+        Label["//lib/stuff:files"],
+        Label["//lib/stuff:path/to/foo.txt"],
+        Label["//lib/stuff:path/to/bar.txt"],
+        Label["//lib/stuff:stuff.tgz"],
+      ].to_set, targets.keys.to_set
+    end
+
+    def test_platform_constraints_for_toolchains
+      registry = Registry.new
+
+      registry.new_rule(:foo_compiler)
+
+      registry.new_repository_rule(
+        :foo_compiler_package,
+        name: Attribute.new(String),
+        implementation: ->(context, name:) {
+          context.package(name) {
+            foo_compiler(name: "compiler")
+          }
+        },
+      )
+
+      registry.new_package("foo").instance_exec do
+        toolchain_type(name: "compiler")
+
+        foo_compiler_package(name: "linux")
+        foo_compiler_package(name: "macos")
+
+        toolchain(
+          name: "compiler_linux",
+          os: :linux,
+          toolchain: "//foo/linux:compiler",
+          toolchain_type: "//foo:compiler",
+        )
+
+        toolchain(
+          name: "compiler_macos",
+          os: :macos,
+          toolchain: "//foo/macos:compiler",
+          toolchain_type: "//foo:compiler",
+        )
+      end
+
+      linux_targets = registry.resolve(
+        platform: Platform.new(host_os: "i686-linux"),
+        downloader: {},
+        cache: {},
+      )
+
+      macos_targets = registry.resolve(
+        platform: Platform.new(host_os: "darwin19"),
+        downloader: {},
+        cache: {},
+      )
+
+      assert_equal Set[Label["//foo/linux:compiler"]],
+        linux_targets[Label["//foo:compiler"]].dependencies
+
+      assert_equal Set[Label["//foo/macos:compiler"]],
+        macos_targets[Label["//foo:compiler"]].dependencies
+    end
+  end
+
+  class InMemoryDownloader
+    def initialize(entries = {})
+      @entries = entries.transform_keys(&URI.method(:parse)).freeze
+    end
+
+    def fetch(url)
+      Response.new(@entries.fetch(url))
+    end
+
+    class Response
+      def initialize(contents)
+        @contents = contents
+      end
+
+      def read(&block)
+        block.call(@contents)
+      end
+    end
+  end
+
+  # TODO observers, progress bars
+  # TODO connection pool?
+  # TODO worker pool?
+  # TODO "integration" test?
+  class HttpDownloader
+    def fetch(url)
+      Reader.new(url)
+    end
+
+    class Reader
+      def initialize(url)
+        @url = url
+      end
+
+      def read(&block)
+        Net::HTTP.get_response(@url) do |response|
+          case response
+          when Net::HTTPSuccess
+            response.read_body(&block)
+          when Net::HTTPRedirection
+            Reader.new(URI.parse(response["location"])).read(&block)
+          else
+            response.error!
+          end
+        end
+      end
+    end
+  end
+
+  class InMemoryCache
+    def initialize
+      @cache = Hash.new { |cache, key| cache[key] = Entry.new }
+    end
+
+    def fetch(key)
+      @cache.fetch(key)
+    end
+
+    def key?(key)
+      @cache.key?(key)
+    end
+
+    def [](key)
+      @cache[key]
+    end
+
+    class Entry
+      def initialize
+        @contents = ""
+      end
+
+      def open(&block)
+        StringIO.open(@contents, "rb+", &block)
+      end
+    end
+  end
+
+  class FilesystemCache
+    def initialize(path)
+      @path = path
+      @path.mkpath
+    end
+
+    def fetch(key)
+      if key?(key)
+        self[key]
+      else
+        raise KeyError.new(receiver: self, key: key)
+      end
+    end
+
+    def key?(key)
+      @path.join(key).exist?
+    end
+
+    def [](key)
+      Entry.new(@path.join(key))
+    end
+
+    class Entry
+      def initialize(path)
+        @path = path
+      end
+
+      def open(&block)
+        @path.open(@path.exist? ? "rb" : "wb", &block)
+      end
+    end
+  end
+
+  # Struct saves the boilerplate of making Label work as a Hash key.
+  class Label < Struct.new(:package, :name, keyword_init: true)
+    def self.[](string)
+      parse(string)
+    end
+
+    def self.parse(string, package: nil)
+      head, rest = string.split(":", 2)
+
+      if head.start_with? "//"
+        parsed_package = head[2..-1]
+        parsed_name = rest
+      elsif rest
+        parsed_package = package
+        parsed_name = rest
+      else
+        parsed_package = package
+        parsed_name = head
+      end
+
+      if parsed_package.nil? || parsed_name.nil?
+        raise "Invalid label: #{string.inspect}"
+      end
+
+      Label.new(package: parsed_package, name: parsed_name).freeze
+    end
+
+    def inspect
+      "#<label #{to_s}>"
+    end
+
+    def to_s
+      "//#{package}:#{name}"
+    end
+  end
+
+  class LabelTest < Test
+    def test_parse
+      label = Label.parse("//src/main:foo")
+      assert_equal "src/main", label.package
+      assert_equal "foo", label.name
+    end
+
+    def test_parse_without_name
+      assert_raises { Label.parse("//src/main") }
+    end
+
+    def test_parse_relative
+      label = Label.parse(":foo", package: "src/main")
+      assert_equal "src/main", label.package
+      assert_equal "foo", label.name
+    end
+
+    def test_parse_relative_without_package
+      assert_raises { Label.parse(":foo") }
+    end
+
+    def test_parse_filename
+      label = Label.parse("foo.kt", package: "src/main")
+      assert_equal "src/main", label.package
+      assert_equal "foo.kt", label.name
+    end
+  end
+
+  class Target
+    def initialize(rule:, attributes:)
+      @rule = rule
+      @attributes = attributes
+    end
+
+    def dependencies
+      @rule.dependencies(@attributes)
+    end
+  end
+
+  class TargetTest < Test
+    def test_dependencies
+      target = Target.new(
+        rule: Rule.new(
+          attributes: {
+            thing: Attribute.new(Label),
+            things: Attribute.new(Label, list: true),
+            irrelevant_things: Attribute.new(URI, list: true),
+          },
+        ),
+        attributes: {
+          thing: Label["//src/main:quux"],
+          things: [
+            Label["//src/main:bar"],
+            Label["//src/main:baz"],
+          ],
+          irrelevant_things: [
+            "a.rb",
+            "b.rb",
+          ],
+        },
+      )
+      assert_equal [
+        Label["//src/main:bar"],
+        Label["//src/main:baz"],
+        Label["//src/main:quux"],
+      ].to_set, target.dependencies
+    end
+  end
+
+  class Rule
+    def initialize(attributes: {}, implementation: ->(context, **attributes) { }, &new_implementation)
+      @attrs = attributes.freeze
+      @implementation = new_implementation || implementation
+    end
+
+    def parse(raw, **options)
+      @attrs.map { |key, attr| [key, attr.parse(raw[key], **options)] }.to_h
+    end
+
+    def dependencies(attributes)
+      @attrs.
+        select { |key, attr| attr.dependency? }.
+        flat_map { |key, attr| attributes.fetch(key) }.
+        to_set
+    end
+  end
+
+  class Repository
+    def initialize(package:, rule:, attributes:)
+      @package = package
+      @rule = rule
+      @attributes = attributes
+    end
+
+    def load(dsl:)
+      registry = Registry.new(dsl: dsl)
+      @rule.load(context: Context.new(registry: registry, package: @package), attributes: @attributes)
+      registry
+    end
+
+    private
+
+    class Registry
+      def initialize(dsl:)
+        @dsl = dsl
+        @downloads = {}
+        @targets = {}
+
+        @download_rule = Rule.new(
+          attributes: {
+            download: Attribute.new(Download),
+            downloader: Attribute.new(Object),
+            cache: Attribute.new(Object),
+          },
+        )
+
+        @extract_rule = Rule.new(
+          attributes: {
+            path: Attribute.new(String),
+            download: Attribute.new(Label),
+          },
+        )
+      end
+
+      def new_download(package:, url:, extractor:)
+        url = URI.parse(url.to_s)
+        label = Label.new(package: package, name: url.path.split("/").last)
+        @downloads[label] = Download.new(label: label, url: url, extractor: extractor)
+      end
+
+      def new_package(package, &block)
+        @dsl.new(registry: self, package: package).instance_exec(&block)
+      end
+
+      def new_target(label:, rule:, attributes:)
+        @targets[label] = Target.new(rule: rule, attributes: attributes)
+      end
+
+      def resolve(label, downloader:, cache:, &registry)
+        target = nil
+
+        if @targets.key?(label)
+          target = @targets.fetch(label)
+        elsif @downloads.key?(label)
+          target = Target.new(
+            rule: @download_rule,
+            attributes: {
+              download: @downloads.fetch(label),
+              downloader: downloader,
+              cache: cache,
+            },
+          )
+        else
+          @downloads.values.select { |d| d.extracts_to?(label) }.each do |download|
+            target = Target.new(
+              rule: @extract_rule,
+              attributes: {
+                path: label.name,
+                download: download.label,
+              },
+            )
+          end
+        end
+
+        if target
+          registry.call(label, target)
+
+          target.dependencies.each do |label|
+            resolve(label, downloader: downloader, cache: cache, &registry)
+          end
+        end
+      end
+    end
+
+    class Context
+      def initialize(registry:, package:)
+        @registry = registry
+        @package = package
+      end
+
+      def download(url, extractor: nil) # I may regret this nil
+        @registry.new_download(package: @package, url: url, extractor: extractor)
+      end
+
+      def package(name, &block)
+        package = [@package, name].join("/")
+
+        if block
+          @registry.new_package(package, &block)
+        else
+          self.class.new(registry: @registry, package: package)
+        end
+      end
+    end
+
+    class Download < Struct.new(:label, :url, :extractor, keyword_init: true)
+      def extracts_to?(label)
+        !extractor.nil? && label.package == self.label.package
+      end
+
+      # def each_extracted_artifact(downloader, cache:)
+      #   # TODO pass in the expected sha256 sum
+      #   # TODO content-addressable cache
+      #   key = Digest::SHA256.hexdigest(url.to_s)
+
+      #   if !cache.key?(key)
+      #     cache[key].open do |dest|
+      #       downloader.fetch(url).read do |segment|
+      #         dest.write(segment)
+      #       end
+      #     end
+      #   end
+
+      #   cache.fetch(key).open do |io|
+      #     extractor.call(label.name, io) do |name, _|
+      #       yield Label.new(package: label.package, name: name), Rule.new # FIXME yield something that's already written the io to disk?
+      #     end
+      #   end
+      # end
+    end
+  end
+
+  class RepositoryRule
+    def initialize(implementation: ->(context, **attributes) { }, **attrs)
+      @attrs = attrs.freeze
+      @implementation = implementation
+    end
+
+    def parse(raw, **options)
+      @attrs.map { |key, attr| [key, attr.parse(raw[key], **options)] }.to_h
+    end
+
+    def load(context:, attributes:)
+      @implementation.call(context, **attributes)
+    end
+  end
+
+  class Attribute
+    def initialize(type, list: false, default: nil)
+      @type = type
+      @list = list
+      @default = default
+    end
+
+    def dependency?
+      @type == Label
+    end
+
+    def parse(raw_value, **options)
+      if @list
+        Array(raw_value || @default).map { |item| try_parse(item, **options) }.freeze
+      else
+        try_parse(raw_value || @default, **options).freeze
+      end
+    end
+
+    private
+
+    def try_parse(raw_value, **options)
+      if @type === raw_value
+        raw_value
+      elsif @type == Label
+        @type.parse(raw_value, **options)
+      else
+        @type.parse(raw_value)
+      end
+    end
+  end
+
+  class AttributeTest < Test
+    def test_parse
+      assert_equal URI.parse("https://example.com"), Attribute.new(URI).parse("https://example.com")
+    end
+
+    def test_parse_already_parsed
+      assert_equal URI.parse("https://example.com"), Attribute.new(URI).parse(URI.parse("https://example.com"))
+    end
+
+    def test_parse_default
+      assert_equal URI.parse("https://example.com"), Attribute.new(URI, default: "https://example.com").parse(nil)
+    end
+
+    def test_parse_nil_no_default
+      # TODO make the error messages better. Requires attribute to know or be passed its name, which we're not doing yet.
+      assert_raises { Attribute.new(Label).parse(nil) }
+      assert_raises { Attribute.new(MavenCoordinates).parse(nil) }
+      assert_raises { Attribute.new(String).parse(nil) }
+      assert_raises { Attribute.new(URI).parse(nil) }
+    end
+
+    def test_parse_list
+      assert_equal [URI.parse("https://example.com")], Attribute.new(URI, list: true).parse(["https://example.com"])
+    end
+
+    def test_parse_list_single
+      assert_equal [URI.parse("https://example.com")], Attribute.new(URI, list: true).parse("https://example.com")
+    end
+
+    def test_parse_list_empty
+      assert_equal [], Attribute.new(URI, list: true).parse(nil)
+    end
+
+    def test_parse_relative_label
+      assert_equal Label["//src/main:foo"], Attribute.new(Label).parse(":foo", package: "src/main")
+    end
+  end
+
+  class Gzip
+    def initialize(delegate)
+      @delegate = delegate
+    end
+
+    def call(name, io, &collector)
+      Zlib::GzipReader.wrap(io) do |gz|
+        @delegate.call(name, gz, &collector)
+      end
+    end
+  end
+
+  class GzipTest < Test
+    def test_extracts_content
+      contents = ""
+
+      StringIO.open(contents) do |io|
+        Zlib::GzipWriter.wrap(io) do |gz|
+          gz.write("Hello!")
+        end
+      end
+
+      entries = {}
+      gzip = Gzip.new(PathCleaner.new(strip_components: 0))
+      gzip.call("file.txt", StringIO.new(contents)) { |path, io|
+        entries[path] = io.read
+      }
+
+      assert_equal ["file.txt"], entries.keys
+      assert_equal "Hello!", entries["file.txt"]
+    end
+  end
+
+  class Tar
+    def initialize(delegate)
+      @delegate = delegate
+    end
+
+    def call(_, io, &collector)
+      Gem::Package::TarReader.new(io) do |tar|
+        tar.each do |entry|
+          @delegate.call(entry.full_name, entry, &collector) if entry.file?
+        end
+      end
+    end
+  end
+
+  class TarTest < Test
+    def test_extracts_files
+      contents = ""
+
+      StringIO.open(contents) do |io|
+        Gem::Package::TarWriter.new(io) do |tar|
+          tar.add_file_simple("file.txt", 0644, 6) do |file|
+            file.write("Hello!")
+          end
+        end
+      end
+
+      entries = {}
+      tar = Tar.new(PathCleaner.new(strip_components: 0))
+      tar.call(nil, StringIO.new(contents)) { |path, io| entries[path] = io.read }
+      assert_equal ["file.txt"], entries.keys
+      assert_equal "Hello!", entries["file.txt"]
+    end
+
+    def test_skips_directories
+      contents = ""
+
+      StringIO.open(contents) do |io|
+        Gem::Package::TarWriter.new(io) do |tar|
+          tar.mkdir("other", 0755)
+        end
+      end
+
+      entries = {}
+      tar = Tar.new(PathCleaner.new(strip_components: 0))
+      tar.call(nil, StringIO.new(contents)) { |path, io| entries[path] = io.read }
+      assert_equal [], entries.keys
+    end
+  end
+
+  class Zip
+    def initialize(delegate)
+      @delegate = delegate
+    end
+
+    def call(name, io, &collector)
+      Reader.new(io).each do |name, io|
+        @delegate.call(name, io, &collector)
+      end
+    end
+
+    # https://en.wikipedia.org/wiki/Zip_(file_format)
+    class Reader
+      MAX_END_OF_CDS_SIZE = 65_536 + 18
+      END_OF_CDS = [0x06054b50].pack("V")
+      CDIR_ENTRY_STATIC_HEADER_LENGTH = 46
+      LOCAL_ENTRY_STATIC_HEADER_LENGTH = 30
+
+      def initialize(io)
+        @io = io
+      end
+
+      def each(&block)
+        begin
+          @io.seek(-MAX_END_OF_CDS_SIZE, IO::SEEK_END)
+        rescue Errno::EINVAL
+          @io.seek(0, IO::SEEK_SET)
+        end
+
+        buffer = @io.read
+        record = EndOfCentralDirectoryRecord.parse(buffer[buffer.rindex(END_OF_CDS)..-1])
+
+        @io.seek(record.offset, IO::SEEK_SET)
+
+        headers = record.size.times.map do
+          header = CentralDirectoryFileHeader.parse(@io.read(CDIR_ENTRY_STATIC_HEADER_LENGTH))
+          header.file_name = @io.read(header.file_name_length)
+          header.extra_field = @io.read(header.extra_field_length)
+          header.file_comment = @io.read(header.file_comment_length)
+          header.freeze
+        end
+
+        headers.select(&:file?).each do |header|
+          @io.seek(header.offset)
+
+          local = LocalFileHeader.parse(@io.read(LOCAL_ENTRY_STATIC_HEADER_LENGTH))
+          local.file_name = @io.read(local.file_name_length)
+          local.extra_field = @io.read(local.extra_field_length)
+          local.freeze
+
+          block.call local.file_name, local.decompress(@io)
+        end
+      end
+
+      class EndOfCentralDirectoryRecord < Struct.new(
+        :end_of_central_directory_signature,
+        :number_of_this_disk,
+        :disk_where_central_directory_starts,
+        :number_of_central_directory_records_on_this_disk,
+        :total_number_of_central_directory_records,
+        :size_of_central_directory_in_bytes,
+        :offset_to_start_of_central_directory_relative_to_start_of_archive,
+        :comment_length,
+        :comment
+      )
+        alias_method :offset, :offset_to_start_of_central_directory_relative_to_start_of_archive
+        alias_method :size, :number_of_central_directory_records_on_this_disk
+
+        def self.parse(buffer)
+          new(*buffer.unpack("VvvvvVVva*")).freeze
+        end
+      end
+
+      class CentralDirectoryFileHeader < Struct.new(
+        :central_directory_file_header_signature,
+        :version_made_by,
+        :filesystem_type,
+        :version_needed_to_extract,
+        :general_purpose_bit_flag,
+        :compression_method,
+        :file_last_modification_time,
+        :file_last_modification_date,
+        :crc_32_of_uncompressed_data,
+        :compressed_size,
+        :uncompressed_size,
+        :file_name_length,
+        :extra_field_length,
+        :file_comment_length,
+        :disk_number_where_file_starts,
+        :internal_file_attributes,
+        :external_file_attributes,
+        :relative_offset_of_local_file_header,
+        :file_name,
+        :extra_field,
+        :file_comment,
+      )
+        alias_method :offset, :relative_offset_of_local_file_header
+
+        def self.parse(buffer)
+          new(*buffer.unpack("VCCvvvvvVVVvvvvvVV"))
+        end
+
+        def file?
+          if filesystem_type != 3 # Unix
+            raise "Unknown filesystem_type #{filesystem_type.inspect} for entry #{file_name.inspect}"
+          end
+
+          # 4 means directory, 10 means symlink
+          external_file_attributes >> 28 == 8
+        end
+      end
+
+      class LocalFileHeader < Struct.new(
+        :local_file_header_signature,
+        :version_needed_to_extract,
+        :general_purpose_bit_flag,
+        :compression_method,
+        :file_last_modification_time,
+        :file_last_modification_date,
+        :crc_32_of_uncompressed_data,
+        :compressed_size,
+        :uncompressed_size,
+        :file_name_length,
+        :extra_field_length,
+        :file_name,
+        :extra_field,
+      )
+        def self.parse(buffer)
+          new(*buffer.unpack("VvvvvvVVVvv"))
+        end
+
+        def decompress(io)
+          case compression_method
+          when 0
+            IOSlice.new(io, io.pos, compressed_size)
+          when 8
+            Inflater.new(IOSlice.new(io, io.pos, compressed_size))
+          else
+            raise "Unsupported compression_method #{compression_method.inspect} for entry #{file_name.inspect}"
+          end
+        end
+      end
+    end
+  end
+
+  class ZipTest < Test
+    require "base64"
+
+    def test_extracts_files
+      # This is a zip file containing one file, path/to/file.txt, with the contents "Hello!\n".
+      encoded = <<~END.gsub("\n", "")
+        UEsDBAoAAAAAAAZ2xVAAAAAAAAAAAAAAAAAFABwAcGF0aC9VVAkAA2uT2l54
+        k9pedXgLAAEE9QEAAAQUAAAAUEsDBAoAAAAAAAl2xVAAAAAAAAAAAAAAAAAI
+        ABwAcGF0aC90by9VVAkAA3GT2l56k9pedXgLAAEE9QEAAAQUAAAAUEsDBAoA
+        AAAAAE92xVCe2EKwBwAAAAcAAAAQABwAcGF0aC90by9maWxlLnR4dFVUCQAD
+        9ZPaXveT2l51eAsAAQT1AQAABBQAAABIZWxsbyEKUEsBAh4DCgAAAAAABnbF
+        UAAAAAAAAAAAAAAAAAUAGAAAAAAAAAAQAO1BAAAAAHBhdGgvVVQFAANrk9pe
+        dXgLAAEE9QEAAAQUAAAAUEsBAh4DCgAAAAAACXbFUAAAAAAAAAAAAAAAAAgA
+        GAAAAAAAAAAQAO1BPwAAAHBhdGgvdG8vVVQFAANxk9pedXgLAAEE9QEAAAQU
+        AAAAUEsBAh4DCgAAAAAAT3bFUJ7YQrAHAAAABwAAABAAGAAAAAAAAQAAAKSB
+        gQAAAHBhdGgvdG8vZmlsZS50eHRVVAUAA/WT2l51eAsAAQT1AQAABBQAAABQ
+        SwUGAAAAAAMAAwDvAAAA0gAAAAAA
+      END
+
+      decoded = Base64.decode64(encoded)
+
+      entries = {}
+      zip = Zip.new(PathCleaner.new(strip_components: 0))
+      zip.call(nil, StringIO.new(decoded)) { |path, io| entries[path] = io.read }
+      assert_equal ["path/to/file.txt"], entries.keys
+      assert_equal "Hello!\n", entries["path/to/file.txt"]
+    end
+  end
+
+  class Inflater
+    def initialize(src)
+      @src = src
+      @inflate = Zlib::Inflate.new(-Zlib::MAX_WBITS)
+      @buffer = ""
+    end
+
+    # TODO this implementation is a bit convoluted, lifted verbatim from rubyzip.
+    def read(length = nil, outbuf = "")
+      return (length.nil? || length.zero? ? "" : nil) if eof?
+
+      while length.nil? || (@buffer.bytesize < length)
+        break if input_finished?
+        @buffer << produce_input
+      end
+
+      outbuf.replace(@buffer.slice!(0...(length || @buffer.bytesize)))
+    end
+
+    private
+
+    def eof?
+      @buffer.empty? && input_finished?
+    end
+
+    def produce_input
+      retried = 0
+      begin
+        @inflate.inflate(@src.read(32_768))
+      rescue Zlib::BufError
+        raise if retried >= 5
+        retried += 1
+        retry
+      end
+    end
+
+    def input_finished?
+      @inflate.finished?
+    end
+  end
+
+  class InflaterTest < Test
+    def setup
+      deflate = Zlib::Deflate.new(Zlib::DEFAULT_COMPRESSION, -Zlib::MAX_WBITS)
+      @io = Inflater.new(StringIO.new(deflate.deflate("Hello, world!", Zlib::FINISH)))
+    end
+
+    def test_read
+      assert_equal "Hello, world!", @io.read
+    end
+
+    def test_read_length
+      assert_equal "Hello", @io.read(5)
+      assert_equal ", wor", @io.read(5)
+      assert_equal "ld!", @io.read(5)
+    end
+
+    def test_eof_read_nil
+      @io.read
+      assert_equal "", @io.read
+    end
+
+    def test_eof_read_zero
+      @io.read
+      assert_equal "", @io.read(0)
+    end
+
+    def test_eof_read_length
+      @io.read
+      assert_nil @io.read(2)
+    end
+
+    def test_io_copy_stream
+      dest = StringIO.new
+      IO.copy_stream(@io, dest)
+      assert_equal "Hello, world!", dest.string
+    end
+  end
+
+  class IOSlice
+    def initialize(source, start, length)
+      @source = source
+      @source.seek(start)
+      @length = length
+    end
+
+    def read(length = nil, outbuf = "")
+      buffer = nil
+
+      if length == 0
+        buffer = ""
+      elsif length.nil?
+        buffer = @source.read(@length)
+        @length = 0
+      elsif (length = [@length, length].min) > 0
+        buffer = @source.read(length)
+        @length -= length
+      end
+
+      if buffer
+        outbuf.replace(buffer)
+      end
+    end
+  end
+
+  class IOSliceTest < Test
+    def setup
+      @io = IOSlice.new(StringIO.new("Hello, world!"), 7, 5)
+    end
+
+    def test_read
+      assert_equal "world", @io.read
+    end
+
+    def test_read_length
+      assert_equal "wo", @io.read(2)
+      assert_equal "rl", @io.read(2)
+      assert_equal "d", @io.read(2)
+    end
+
+    def test_eof_read_nil
+      @io.read
+      assert_equal "", @io.read
+    end
+
+    def test_eof_read_zero
+      @io.read
+      assert_equal "", @io.read(0)
+    end
+
+    def test_eof_read_length
+      @io.read
+      assert_nil @io.read(2)
+    end
+
+    def test_learning_stringio_eof_read_length_outbuf
+      outbuf = "foo"
+      io = StringIO.new("")
+      io.read(2, outbuf)
+      assert_equal "", outbuf
+    end
+
+    def test_io_copy_stream
+      dest = StringIO.new
+      IO.copy_stream(@io, dest)
+      assert_equal "world", dest.string
+    end
+  end
+
+  class PathCleaner
+    def self.parse(strip_components)
+      new(strip_components: strip_components)
+    end
+
+    def initialize(strip_components:)
+      @strip_components = strip_components
+    end
+
+    def call(name, io, &collector)
+      path = Pathname.new(name).cleanpath.to_path
+      components = path.split("/")
+      components.shift(@strip_components)
+      result = components.join("/")
+      return if result.empty?
+      collector.call(result, io)
+    end
+  end
+
+  class PathCleanerTest < Test
+    def test_cleans_paths
+      result = nil
+      PathCleaner.new(strip_components: 0).
+        call("./path/to/file.txt", nil) { |name| result = name }
+      assert_equal "path/to/file.txt", result
+    end
+
+    def test_strips_components
+      result = nil
+      PathCleaner.new(strip_components: 2).
+        call("./path/to/my/file.txt", nil) { |name| result = name }
+      assert_equal "my/file.txt", result
+    end
+
+    def test_skips_stripped_components
+      result = nil
+      PathCleaner.new(strip_components: 2).
+        call("./bar.txt", nil) { |name| result = name }
+      assert_nil result
+    end
+  end
+
+  class MavenCoordinates
+    def self.parse(string)
+      string.match %r{^([^:]+):([^:]+):([^:]+)$} do |match|
+        new(match[1], match[2], match[3])
+      end
+    end
+
+    def initialize(group, artifact, version, classifier: nil, packaging: :jar)
+      @group = group
+      @artifact = artifact
+      @version = version
+      @classifier = classifier
+      @packaging = packaging
+    end
+
+    def filename(suffix: nil)
+      [[@artifact, @version, @classifier].compact.join("-"), @packaging, suffix].compact.join(".")
+    end
+
+    def package_path
+      "#{@group.gsub(".", "_")}/#{@artifact.gsub("-", "_")}"
+    end
+
+    def sources
+      self.class.new(@group, @artifact, @version, classifier: :sources, packaging: @packaging)
+    end
+
+    def url(repository, suffix: nil)
+      repository + [repository.path, *@group.split("."), @artifact, @version, filename(suffix: suffix)].join("/")
+    end
+  end
+
+  class MavenCoordinatesTest < Test
+    def setup
+      @subject = MavenCoordinates.parse("a.b.c:x-y-z:1.2.3")
+    end
+
+    def test_filename
+      assert_equal "x-y-z-1.2.3.jar", @subject.filename
+    end
+
+    def test_filename_with_suffix
+      assert_equal "x-y-z-1.2.3.jar.md5", @subject.filename(suffix: :md5)
+    end
+
+    def test_package_path
+      assert_equal "a_b_c/x_y_z", @subject.package_path
+    end
+
+    def test_sources_filename
+      assert_equal "x-y-z-1.2.3-sources.jar", @subject.sources.filename
+    end
+
+    def test_url
+      assert_equal URI.parse("https://example.com/maven/a/b/c/x-y-z/1.2.3/x-y-z-1.2.3.jar"),
+        @subject.url(URI.parse("https://example.com/maven"))
+    end
+  end
+
+  class ExecutionPlan
+    def initialize(roots, &children)
+      @blocked = {}
+      @blocking = {}
+      @available = Queue.new
+      @mutex = Mutex.new
+
+      traverse = lambda do |node, parent = nil|
+        if !@blocked.key?(node)
+          @blocked[node] = 0
+          @blocking[node] = []
+          children[node].each { |child| traverse[child, node] }
+        end
+
+        if parent
+          @blocked[parent] += 1
+          @blocking[node] << parent
+        end
+      end
+
+      roots.each(&traverse)
+
+      @blocked.each { |node, count| @available << node if count.zero? }
+      @blocked.delete_if { |node, count| count.zero? }
+    end
+
+    def each(&block)
+      while node = @available.pop
+        block.call(node)
+        cleanup(node)
+      end
+    end
+
+    private
+
+    def cleanup(node)
+      @mutex.synchronize do
+        @blocking[node].each do |parent|
+          @blocked[parent] -= 1
+          if @blocked[parent] == 0
+            @blocked.delete(parent)
+            @available << parent
+          end
+        end
+
+        if @blocked.empty?
+          @available.close
+        end
+      end
+    end
+  end
+
+  class ExecutionPlanTest < Test
+    def test_each
+      #   a     b
+      #  / \    |
+      # c   d   e
+      #    / \ / \
+      #   f   g   h
+      #      / \
+      #     i   j
+      edges = {
+        a: [:c, :d],
+        b: [:e],
+        c: [],
+        d: [:f, :g],
+        e: [:g, :h],
+        f: [],
+        g: [:i, :j],
+        h: [],
+        i: [],
+        j: [],
+      }
+      record = []
+      plan = ExecutionPlan.new([:a, :b]) { |node| edges[node] }
+      plan.each { |node| record << node }
+      assert_equal [:c, :f, :i, :j, :h, :g, :d, :e, :a, :b], record
+    end
+  end
+
+  class LintTest < Test
+    def test_all_tests_are_tests
+      assert_equal [], Wake.constants.
+                     select { |name| name =~ /^.+Test$/ }.
+                     map { |name| Wake.const_get(name) }.
+                     select { |klass| !klass.ancestors.include?(Test) }
+    end
+  end
+
+  if __FILE__ == $0 && !Kernel.const_defined?(:Minitest)
+    registry = Registry.new
+
+    registry.new_rule(:java_compiler)
+
+    registry.new_rule(
+      :java_import,
+      attributes: {
+        jar: Attribute.new(Label, list: true),
+        source_jar: Attribute.new(Label),
+      },
+    )
+
+    registry.new_rule(
+      :java_lib,
+      attributes: {
+        deps: Attribute.new(Label, list: true), # , providers: [JavaInfo]),
+        compiler: Attribute.new(Label, default: "//lib/java:compiler"), #, providers: [JavaCompilerInfo]),
+      # srcs: Attribute.new(Label, list: true),
+      },
+    )
+
+    registry.new_rule(:java_runtime)
+
+    registry.new_rule(:kt_jvm_lib)
+
+    registry.new_rule(
+      :kt_jvm_test,
+      attributes: {
+        main_class: Attribute.new(String, default: "org.matthewtodd.junit.WakeLauncher"),
+        runtime: Attribute.new(Label, default: "//lib/java:runtime"),
+        runtime_deps: Attribute.new(Label, list: true),
+        test_class: Attribute.new(String),
+        test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit"),
+      },
+    ) do |context, main_class:, runtime:, runtime_deps:, test_class:, test_runner:|
+      # So, what am I doing here?
+      # Rule implementations produce declared artifacts.
+      # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
+      # So, this rule needs to Provide something that Wake will be able to "run" with.
+      return
+    end
+
+    registry.new_rule(:ruby_lib)
+
+    registry.new_repository_rule(
+      :http_archive,
+      name: Attribute.new(String),
+      url: Attribute.new(URI),
+      strip_components: Attribute.new(PathCleaner, default: 0),
+      build: Attribute.new(Proc, default: ->() { }),
+      implementation: ->(context, name:, url:, strip_components:, build:) {
+        extractor = case url.path
+          when /\.tar\.gz$/
+            Gzip.new(Tar.new(strip_components))
+          when /\.zip$/
+            Zip.new(strip_components)
+          else
+            raise "Unsupported archive format #{url}"
+          end
+
+        context.package(name).download(url, extractor: extractor)
+
+        context.package(name, &build)
+      },
+    )
+
+    registry.new_repository_rule(
+      :http_file,
+      name: Attribute.new(String),
+      url: Attribute.new(URI),
+      sha256: Attribute.new(String),
+      build: Attribute.new(Proc, default: ->() { }),
+      implementation: ->(context, name:, url:, sha256:, build:) {
+        context.package(name, &build)
+      },
+    )
+
+    registry.new_repository_rule(
+      :maven_jar,
+      repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
+      artifact: Attribute.new(MavenCoordinates),
+      sha256: Attribute.new(String),
+      implementation: ->(context, repository:, artifact:, sha256:) {
+        [artifact, artifact.sources].each do |jar|
+          context.package(jar.package_path).download(jar.url(repository))
+        end
+
+        context.package(artifact.package_path) do
+          java_import(
+            name: "jar",
+            jar: artifact.filename,
+            source_jar: artifact.sources.filename,
+          )
+        end
+      },
+    )
+
+    registry.new_repository_rule(:ruby_gem)
+
+    Pathname.glob("**/BUILD") do |build|
+      registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
+    end
+
+    exit Wake.run(registry)
+  end
+end
