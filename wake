@@ -22,7 +22,7 @@ module Wake
     plan = ExecutionPlan.new(targets.keys) { |label| targets.fetch(label).dependencies }
 
     # command = GraphvizCommand.new
-    command = TestCommand.new
+    command = BuildCommand.new
     plan.each { |label| command.visit(label, targets.fetch(label)) }
     command.run
 
@@ -32,19 +32,6 @@ module Wake
   class BuildCommand
     def visit(label, target)
       puts "BUILD #{label}"
-    end
-
-    def run
-    end
-  end
-
-  class TestCommand
-    def initialize
-      @build = BuildCommand.new
-    end
-
-    def visit(label, target)
-      @build.visit(label, target)
     end
 
     def run
@@ -123,8 +110,8 @@ module Wake
       @toolchains = []
     end
 
-    def new_rule(rule_name, **kwargs, &implementation)
-      rule = Rule.new(**kwargs, &implementation)
+    def new_rule(rule_name, **kwargs)
+      rule = Rule.new(**kwargs)
 
       # can I define the method with explicit parameters and defaults?
       @dsl.define_method(rule_name) do |name:, **attributes|
@@ -547,6 +534,9 @@ module Wake
     def dependencies
       @rule.dependencies(@attributes)
     end
+
+    def call
+    end
   end
 
   class TargetTest < Test
@@ -580,9 +570,9 @@ module Wake
   end
 
   class Rule
-    def initialize(attributes: {}, implementation: ->(context, **attributes) { }, &new_implementation)
+    def initialize(attributes: {}, implementation: ->(context, **attributes) { })
       @attrs = attributes.freeze
-      @implementation = new_implementation || implementation
+      @implementation = implementation
     end
 
     def parse(raw, **options)
@@ -594,6 +584,9 @@ module Wake
         select { |key, attr| attr.dependency? }.
         flat_map { |key, attr| attributes.fetch(key) }.
         to_set
+    end
+
+    def call
     end
   end
 
@@ -1447,13 +1440,14 @@ module Wake
         test_class: Attribute.new(String),
         test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit"),
       },
-    ) do |context, main_class:, runtime:, runtime_deps:, test_class:, test_runner:|
-      # So, what am I doing here?
-      # Rule implementations produce declared artifacts.
-      # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
-      # So, this rule needs to Provide something that Wake will be able to "run" with.
-      return
-    end
+      implementation: ->(context, main_class:, runtime:, runtime_deps:, test_class:, test_runner:) {
+        # So, what am I doing here?
+        # Rule implementations produce declared artifacts.
+        # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
+        # So, this rule needs to Provide something that Wake will be able to "run" with.
+        return
+      },
+    )
 
     registry.new_rule(:ruby_lib)
 
@@ -1519,3 +1513,15 @@ module Wake
     exit Wake.run(registry)
   end
 end
+
+# TODO this modeline doesn't work. Use this hint to make something that does,
+# and turn on Autoformat the same way.
+
+# Hint: If you would like to do something else than setting an option, you
+# could define an autocommand that checks the file for a specific string. For
+# example:
+#   au BufReadPost * if getline(1) =~ "VAR" | call SetVar() | endif
+# And define a function SetVar() that does something with the line containing
+# "VAR".
+
+# tagfunc=RubyBufferTagFunc
