@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby -wU --disable-all
 
+# :set tagfunc=RubyBufferTagFunc
 require "digest/sha2"
 require "net/http"
 require "pathname"
@@ -30,11 +31,26 @@ module Wake
   end
 
   class BuildCommand
+    def initialize
+      @providers = {}
+    end
+
     def visit(label, target)
-      puts "BUILD #{label}"
+      target.call(Context.new(label, @providers))
     end
 
     def run
+    end
+
+    private
+
+    class Context
+      def initialize(label, providers)
+      end
+
+      def resolve(attributes)
+        attributes # TODO map to providers
+      end
     end
   end
 
@@ -103,22 +119,20 @@ module Wake
 
   class Registry
     def initialize
-      @alias_rule = Rule.new(attributes: { actual: Attribute.new(Label) })
+      @alias_rule = ->(context, actual:) { }
       @dsl = Class.new(Dsl)
       @repositories = []
       @targets = {}
       @toolchains = []
     end
 
-    def new_rule(rule_name, **kwargs)
-      rule = Rule.new(**kwargs)
-
+    def new_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
       # can I define the method with explicit parameters and defaults?
-      @dsl.define_method(rule_name) do |name:, **attributes|
+      @dsl.define_method(rule_name) do |name:, **attrs|
         @registry.new_target(
           label: Label.new(package: @package, name: name),
-          rule: rule,
-          attributes: rule.parse(attributes, package: @package).freeze,
+          rule: implementation,
+          attributes: attributes.map { |name, type| [name, type.parse(attrs[name], package: @package)] }.to_h.freeze,
         )
       end
     end
@@ -532,23 +546,18 @@ module Wake
     end
 
     def dependencies
-      @rule.dependencies(@attributes)
+      @attributes.values.select { |v| Label === v || Array === v && Label === v.first }.flatten.to_set
     end
 
-    def call
+    def call(context)
+      @rule.call(context, **@attributes)
     end
   end
 
   class TargetTest < Test
     def test_dependencies
       target = Target.new(
-        rule: Rule.new(
-          attributes: {
-            thing: Attribute.new(Label),
-            things: Attribute.new(Label, list: true),
-            irrelevant_things: Attribute.new(URI, list: true),
-          },
-        ),
+        rule: ->(context, **attributes) { },
         attributes: {
           thing: Label["//src/main:quux"],
           things: [
@@ -566,27 +575,6 @@ module Wake
         Label["//src/main:baz"],
         Label["//src/main:quux"],
       ].to_set, target.dependencies
-    end
-  end
-
-  class Rule
-    def initialize(attributes: {}, implementation: ->(context, **attributes) { })
-      @attrs = attributes.freeze
-      @implementation = implementation
-    end
-
-    def parse(raw, **options)
-      @attrs.map { |key, attr| [key, attr.parse(raw[key], **options)] }.to_h
-    end
-
-    def dependencies(attributes)
-      @attrs.
-        select { |key, attr| attr.dependency? }.
-        flat_map { |key, attr| attributes.fetch(key) }.
-        to_set
-    end
-
-    def call
     end
   end
 
@@ -611,20 +599,8 @@ module Wake
         @downloads = {}
         @targets = {}
 
-        @download_rule = Rule.new(
-          attributes: {
-            download: Attribute.new(Download),
-            downloader: Attribute.new(Object),
-            cache: Attribute.new(Object),
-          },
-        )
-
-        @extract_rule = Rule.new(
-          attributes: {
-            path: Attribute.new(String),
-            download: Attribute.new(Label),
-          },
-        )
+        @download_rule = ->(context, download:, downloader:, cache:) { }
+        @extract_rule = ->(context, path:, download:) { }
       end
 
       def new_download(package:, url:, extractor:)
@@ -1523,5 +1499,3 @@ end
 #   au BufReadPost * if getline(1) =~ "VAR" | call SetVar() | endif
 # And define a function SetVar() that does something with the line containing
 # "VAR".
-
-# tagfunc=RubyBufferTagFunc
