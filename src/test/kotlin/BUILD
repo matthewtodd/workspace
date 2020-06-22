@@ -1,6 +1,6 @@
 kt_jvm_lib(
   name: "lib",
-  srcs: ["ExampleTest.kt"],
+  # srcs: ["ExampleTest.kt"],
 )
 
 # TODO there's a lot of duplication here, but I'd like to keep the rules

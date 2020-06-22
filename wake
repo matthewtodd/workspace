@@ -13,7 +13,112 @@ require "uri"
 require "zlib"
 
 module Wake
-  def self.run(registry)
+  class FileInfo
+  end
+
+  def self.run
+    registry = Registry.new
+
+    registry.new_rule(:java_compiler)
+
+    registry.new_rule(
+      :java_import,
+      attributes: {
+        jar: Attribute.new(Label, list: true),
+        source_jar: Attribute.new(Label),
+      },
+      implementation: ->(context, jar:, source_jar:) {
+        return
+      },
+    )
+
+    registry.new_rule(
+      :java_lib,
+      attributes: {
+        deps: Attribute.new(Label, list: true), # , providers: [JavaInfo]),
+        compiler: Attribute.new(Label, default: "//lib/java:compiler"), #, providers: [JavaCompilerInfo]),
+      # srcs: Attribute.new(Label, list: true),
+      },
+    )
+
+    registry.new_rule(:java_runtime)
+
+    registry.new_rule(:kt_jvm_lib)
+
+    registry.new_rule(
+      :kt_jvm_test,
+      attributes: {
+        main_class: Attribute.new(String, default: "org.matthewtodd.junit.WakeLauncher"),
+        runtime: Attribute.new(Label, default: "//lib/java:runtime"),
+        runtime_deps: Attribute.new(Label, list: true),
+        test_class: Attribute.new(String),
+        test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit"),
+      },
+      implementation: ->(context, main_class:, runtime:, runtime_deps:, test_class:, test_runner:) {
+        # So, what am I doing here?
+        # Rule implementations produce declared artifacts.
+        # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
+        # So, this rule needs to Provide something that Wake will be able to "run" with.
+        return
+      },
+    )
+
+    registry.new_rule(:ruby_lib)
+
+    registry.new_repository_rule(
+      :http_archive,
+      attributes: {
+        name: Attribute.new(String),
+        url: Attribute.new(URI),
+        strip_components: Attribute.new(PathCleaner, default: 0),
+        build: Attribute.new(Proc, default: ->() { }),
+      },
+      implementation: ->(context, name:, url:, strip_components:, build:) {
+        extractor = case url.path
+          when /\.tar\.gz$/
+            Gzip.new(Tar.new(strip_components))
+          when /\.zip$/
+            Zip.new(strip_components)
+          else
+            raise "Unsupported archive format #{url}"
+          end
+
+        context.package(name).download(url, extractor: extractor)
+
+        context.package(name, &build)
+      },
+    )
+
+    registry.new_repository_rule(
+      :maven_jar,
+      attributes: {
+        repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
+        artifact: Attribute.new(MavenCoordinates),
+        sha256: Attribute.new(String),
+      },
+      implementation: ->(context, repository:, artifact:, sha256:) {
+        [artifact, artifact.sources].each do |jar|
+          context.package(jar.package_path).download(jar.url(repository))
+        end
+
+        context.package(artifact.package_path) do
+          java_import(
+            name: "jar",
+            jar: artifact.filename,
+            source_jar: artifact.sources.filename,
+          )
+        end
+      },
+    )
+
+    registry.new_repository_rule(:ruby_gem)
+
+    # puts registry.help
+
+    Pathname.glob("**/BUILD") do |build|
+      registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
+    end
+
     targets = registry.resolve(
       platform: Platform.from_ruby_config,
       downloader: HttpDownloader.new,
@@ -36,7 +141,7 @@ module Wake
     end
 
     def visit(label, target)
-      target.call(Context.new(label, @providers))
+      target.invoke(Context.new(label, @providers))
     end
 
     def run
@@ -46,10 +151,12 @@ module Wake
 
     class Context
       def initialize(label, providers)
+        @label = label
+        @providers = providers
       end
 
-      def resolve(attributes)
-        attributes # TODO map to providers
+      def invoke(rule, attributes)
+        rule.call(self, **attributes.using(@providers))
       end
     end
   end
@@ -120,34 +227,67 @@ module Wake
   class Registry
     def initialize
       @alias_rule = ->(context, actual:) { }
+      @alias_schema = AttributeSchema.new(actual: Attribute.new(Label))
       @dsl = Class.new(Dsl)
+      @help_rules = {}
+      @help_repository_rules = {}
       @repositories = []
       @targets = {}
       @toolchains = []
     end
 
+    # This is just me playing around. I wonder if we would ever find this kind
+    # of thing useful? Or maybe we want it just in time: show the method
+    # signature when we mis-call a rule?
+    def help
+      help = []
+      help << @help_rules.map { |name, schema| "#{name}(\n  #{schema.dsl_method_parameters(:name).split(", ").join(",\n  ")}\n)" }.join("\n\n")
+      help << @help_repository_rules.map { |name, schema| "#{name}(\n  #{schema.dsl_method_parameters.split(", ").join(",\n  ")}\n)" }.join("\n\n")
+      help.join("\n\n")
+    end
+
     def new_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
-      # can I define the method with explicit parameters and defaults?
-      @dsl.define_method(rule_name) do |name:, **attrs|
+      schema = AttributeSchema.new(attributes)
+
+      @help_rules[rule_name] = schema
+
+      @dsl.class_eval(<<~END)
+        def #{rule_name}(#{schema.dsl_method_parameters(:name)})
+          __#{rule_name}(#{schema.dsl_method_forwarding_parameters(:name)})
+        end
+      END
+
+      @dsl.define_method("__#{rule_name}") do |name:, **attributes|
         @registry.new_target(
           label: Label.new(package: @package, name: name),
           rule: implementation,
-          attributes: attributes.map { |name, type| [name, type.parse(attrs[name], package: @package)] }.to_h.freeze,
+          attributes: schema.parse(attributes, package: @package),
         )
       end
+
+      @dsl.class_eval("private :__#{rule_name}")
     end
 
-    def new_repository_rule(rule_name, **attributes)
-      rule = RepositoryRule.new(**attributes)
+    def new_repository_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
+      schema = AttributeSchema.new(attributes)
 
-      # can I define the method with explicit parameters and defaults?
-      @dsl.define_method(rule_name) do |**attributes|
+      @help_repository_rules[rule_name] = schema
+
+      @dsl.class_eval(<<~END)
+        def #{rule_name}(#{schema.dsl_method_parameters})
+          __#{rule_name}(#{schema.dsl_method_forwarding_parameters})
+        end
+      END
+
+      @dsl.define_method("__#{rule_name}") do |**attributes|
         @registry.new_repository(
           package: @package,
-          rule: rule,
-          attributes: rule.parse(attributes, package: @package).freeze,
+          rule: implementation,
+          attributes: schema.parse(attributes, package: @package),
         )
       end
+
+      @dsl.class_eval("private :__#{rule_name}")
     end
 
     def new_package(package)
@@ -183,7 +323,7 @@ module Wake
       @toolchains.select { |toolchain| toolchain.supports?(platform) }.each do |toolchain|
         result[toolchain.toolchain_type] = Target.new(
           rule: @alias_rule,
-          attributes: { actual: toolchain.toolchain },
+          attributes: @alias_schema.parse({ actual: toolchain.toolchain }),
         )
       end
 
@@ -234,9 +374,11 @@ module Wake
 
       registry.new_repository_rule(
         :http_archive,
-        url: Attribute.new(URI),
-        name: Attribute.new(String),
-        build: Attribute.new(Proc),
+        attributes: {
+          url: Attribute.new(URI),
+          name: Attribute.new(String),
+          build: Attribute.new(Proc),
+        },
         implementation: ->(context, name:, url:, build:) {
           context.package(name).download(
             url,
@@ -316,7 +458,9 @@ module Wake
 
       registry.new_repository_rule(
         :foo_compiler_package,
-        name: Attribute.new(String),
+        attributes: {
+          name: Attribute.new(String),
+        },
         implementation: ->(context, name:) {
           context.package(name) {
             foo_compiler(name: "compiler")
@@ -546,11 +690,11 @@ module Wake
     end
 
     def dependencies
-      @attributes.values.select { |v| Label === v || Array === v && Label === v.first }.flatten.to_set
+      @attributes.dependencies
     end
 
-    def call(context)
-      @rule.call(context, **@attributes)
+    def invoke(context)
+      context.invoke(@rule, @attributes)
     end
   end
 
@@ -558,17 +702,21 @@ module Wake
     def test_dependencies
       target = Target.new(
         rule: ->(context, **attributes) { },
-        attributes: {
-          thing: Label["//src/main:quux"],
+        attributes: AttributeSchema.new(
+          thing: Attribute.new(Label),
+          things: Attribute.new(Label, list: true),
+          irrelevant_things: Attribute.new(String, list: true),
+        ).parse({
+          thing: "//src/main:quux",
           things: [
-            Label["//src/main:bar"],
-            Label["//src/main:baz"],
+            "//src/main:bar",
+            "//src/main:baz",
           ],
           irrelevant_things: [
             "a.rb",
             "b.rb",
           ],
-        },
+        }),
       )
       assert_equal [
         Label["//src/main:bar"],
@@ -587,7 +735,7 @@ module Wake
 
     def load(dsl:)
       registry = Registry.new(dsl: dsl)
-      @rule.load(context: Context.new(registry: registry, package: @package), attributes: @attributes)
+      @rule.call(Context.new(registry: registry, package: @package), **@attributes)
       registry
     end
 
@@ -599,8 +747,25 @@ module Wake
         @downloads = {}
         @targets = {}
 
-        @download_rule = ->(context, download:, downloader:, cache:) { }
-        @extract_rule = ->(context, path:, download:) { }
+        @download_schema = AttributeSchema.new(
+          download: Attribute.new(Download),
+          downloader: Attribute.new(Object),
+          cache: Attribute.new(Object),
+        )
+
+        @download_rule = ->(context, download:, downloader:, cache:) {
+          # TODO here's where we put a FileInfo in the context. Or we return one?
+          return
+        }
+
+        @extract_schema = AttributeSchema.new(
+          path: Attribute.new(String),
+          download: Attribute.new(Label),
+        )
+
+        @extract_rule = ->(context, path:, download:) {
+          return
+        }
       end
 
       def new_download(package:, url:, extractor:)
@@ -625,20 +790,20 @@ module Wake
         elsif @downloads.key?(label)
           target = Target.new(
             rule: @download_rule,
-            attributes: {
+            attributes: @download_schema.parse({
               download: @downloads.fetch(label),
               downloader: downloader,
               cache: cache,
-            },
+            }),
           )
         else
           @downloads.values.select { |d| d.extracts_to?(label) }.each do |download|
             target = Target.new(
               rule: @extract_rule,
-              attributes: {
+              attributes: @extract_schema.parse({
                 path: label.name,
                 download: download.label,
-              },
+              }),
             )
           end
         end
@@ -701,30 +866,93 @@ module Wake
     end
   end
 
-  class RepositoryRule
-    def initialize(implementation: ->(context, **attributes) { }, **attrs)
-      @attrs = attrs.freeze
-      @implementation = implementation
+  class AttributeSchema
+    def initialize(fields = {})
+      @fields = fields
+    end
+
+    def dependencies(values)
+      @fields.map { |name, type| type.dependencies(values.fetch(name)) }.reduce(Set.new, &:merge).freeze
+    end
+
+    def dsl_method_parameters(prefix = nil)
+      extra = prefix ? ["#{prefix}:"] : []
+      extra.concat(@fields.map { |name, type| type.as_method_parameter(name) }).join(", ")
+    end
+
+    def dsl_method_forwarding_parameters(prefix = nil)
+      extra = prefix ? ["#{prefix}: #{prefix}"] : []
+      extra.concat(@fields.keys.map { |name| "#{name}: #{name}" }).join(", ")
     end
 
     def parse(raw, **options)
-      @attrs.map { |key, attr| [key, attr.parse(raw[key], **options)] }.to_h
+      Attributes.new(self, values(raw, **options))
     end
 
-    def load(context:, attributes:)
-      @implementation.call(context, **attributes)
+    def using(providers, values)
+      @fields.map { |name, type| [name, type.using(providers, values.fetch(name))] }.to_h.freeze
+    end
+
+    private
+
+    def values(raw, **options)
+      @fields.map { |name, type| [name, type.parse(raw[name], **options)] }.to_h.freeze
+    end
+  end
+
+  class AttributeSchemaTest < Test
+    def test_dsl_method_parameters
+      schema = AttributeSchema.new(
+        deps: Attribute.new(Label, list: true),
+        compiler: Attribute.new(Label, default: "//lib:compiler"),
+        strip_components: Attribute.new(PathCleaner, default: 0),
+        build: Attribute.new(Proc, default: ->() { }),
+      )
+      assert_equal "name:, deps:, compiler: \"//lib:compiler\", strip_components: 0, build: ->() { }", schema.dsl_method_parameters(:name)
+    end
+
+    def test_dsl_method_forwarding_parameters
+      schema = AttributeSchema.new(
+        deps: Attribute.new(Label),
+        compiler: Attribute.new(Label),
+      )
+      assert_equal "name: name, deps: deps, compiler: compiler", schema.dsl_method_forwarding_parameters(:name)
+    end
+  end
+
+  class Attributes
+    def initialize(schema, values)
+      @schema = schema
+      @values = values
+    end
+
+    def dependencies
+      @schema.dependencies(@values)
+    end
+
+    def using(providers)
+      @schema.using(providers, @values)
+    end
+
+    def to_hash
+      @values
     end
   end
 
   class Attribute
-    def initialize(type, list: false, default: nil)
+    def initialize(type, list: false, default: nil, providers: [])
       @type = type
       @list = list
       @default = default
+      @providers = providers
     end
 
-    def dependency?
-      @type == Label
+    def as_method_parameter(name)
+      @default ? "#{name}: #{@type == Proc ? "->() { }" : @default.inspect}" : "#{name}:"
+    end
+
+    def dependencies(value)
+      @type == Label ? (@list ? Set.new(value) : Set.new([value])) : Set.new
     end
 
     def parse(raw_value, **options)
@@ -732,6 +960,16 @@ module Wake
         Array(raw_value || @default).map { |item| try_parse(item, **options) }.freeze
       else
         try_parse(raw_value || @default, **options).freeze
+      end
+    end
+
+    def using(providers, value)
+      if @type == Label && !@list
+        Providers.new(value, providers, @providers)
+      elsif @type == Label && @list
+        value.map { |v| Providers.new(v, providers, @providers) }
+      else
+        value
       end
     end
 
@@ -783,6 +1021,44 @@ module Wake
 
     def test_parse_relative_label
       assert_equal Label["//src/main:foo"], Attribute.new(Label).parse(":foo", package: "src/main")
+    end
+  end
+
+  class Providers
+    class MissingProviderError < KeyError
+      def initialize(label, type)
+        super "#{label} does not provide #{type}"
+      end
+    end
+
+    def initialize(label, values, types)
+      @label = label
+      @values = values.fetch(label, {}).fetch_values(*types) { |missing| raise MissingProviderError.new(label, missing) }
+    end
+
+    def fetch(type)
+      @values.find(-> { raise MissingProviderError.new(@label, type) }) { |value| type === value }
+    end
+  end
+
+  class ProvidersTest < Test
+    def setup
+      @label = Label["//src/main:foo"]
+      @type = Class.new
+      @instance = @type.new
+    end
+
+    def test_happy_path
+      assert_equal @instance, Providers.new(@label, { @label => { @type => @instance } }, [@type]).fetch(@type)
+    end
+
+    def test_upstream_does_not_provide
+      assert_raises { Providers.new(@label, {}, [@type]) }
+    end
+
+    def test_current_does_not_depend
+      providers = Providers.new(@label, { @label => { @type => @instance } }, [])
+      assert_raises { providers.fetch(@type) }
     end
   end
 
@@ -1382,111 +1658,7 @@ module Wake
   end
 
   if __FILE__ == $0 && !Kernel.const_defined?(:Minitest)
-    registry = Registry.new
-
-    registry.new_rule(:java_compiler)
-
-    registry.new_rule(
-      :java_import,
-      attributes: {
-        jar: Attribute.new(Label, list: true),
-        source_jar: Attribute.new(Label),
-      },
-    )
-
-    registry.new_rule(
-      :java_lib,
-      attributes: {
-        deps: Attribute.new(Label, list: true), # , providers: [JavaInfo]),
-        compiler: Attribute.new(Label, default: "//lib/java:compiler"), #, providers: [JavaCompilerInfo]),
-      # srcs: Attribute.new(Label, list: true),
-      },
-    )
-
-    registry.new_rule(:java_runtime)
-
-    registry.new_rule(:kt_jvm_lib)
-
-    registry.new_rule(
-      :kt_jvm_test,
-      attributes: {
-        main_class: Attribute.new(String, default: "org.matthewtodd.junit.WakeLauncher"),
-        runtime: Attribute.new(Label, default: "//lib/java:runtime"),
-        runtime_deps: Attribute.new(Label, list: true),
-        test_class: Attribute.new(String),
-        test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit"),
-      },
-      implementation: ->(context, main_class:, runtime:, runtime_deps:, test_class:, test_runner:) {
-        # So, what am I doing here?
-        # Rule implementations produce declared artifacts.
-        # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
-        # So, this rule needs to Provide something that Wake will be able to "run" with.
-        return
-      },
-    )
-
-    registry.new_rule(:ruby_lib)
-
-    registry.new_repository_rule(
-      :http_archive,
-      name: Attribute.new(String),
-      url: Attribute.new(URI),
-      strip_components: Attribute.new(PathCleaner, default: 0),
-      build: Attribute.new(Proc, default: ->() { }),
-      implementation: ->(context, name:, url:, strip_components:, build:) {
-        extractor = case url.path
-          when /\.tar\.gz$/
-            Gzip.new(Tar.new(strip_components))
-          when /\.zip$/
-            Zip.new(strip_components)
-          else
-            raise "Unsupported archive format #{url}"
-          end
-
-        context.package(name).download(url, extractor: extractor)
-
-        context.package(name, &build)
-      },
-    )
-
-    registry.new_repository_rule(
-      :http_file,
-      name: Attribute.new(String),
-      url: Attribute.new(URI),
-      sha256: Attribute.new(String),
-      build: Attribute.new(Proc, default: ->() { }),
-      implementation: ->(context, name:, url:, sha256:, build:) {
-        context.package(name, &build)
-      },
-    )
-
-    registry.new_repository_rule(
-      :maven_jar,
-      repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
-      artifact: Attribute.new(MavenCoordinates),
-      sha256: Attribute.new(String),
-      implementation: ->(context, repository:, artifact:, sha256:) {
-        [artifact, artifact.sources].each do |jar|
-          context.package(jar.package_path).download(jar.url(repository))
-        end
-
-        context.package(artifact.package_path) do
-          java_import(
-            name: "jar",
-            jar: artifact.filename,
-            source_jar: artifact.sources.filename,
-          )
-        end
-      },
-    )
-
-    registry.new_repository_rule(:ruby_gem)
-
-    Pathname.glob("**/BUILD") do |build|
-      registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
-    end
-
-    exit Wake.run(registry)
+    exit Wake.run
   end
 end
 
