@@ -14,18 +14,29 @@ require "zlib"
 
 module Wake
   class FileInfo
+    # TODO what do I need from FileInfo?
   end
 
   def self.run
     registry = Registry.new
+
+    registry.new_rule(
+      :http_file,
+      attributes: {
+        url: Attribute.new(URI),
+      },
+      implementation: ->(context, url:) {
+        context.download(url)
+      },
+    )
 
     registry.new_rule(:java_compiler)
 
     registry.new_rule(
       :java_import,
       attributes: {
-        jar: Attribute.new(Label, list: true),
-        source_jar: Attribute.new(Label),
+        jar: Attribute.new(Label, providers: [FileInfo]),
+        source_jar: Attribute.new(Label, providers: [FileInfo]),
       },
       implementation: ->(context, jar:, source_jar:) {
         return
@@ -113,35 +124,58 @@ module Wake
 
     registry.new_repository_rule(:ruby_gem)
 
-    # puts registry.help
-
     Pathname.glob("**/BUILD") do |build|
       registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
     end
 
     targets = registry.resolve(
       platform: Platform.from_ruby_config,
-      downloader: HttpDownloader.new,
-      cache: FilesystemCache.new(Pathname.new("var/cache")),
+      downloader: HttpDownloader.new, # deprecated
+      cache: FilesystemCache.new(Pathname.new("var/cache")), # deprecated
     )
 
     plan = ExecutionPlan.new(targets.keys) { |label| targets.fetch(label).dependencies }
 
     # command = GraphvizCommand.new
-    command = BuildCommand.new
+
+    command = BuildCommand.new(
+      downloader: HttpDownloader.new,
+      # cache: FilesystemCache.new(Pathname.new("var/cache")),
+    )
+
     plan.each { |label| command.visit(label, targets.fetch(label)) }
     command.run
 
     0
   end
 
+  if Kernel.const_defined? :Minitest
+    Test = Minitest::Test
+  else
+    Test = Object
+  end
+
   class BuildCommand
-    def initialize
+    def initialize(downloader:)
+      @downloader = downloader
       @providers = {}
     end
 
+    def download(label, url)
+      @downloader.fetch(url).read do |segment|
+      end
+    end
+
+    def expand(attributes)
+      attributes.using(@providers)
+    end
+
+    def register_providers(label, providers)
+      @providers[label] = providers
+    end
+
     def visit(label, target)
-      target.invoke(Context.new(label, @providers))
+      target.invoke(Context.new(self, label))
     end
 
     def run
@@ -150,14 +184,74 @@ module Wake
     private
 
     class Context
-      def initialize(label, providers)
+      def initialize(command, label)
+        @command = command
         @label = label
-        @providers = providers
+      end
+
+      def download(url)
+        @command.download(@label, url)
       end
 
       def invoke(rule, attributes)
-        rule.call(self, **attributes.using(@providers))
+        @command.register_providers(@label, rule.call(self, **@command.expand(attributes)) || []) # TODO remove!
       end
+    end
+  end
+
+  class FilesystemTest < Test
+    class Outputs
+      def initialize
+      end
+
+      def write(path, verifier:, &block)
+        # if cache does not exist at verifier path
+        #   write through verifier into temporary holding place
+        #   if verifier matches,
+        #     hardlink into cache at verifier path
+        #   else
+        #     raise
+        #   end
+        # end
+        #
+        # hardlink into path
+        block.call(verifier)
+        raise if !verifier.valid?
+      end
+    end
+
+    class Verifier
+      def initialize(digest, expected:)
+        @digest = digest.new
+        @expected = expected
+      end
+
+      def write(content)
+        @digest.update(content)
+      end
+
+      def valid?
+        @digest.hexdigest == @expected
+      end
+    end
+
+    def setup
+      @content = "Yo."
+      @verifier = Verifier.new(Digest::SHA256, expected: Digest::SHA256.hexdigest(@content))
+      @outputs = Outputs.new
+    end
+
+    def test_verifying_caching_and_linking
+      @outputs.write("lib/foo/file.txt", verifier: @verifier) { |io| io.write(@content) }
+    end
+
+    def test_invalid_checksum
+      assert_raises {
+        @outputs.write("lib/foo/file.txt", verifier: @verifier) { |io| io.write("THIS IS NOT THE CONTENT WE EXPECTED!") }
+      }
+    end
+
+    def test_already_cached
     end
   end
 
@@ -187,12 +281,6 @@ module Wake
         system("open -f -a /System/Applications/Preview.app", in: dot)
       end
     end
-  end
-
-  if Kernel.const_defined? :Minitest
-    Test = Minitest::Test
-  else
-    Test = Object
   end
 
   class Platform
@@ -229,27 +317,13 @@ module Wake
       @alias_rule = ->(context, actual:) { }
       @alias_schema = AttributeSchema.new(actual: Attribute.new(Label))
       @dsl = Class.new(Dsl)
-      @help_rules = {}
-      @help_repository_rules = {}
       @repositories = []
       @targets = {}
       @toolchains = []
     end
 
-    # This is just me playing around. I wonder if we would ever find this kind
-    # of thing useful? Or maybe we want it just in time: show the method
-    # signature when we mis-call a rule?
-    def help
-      help = []
-      help << @help_rules.map { |name, schema| "#{name}(\n  #{schema.dsl_method_parameters(:name).split(", ").join(",\n  ")}\n)" }.join("\n\n")
-      help << @help_repository_rules.map { |name, schema| "#{name}(\n  #{schema.dsl_method_parameters.split(", ").join(",\n  ")}\n)" }.join("\n\n")
-      help.join("\n\n")
-    end
-
     def new_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
       schema = AttributeSchema.new(attributes)
-
-      @help_rules[rule_name] = schema
 
       @dsl.class_eval(<<~END)
         def #{rule_name}(#{schema.dsl_method_parameters(:name)})
@@ -270,8 +344,6 @@ module Wake
 
     def new_repository_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
       schema = AttributeSchema.new(attributes)
-
-      @help_repository_rules[rule_name] = schema
 
       @dsl.class_eval(<<~END)
         def #{rule_name}(#{schema.dsl_method_parameters})
@@ -755,7 +827,7 @@ module Wake
 
         @download_rule = ->(context, download:, downloader:, cache:) {
           # TODO here's where we put a FileInfo in the context. Or we return one?
-          return
+          [FileInfo.new]
         }
 
         @extract_schema = AttributeSchema.new(
@@ -1033,7 +1105,8 @@ module Wake
 
     def initialize(label, values, types)
       @label = label
-      @values = values.fetch(label, {}).fetch_values(*types) { |missing| raise MissingProviderError.new(label, missing) }
+      values_by_type = values.fetch(label, {}).map { |instance| [instance.class, instance] }.to_h
+      @values = values_by_type.fetch_values(*types) { |missing| raise MissingProviderError.new(label, missing) }
     end
 
     def fetch(type)
@@ -1049,7 +1122,7 @@ module Wake
     end
 
     def test_happy_path
-      assert_equal @instance, Providers.new(@label, { @label => { @type => @instance } }, [@type]).fetch(@type)
+      assert_equal @instance, Providers.new(@label, { @label => [@instance] }, [@type]).fetch(@type)
     end
 
     def test_upstream_does_not_provide
@@ -1057,7 +1130,7 @@ module Wake
     end
 
     def test_current_does_not_depend
-      providers = Providers.new(@label, { @label => { @type => @instance } }, [])
+      providers = Providers.new(@label, { @label => [@instance] }, [])
       assert_raises { providers.fetch(@type) }
     end
   end
