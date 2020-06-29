@@ -200,58 +200,98 @@ module Wake
   end
 
   class FilesystemTest < Test
+    class InMemoryFilesystem
+      def initialize(files)
+        @files = files
+      end
+
+      def exists?(path)
+        @files.key?(path)
+      end
+
+      def link(src, dest)
+        @files[dest] = @files.fetch(src)
+      end
+
+      # TODO I want to clean up the tempfile at the end of the block, so the block needs to flush any writes, etc.
+      # Make my own Tempfile here?
+      def mktempfile(&block)
+        path = "/tmp/#{Time.now.strftime("%Y%m%d")}-#{$$}-#{rand(0x100000000).to_s(36)}"
+        io = StringIO.new
+        block.call(path, io)
+        @files[path] = io.string
+        path
+      end
+    end
+
     class Outputs
-      def initialize
+      def initialize(filesystem)
+        @filesystem = filesystem
       end
 
       def write(path, verifier:, &block)
-        # if cache does not exist at verifier path
-        #   write through verifier into temporary holding place
-        #   if verifier matches,
-        #     hardlink into cache at verifier path
-        #   else
-        #     raise
-        #   end
-        # end
-        #
-        # hardlink into path
-        block.call(verifier)
-        raise if !verifier.valid?
+        if !@filesystem.exists?("var/cache/#{verifier.expected}")
+          buffer = @filesystem.mktempfile { |path, tmp| verifier.wrap(tmp, &block) }
+          @filesystem.link(buffer, "var/cache/#{verifier.expected}")
+        end
+
+        @filesystem.link("var/cache/#{verifier.expected}", path)
       end
     end
 
     class Verifier
+      attr_reader :expected
+
       def initialize(digest, expected:)
-        @digest = digest.new
+        @digest = digest
         @expected = expected
       end
 
-      def write(content)
-        @digest.update(content)
+      def wrap(io, &block)
+        digest = @digest.new
+        block.call(Wrapper.new(io, digest))
+        raise unless digest.hexdigest == @expected
       end
 
-      def valid?
-        @digest.hexdigest == @expected
+      private
+
+      class Wrapper
+        def initialize(io, digest)
+          @io = io
+          @digest = digest
+        end
+
+        def write(content)
+          @io.write(content)
+          @digest.update(content)
+        end
       end
     end
 
     def setup
+      @path = "lib/foo/file.txt"
       @content = "Yo."
-      @verifier = Verifier.new(Digest::SHA256, expected: Digest::SHA256.hexdigest(@content))
-      @outputs = Outputs.new
+      @sha = Digest::SHA256.hexdigest(@content)
+      @verifier = Verifier.new(Digest::SHA256, expected: @sha)
+      @filesystem = {}
+      @outputs = Outputs.new(InMemoryFilesystem.new(@filesystem))
     end
 
     def test_verifying_caching_and_linking
-      @outputs.write("lib/foo/file.txt", verifier: @verifier) { |io| io.write(@content) }
+      @outputs.write(@path, verifier: @verifier) { |io| io.write(@content) }
+      assert_equal @content, @filesystem.fetch(@path)
     end
 
     def test_invalid_checksum
-      assert_raises {
-        @outputs.write("lib/foo/file.txt", verifier: @verifier) { |io| io.write("THIS IS NOT THE CONTENT WE EXPECTED!") }
-      }
+      assert_raises { @outputs.write(@path, verifier: @verifier) { |io| io.write("THIS IS NOT THE CONTENT WE EXPECTED!") } }
+      assert !@filesystem.key?("var/cache/#{@sha}")
+      assert !@filesystem.key?(@path)
     end
 
     def test_already_cached
+      @filesystem["var/cache/#{@sha}"] = @content
+      @outputs.write(@path, verifier: @verifier) { |io| raise "Block unexpectedly called!" }
+      assert_equal @content, @filesystem.fetch(@path)
     end
   end
 
