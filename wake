@@ -213,14 +213,33 @@ module Wake
         @files[dest] = @files.fetch(src)
       end
 
-      # TODO I want to clean up the tempfile at the end of the block, so the block needs to flush any writes, etc.
-      # Make my own Tempfile here?
-      def mktempfile(&block)
-        path = "/tmp/#{Time.now.strftime("%Y%m%d")}-#{$$}-#{rand(0x100000000).to_s(36)}"
-        io = StringIO.new
-        block.call(path, io)
-        @files[path] = io.string
-        path
+      def tempfile(&block)
+        tempfile = Tempfile.new(@files)
+        block.call(tempfile)
+      ensure
+        tempfile.unlink
+      end
+
+      class Tempfile
+        attr_reader :path
+
+        def initialize(files)
+          @files = files
+          @path = "/tmp/#{Time.now.strftime("%Y%m%d")}-#{$$}-#{rand(0x100000000).to_s(36)}"
+          @io = StringIO.new
+        end
+
+        def write(content)
+          @io.write(content)
+        end
+
+        def flush
+          @files[@path] = @io.string
+        end
+
+        def unlink
+          @files.delete(@path)
+        end
       end
     end
 
@@ -231,8 +250,11 @@ module Wake
 
       def write(path, verifier:, &block)
         if !@filesystem.exists?("var/cache/#{verifier.expected}")
-          buffer = @filesystem.mktempfile { |path, tmp| verifier.wrap(tmp, &block) }
-          @filesystem.link(buffer, "var/cache/#{verifier.expected}")
+          @filesystem.tempfile do |tempfile|
+            verifier.wrapping(tempfile) { |io| block.call(io) }
+            tempfile.flush
+            @filesystem.link(tempfile.path, "var/cache/#{verifier.expected}")
+          end
         end
 
         @filesystem.link("var/cache/#{verifier.expected}", path)
@@ -242,12 +264,12 @@ module Wake
     class Verifier
       attr_reader :expected
 
-      def initialize(digest, expected:)
+      def initialize(digest, expected: nil)
         @digest = digest
         @expected = expected
       end
 
-      def wrap(io, &block)
+      def wrapping(io, &block)
         digest = @digest.new
         block.call(Wrapper.new(io, digest))
         raise unless digest.hexdigest == @expected
@@ -292,6 +314,13 @@ module Wake
       @filesystem["var/cache/#{@sha}"] = @content
       @outputs.write(@path, verifier: @verifier) { |io| raise "Block unexpectedly called!" }
       assert_equal @content, @filesystem.fetch(@path)
+    end
+
+    def test_unknown_verifier_checksum
+      # Is a verifier with a nil expected value the way to do this? Or do I want some kind of null object?
+      # @outputs.write(@path, verifier: Verifier.new(Digest::SHA256)) { |io| io.write(@content) }
+      # assert_equal @content, @filesystem.fetch(@path)
+      # TODO test something about being shown the sha so I can wire it in?
     end
   end
 
