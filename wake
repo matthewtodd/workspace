@@ -2,6 +2,7 @@
 
 # :set tagfunc=RubyBufferTagFunc
 require "digest/sha2"
+require "fileutils"
 require "net/http"
 require "pathname"
 require "rbconfig"
@@ -221,33 +222,134 @@ module Wake
         @command.register_providers(@label, rule.call(self, **@command.expand(attributes)))
       end
     end
+
+    class Outputs
+      def initialize(filesystem)
+        @filesystem = filesystem
+      end
+
+      def write(path, verifier:, &block)
+        if !verifier.checksum || !@filesystem.exists?("var/cache/#{verifier.checksum}")
+          @filesystem.tempfile do |io|
+            verifier.wrapping(path, io) { |verified_io| block.call(verified_io) }
+            io.flush
+            @filesystem.link(io.path, "var/cache/#{verifier.checksum}")
+          end
+        end
+
+        @filesystem.link("var/cache/#{verifier.checksum}", "var/tmp/#{path}")
+
+        FileInfo.new(
+          relative_path: path,
+          absolute_path: @filesystem.absolute_path("var/tmp/#{path}"),
+        )
+      end
+    end
   end
 
   class BuildCommandTest < Test
-    def test_download
-      files = {}
-      console = StringIO.new
+    def setup
+      @urls = {}
+      @files = {}
+      @console = StringIO.new
+
+      @command = BuildCommand.new(
+        downloader: InMemoryDownloader.new(@urls),
+        filesystem: InMemoryFilesystem.new(@files),
+        console: @console,
+      )
+
+      @download_rule = ->(context, url:, sha:) {
+        [context.download(url, sha)]
+      }
+
+      @download_schema = AttributeSchema.new(
+        url: Attribute.new(URI),
+        sha: Attribute.new(Verifier),
+      )
+    end
+
+    def test_downloading_verifying_caching_and_linking
+      @urls["https://example.com/foo.tgz"] = "CONTENTS"
+
+      @command.visit Label.parse("//lib/foo:archive"), Target.new(
+        rule: @download_rule,
+        attributes: @download_schema.parse({
+          url: "https://example.com/foo.tgz",
+          sha: Digest::SHA256.hexdigest("CONTENTS"),
+        }),
+      )
+
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+
+      # Now pop back into the command with a new target that asserts on the FileInfo of the download!
+      @command.visit Label.parse("//lib/foo:file"), Target.new(
+        rule: ->(context, archive:) {
+          assert_equal "lib/foo/archive", archive.fetch(FileInfo).relative_path
+          assert_equal "var/tmp/lib/foo/archive", archive.fetch(FileInfo).absolute_path
+        },
+        attributes: AttributeSchema.new(
+          archive: Attribute.new(Label, providers: [FileInfo]),
+        ).parse({
+          archive: "//lib/foo:archive",
+        }),
+      )
+    end
+
+    def test_invalid_checksum
+      @urls["https://example.com/foo.tgz"] = "THESE ARE NOT THE CONTENTS WE EXPECT!"
+
+      assert_raises do
+        @command.visit Label.parse("//lib/foo:archive"), Target.new(
+          rule: @download_rule,
+          attributes: @download_schema.parse({
+            url: "https://example.com/foo.tgz",
+            sha: Digest::SHA256.hexdigest("CONTENTS"),
+          }),
+        )
+      end
+
+      assert !@files.key?("var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}")
+      assert !@files.key?("var/tmp/lib/foo/archive")
+    end
+
+    def test_already_cached
+      @files["var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}"] = "CONTENTS"
 
       command = BuildCommand.new(
-        downloader: InMemoryDownloader.new("https://example.com/foo.tgz" => "CONTENTS"),
-        filesystem: InMemoryFilesystem.new(files),
-        console: console,
+        downloader: nil, # NOTE no downloader at all!
+        filesystem: InMemoryFilesystem.new(@files),
+        console: @console,
       )
 
-      file_info = command.download(
-        Label.parse("//lib/foo:archive"),
-        URI.parse("https://example.com/foo.tgz"),
-        Verifier.new(Digest::SHA256)
+      command.visit Label.parse("//lib/foo:archive"), Target.new(
+        rule: @download_rule,
+        attributes: @download_schema.parse({
+          url: "https://example.com/foo.tgz",
+          sha: Digest::SHA256.hexdigest("CONTENTS"),
+        }),
       )
 
-      assert_equal(<<~END, console.string)
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+    end
+
+    def test_unknown_sha
+      @urls["https://example.com/foo.tgz"] = "CONTENTS"
+
+      @command.visit Label.parse("//lib/foo:archive"), Target.new(
+        rule: @download_rule,
+        attributes: @download_schema.parse({
+          url: "https://example.com/foo.tgz",
+          sha: nil,
+        }),
+      )
+
+      assert_equal(<<~END, @console.string)
         lib/foo/archive
-        eabe6aca2f0dcdbddb32c8f06e6edfa1b78618efaf57d677950d443b91d99175
+        #{Digest::SHA256.hexdigest("CONTENTS")}
       END
 
-      assert_equal "lib/foo/archive", file_info.relative_path
-      assert_equal "var/tmp/lib/foo/archive", file_info.absolute_path
-      assert_equal "CONTENTS", files.fetch(file_info.absolute_path)
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
     end
   end
 
@@ -294,66 +396,6 @@ module Wake
         @io.write(content)
         @digest.update(content)
       end
-    end
-  end
-
-  class Outputs
-    def initialize(filesystem)
-      @filesystem = filesystem
-    end
-
-    def write(path, verifier:, &block)
-      if !verifier.checksum || !@filesystem.exists?("var/cache/#{verifier.checksum}")
-        @filesystem.tempfile do |io|
-          verifier.wrapping(path, io) { |verified_io| block.call(verified_io) }
-          io.flush
-          @filesystem.link(io.path, "var/cache/#{verifier.checksum}")
-        end
-      end
-
-      @filesystem.link("var/cache/#{verifier.checksum}", "var/tmp/#{path}")
-
-      FileInfo.new(
-        relative_path: path,
-        absolute_path: @filesystem.absolute_path("var/tmp/#{path}"),
-      )
-    end
-  end
-
-  class OutputsTest < Test
-    def setup
-      @path = "lib/foo/file.txt"
-      @content = "Yo."
-      @sha = Digest::SHA256.hexdigest(@content)
-      @verifier = Verifier.new(Digest::SHA256, checksum: @sha)
-      @filesystem = {}
-      @outputs = Outputs.new(InMemoryFilesystem.new(@filesystem))
-    end
-
-    def test_verifying_caching_and_linking
-      @outputs.write(@path, verifier: @verifier) { |io| io.write(@content) }
-      assert_equal @content, @filesystem.fetch("var/tmp/#{@path}")
-    end
-
-    def test_invalid_checksum
-      assert_raises { @outputs.write(@path, verifier: @verifier) { |io| io.write("THIS IS NOT THE CONTENT WE EXPECTED!") } }
-      assert !@filesystem.key?("var/cache/#{@sha}")
-      assert !@filesystem.key?("var/tmp/#{@path}")
-    end
-
-    def test_already_cached
-      @filesystem["var/cache/#{@sha}"] = @content
-      @outputs.write(@path, verifier: @verifier) { |io| raise "Block unexpectedly called!" }
-      assert_equal @content, @filesystem.fetch("var/tmp/#{@path}")
-    end
-
-    def test_unknown_verifier_checksum
-      notifications = {}
-      observer = ->(path, measured_checksum) { notifications[path] = measured_checksum }
-      @outputs.write(@path, verifier: Verifier.new(Digest::SHA256, checksum: nil, observer: observer)) { |io| io.write(@content) }
-      assert_equal @sha, notifications.fetch(@path)
-      assert_equal @content, @filesystem.fetch("var/cache/#{@sha}")
-      assert_equal @content, @filesystem.fetch("var/tmp/#{@path}")
     end
   end
 
@@ -685,11 +727,11 @@ module Wake
 
   class InMemoryDownloader
     def initialize(entries = {})
-      @entries = entries.transform_keys(&URI.method(:parse)).freeze
+      @entries = entries
     end
 
     def fetch(url)
-      Response.new(@entries.fetch(url))
+      Response.new(@entries.transform_keys(&URI.method(:parse)).fetch(url))
     end
 
     class Response
