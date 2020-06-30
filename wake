@@ -13,7 +13,7 @@ require "uri"
 require "zlib"
 
 module Wake
-  class FileInfo
+  class FileInfo < Struct.new(:relative_path, :absolute_path, keyword_init: true)
     # TODO what do I need from FileInfo?
   end
 
@@ -24,9 +24,10 @@ module Wake
       :http_file,
       attributes: {
         url: Attribute.new(URI),
+        sha256: Attribute.new(String, default: nil),
       },
-      implementation: ->(context, url:) {
-        context.download(url)
+      implementation: ->(context, url:, sha256:) {
+        context.download(url, Verifier.new(Digest::SHA256, checksum: sha256))
       },
     )
 
@@ -140,7 +141,8 @@ module Wake
 
     command = BuildCommand.new(
       downloader: HttpDownloader.new,
-      # cache: FilesystemCache.new(Pathname.new("var/cache")),
+      filesystem: InMemoryFilesystem.new({}), # TODO RealFileSystem!
+      console: STDOUT,
     )
 
     plan.each { |label| command.visit(label, targets.fetch(label)) }
@@ -156,13 +158,24 @@ module Wake
   end
 
   class BuildCommand
-    def initialize(downloader:)
+    def initialize(downloader:, filesystem:, console:)
       @downloader = downloader
+      @outputs = Outputs.new(filesystem)
+      @console = console
       @providers = {}
     end
 
-    def download(label, url)
-      @downloader.fetch(url).read do |segment|
+    def download(label, url, verifier)
+      # TODO develop more of a protocol for the console. Can imagine more of a UI for it, multiple download progress bars, etc.
+      verifier = verifier.observing do |path, checksum|
+        @console.puts(path)
+        @console.puts(checksum)
+      end
+
+      @outputs.write(File.join(label.package, label.name), verifier: verifier) do |io|
+        @downloader.fetch(url).read do |chunk|
+          io.write(chunk)
+        end
       end
     end
 
@@ -171,7 +184,7 @@ module Wake
     end
 
     def register_providers(label, providers)
-      @providers[label] = providers
+      @providers[label] = providers || [] # TODO remove!
     end
 
     def visit(label, target)
@@ -189,138 +202,143 @@ module Wake
         @label = label
       end
 
-      def download(url)
-        @command.download(@label, url)
+      def download(url, verifier)
+        @command.download(@label, url, verifier)
       end
 
       def invoke(rule, attributes)
-        @command.register_providers(@label, rule.call(self, **@command.expand(attributes)) || []) # TODO remove!
+        @command.register_providers(@label, rule.call(self, **@command.expand(attributes)))
       end
     end
   end
 
-  class FilesystemTest < Test
-    class InMemoryFilesystem
-      def initialize(files)
-        @files = files
-      end
+  class BuildCommandTest < Test
+    def test_download
+      files = {}
+      console = StringIO.new
 
-      def exists?(path)
-        @files.key?(path)
-      end
+      command = BuildCommand.new(
+        downloader: InMemoryDownloader.new("https://example.com/foo.tgz" => "CONTENTS"),
+        filesystem: InMemoryFilesystem.new(files),
+        console: console,
+      )
 
-      def link(src, dest)
-        @files[dest] = @files.fetch(src)
-      end
+      file_info = command.download(
+        Label.parse("//lib/foo:archive"),
+        URI.parse("https://example.com/foo.tgz"),
+        Verifier.new(Digest::SHA256)
+      )
 
-      def tempfile(&block)
-        tempfile = Tempfile.new(@files)
-        block.call(tempfile)
-      ensure
-        tempfile.unlink
-      end
+      assert_equal(<<~END, console.string)
+        lib/foo/archive
+        eabe6aca2f0dcdbddb32c8f06e6edfa1b78618efaf57d677950d443b91d99175
+      END
 
-      class Tempfile
-        attr_reader :path
+      assert_equal "lib/foo/archive", file_info.relative_path
+      assert_equal "var/tmp/lib/foo/archive", file_info.absolute_path
+      assert_equal "CONTENTS", files.fetch(file_info.absolute_path)
+    end
+  end
 
-        def initialize(files)
-          @files = files
-          @path = "/tmp/#{Time.now.strftime("%Y%m%d")}-#{$$}-#{rand(0x100000000).to_s(36)}"
-          @io = StringIO.new
-        end
+  class Verifier
+    def initialize(digest, checksum: nil, observer: ->(path, measured_checksum) { })
+      @digest = digest
+      @expected_checksum = checksum
+      @measured_checksum = nil
+      @observer = observer
+    end
 
-        def write(content)
-          @io.write(content)
-        end
+    def checksum
+      @expected_checksum || @measured_checksum
+    end
 
-        def flush
-          @files[@path] = @io.string
-        end
+    def observing(&observer)
+      Verifier.new(@digest, checksum: @expected_checksum, observer: observer)
+    end
 
-        def unlink
-          @files.delete(@path)
-        end
+    def wrapping(path, io, &block)
+      digest = @digest.new
+      block.call(Wrapper.new(io, digest))
+      @measured_checksum = digest.hexdigest
+      if @expected_checksum
+        raise if @expected_checksum != @measured_checksum
+      else
+        @observer.call(path, @measured_checksum)
       end
     end
 
-    class Outputs
-      def initialize(filesystem)
-        @filesystem = filesystem
-      end
+    private
 
-      def write(path, verifier:, &block)
-        if !@filesystem.exists?("var/cache/#{verifier.expected}")
-          @filesystem.tempfile do |tempfile|
-            verifier.wrapping(tempfile) { |io| block.call(io) }
-            tempfile.flush
-            @filesystem.link(tempfile.path, "var/cache/#{verifier.expected}")
-          end
-        end
-
-        @filesystem.link("var/cache/#{verifier.expected}", path)
-      end
-    end
-
-    class Verifier
-      attr_reader :expected
-
-      def initialize(digest, expected: nil)
+    class Wrapper
+      def initialize(io, digest)
+        @io = io
         @digest = digest
-        @expected = expected
       end
 
-      def wrapping(io, &block)
-        digest = @digest.new
-        block.call(Wrapper.new(io, digest))
-        raise unless digest.hexdigest == @expected
-      end
-
-      private
-
-      class Wrapper
-        def initialize(io, digest)
-          @io = io
-          @digest = digest
-        end
-
-        def write(content)
-          @io.write(content)
-          @digest.update(content)
-        end
+      def write(content)
+        @io.write(content)
+        @digest.update(content)
       end
     end
+  end
 
+  class Outputs
+    def initialize(filesystem)
+      @filesystem = filesystem
+    end
+
+    def write(path, verifier:, &block)
+      if !verifier.checksum || !@filesystem.exists?("var/cache/#{verifier.checksum}")
+        @filesystem.tempfile do |io|
+          verifier.wrapping(path, io) { |verified_io| block.call(verified_io) }
+          io.flush
+          @filesystem.link(io.path, "var/cache/#{verifier.checksum}")
+        end
+      end
+
+      @filesystem.link("var/cache/#{verifier.checksum}", "var/tmp/#{path}")
+
+      FileInfo.new(
+        relative_path: path,
+        absolute_path: @filesystem.absolute_path("var/tmp/#{path}"),
+      )
+    end
+  end
+
+  class OutputsTest < Test
     def setup
       @path = "lib/foo/file.txt"
       @content = "Yo."
       @sha = Digest::SHA256.hexdigest(@content)
-      @verifier = Verifier.new(Digest::SHA256, expected: @sha)
+      @verifier = Verifier.new(Digest::SHA256, checksum: @sha)
       @filesystem = {}
       @outputs = Outputs.new(InMemoryFilesystem.new(@filesystem))
     end
 
     def test_verifying_caching_and_linking
       @outputs.write(@path, verifier: @verifier) { |io| io.write(@content) }
-      assert_equal @content, @filesystem.fetch(@path)
+      assert_equal @content, @filesystem.fetch("var/tmp/#{@path}")
     end
 
     def test_invalid_checksum
       assert_raises { @outputs.write(@path, verifier: @verifier) { |io| io.write("THIS IS NOT THE CONTENT WE EXPECTED!") } }
       assert !@filesystem.key?("var/cache/#{@sha}")
-      assert !@filesystem.key?(@path)
+      assert !@filesystem.key?("var/tmp/#{@path}")
     end
 
     def test_already_cached
       @filesystem["var/cache/#{@sha}"] = @content
       @outputs.write(@path, verifier: @verifier) { |io| raise "Block unexpectedly called!" }
-      assert_equal @content, @filesystem.fetch(@path)
+      assert_equal @content, @filesystem.fetch("var/tmp/#{@path}")
     end
 
     def test_unknown_verifier_checksum
-      # Is a verifier with a nil expected value the way to do this? Or do I want some kind of null object?
-      # @outputs.write(@path, verifier: Verifier.new(Digest::SHA256)) { |io| io.write(@content) }
-      # assert_equal @content, @filesystem.fetch(@path)
-      # TODO test something about being shown the sha so I can wire it in?
+      notifications = {}
+      observer = ->(path, measured_checksum) { notifications[path] = measured_checksum }
+      @outputs.write(@path, verifier: Verifier.new(Digest::SHA256, checksum: nil, observer: observer)) { |io| io.write(@content) }
+      assert_equal @sha, notifications.fetch(@path)
+      assert_equal @content, @filesystem.fetch("var/cache/#{@sha}")
+      assert_equal @content, @filesystem.fetch("var/tmp/#{@path}")
     end
   end
 
@@ -756,6 +774,53 @@ module Wake
 
       def open(&block)
         @path.open(@path.exist? ? "rb" : "wb", &block)
+      end
+    end
+  end
+
+  class InMemoryFilesystem
+    def initialize(files)
+      @files = files
+    end
+
+    def absolute_path(path)
+      path
+    end
+
+    def exists?(path)
+      @files.key?(path)
+    end
+
+    def link(src, dest)
+      @files[dest] = @files.fetch(src)
+    end
+
+    def tempfile(&block)
+      tempfile = Tempfile.new(@files)
+      block.call(tempfile)
+    ensure
+      tempfile.unlink
+    end
+
+    class Tempfile
+      attr_reader :path
+
+      def initialize(files)
+        @files = files
+        @path = "/tmp/#{Time.now.strftime("%Y%m%d")}-#{$$}-#{rand(0x100000000).to_s(36)}"
+        @io = StringIO.new
+      end
+
+      def write(content)
+        @io.write(content)
+      end
+
+      def flush
+        @files[@path] = @io.string
+      end
+
+      def unlink
+        @files.delete(@path)
       end
     end
   end
