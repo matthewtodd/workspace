@@ -19,8 +19,35 @@ module Wake
     # TODO what do I need from FileInfo?
   end
 
+  class Extractor
+    def self.parse(key)
+      Extractor.new
+    end
+  end
+
   def self.run
     registry = Registry.new
+
+    registry.new_rule(
+      :extracted_files,
+      attributes: {
+        archive: Attribute.new(Label, providers: [FileInfo]),
+        format: Attribute.new(Extractor),
+        paths: Attribute.new(String, list: true),
+        strip_components: Attribute.new(PathCleaner, default: 0),
+      },
+      implementation: ->(context, archive:, format:, paths:, strip_components:) {
+        # 1. How to get package scoping here? Want more than just pwd.
+        # 2. How to expose providers? Can we see some values automatically? Can we call something on context?
+        # 3. How to reflect the decsions / learnings here over in http_file?
+        # In our previous http_file / download rule, the *context* produced the artifact! So the *context* could build the FileInfo.
+        # Maybe we can do that here, too.
+        # format.extract(archive.fetch(FileInfo).absolute_path, paths: paths, strip_components: strip_components)
+        # file_info = context.outputs(paths)
+        # [file_info]
+        return
+      },
+    )
 
     registry.new_rule(
       :http_file,
@@ -172,23 +199,40 @@ module Wake
   class BuildCommand
     def initialize(downloader:, filesystem:, console:)
       @downloader = downloader
-      @outputs = Outputs.new(filesystem)
+      @filesystem = filesystem
       @console = console
       @providers = {}
     end
 
     def download(label, url, verifier)
+      path = File.join(label.package, label.name)
+
       # TODO develop more of a protocol for the console. Can imagine more of a UI for it, multiple download progress bars, etc.
-      verifier = verifier.observing do |path, checksum|
+      verifier = verifier.observing do |checksum|
         @console.puts(path)
         @console.puts(checksum)
       end
 
-      @outputs.write(File.join(label.package, label.name), verifier: verifier) do |io|
-        @downloader.fetch(url).read do |chunk|
-          io.write(chunk)
+      if !verifier.checksum || !@filesystem.exists?("var/cache/#{verifier.checksum}")
+        @filesystem.tempfile do |io|
+          verifier.wrapping(path, io) do |verified_io|
+            @downloader.fetch(url).read do |chunk|
+              verified_io.write(chunk)
+            end
+          end
+
+          io.flush
+
+          @filesystem.link(io.path, "var/cache/#{verifier.checksum}")
         end
       end
+
+      @filesystem.link("var/cache/#{verifier.checksum}", "var/tmp/#{path}")
+
+      FileInfo.new(
+        relative_path: path,
+        absolute_path: @filesystem.absolute_path("var/tmp/#{path}"),
+      )
     end
 
     def expand(attributes)
@@ -220,29 +264,6 @@ module Wake
 
       def invoke(rule, attributes)
         @command.register_providers(@label, rule.call(self, **@command.expand(attributes)))
-      end
-    end
-
-    class Outputs
-      def initialize(filesystem)
-        @filesystem = filesystem
-      end
-
-      def write(path, verifier:, &block)
-        if !verifier.checksum || !@filesystem.exists?("var/cache/#{verifier.checksum}")
-          @filesystem.tempfile do |io|
-            verifier.wrapping(path, io) { |verified_io| block.call(verified_io) }
-            io.flush
-            @filesystem.link(io.path, "var/cache/#{verifier.checksum}")
-          end
-        end
-
-        @filesystem.link("var/cache/#{verifier.checksum}", "var/tmp/#{path}")
-
-        FileInfo.new(
-          relative_path: path,
-          absolute_path: @filesystem.absolute_path("var/tmp/#{path}"),
-        )
       end
     end
   end
@@ -358,7 +379,7 @@ module Wake
       Verifier.new(Digest::SHA256, checksum: checksum)
     end
 
-    def initialize(digest, checksum: nil, observer: ->(path, measured_checksum) { })
+    def initialize(digest, checksum: nil, observer: ->(measured_checksum) { })
       @digest = digest
       @expected_checksum = checksum
       @measured_checksum = nil
@@ -380,7 +401,7 @@ module Wake
       if @expected_checksum
         raise "Expected #{@expected_checksum} for #{path} but got #{@measured_checksum}" if @expected_checksum != @measured_checksum
       else
-        @observer.call(path, @measured_checksum)
+        @observer.call(@measured_checksum)
       end
     end
 
