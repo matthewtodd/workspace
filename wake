@@ -9,6 +9,7 @@ require "rubygems" # TODO write a simple version of Gem::Package::TarReader?
 require "rubygems/package"
 require "set"
 require "stringio"
+require "tempfile"
 require "uri"
 require "zlib"
 
@@ -24,10 +25,11 @@ module Wake
       :http_file,
       attributes: {
         url: Attribute.new(URI),
-        sha256: Attribute.new(String, default: nil),
+        sha256: Attribute.new(Verifier),
       },
       implementation: ->(context, url:, sha256:) {
-        context.download(url, Verifier.new(Digest::SHA256, checksum: sha256))
+        file_info = context.download(url, sha256)
+        [file_info]
       },
     )
 
@@ -106,14 +108,23 @@ module Wake
       attributes: {
         repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
         artifact: Attribute.new(MavenCoordinates),
-        sha256: Attribute.new(String),
+        sha256: Attribute.new(Verifier),
+        sources_sha256: Attribute.new(Verifier),
       },
-      implementation: ->(context, repository:, artifact:, sha256:) {
-        [artifact, artifact.sources].each do |jar|
-          context.package(jar.package_path).download(jar.url(repository))
-        end
-
+      implementation: ->(context, repository:, artifact:, sha256:, sources_sha256:) {
         context.package(artifact.package_path) do
+          http_file(
+            name: artifact.filename,
+            url: artifact.url(repository),
+            sha256: sha256,
+          )
+
+          http_file(
+            name: artifact.sources.filename,
+            url: artifact.sources.url(repository),
+            sha256: sources_sha256,
+          )
+
           java_import(
             name: "jar",
             jar: artifact.filename,
@@ -141,7 +152,7 @@ module Wake
 
     command = BuildCommand.new(
       downloader: HttpDownloader.new,
-      filesystem: InMemoryFilesystem.new({}), # TODO RealFileSystem!
+      filesystem: RealFilesystem.new(Pathname.pwd),
       console: STDOUT,
     )
 
@@ -241,6 +252,10 @@ module Wake
   end
 
   class Verifier
+    def self.parse(checksum)
+      Verifier.new(Digest::SHA256, checksum: checksum)
+    end
+
     def initialize(digest, checksum: nil, observer: ->(path, measured_checksum) { })
       @digest = digest
       @expected_checksum = checksum
@@ -261,7 +276,7 @@ module Wake
       block.call(Wrapper.new(io, digest))
       @measured_checksum = digest.hexdigest
       if @expected_checksum
-        raise if @expected_checksum != @measured_checksum
+        raise "Expected #{@expected_checksum} for #{path} but got #{@measured_checksum}" if @expected_checksum != @measured_checksum
       else
         @observer.call(path, @measured_checksum)
       end
@@ -821,6 +836,37 @@ module Wake
 
       def unlink
         @files.delete(@path)
+      end
+    end
+  end
+
+  class RealFilesystem
+    def initialize(base)
+      @base = base
+    end
+
+    def absolute_path(path)
+      @base.join(path)
+    end
+
+    def exists?(path)
+      absolute_path(path).exist?
+    end
+
+    def link(src, dest)
+      dest = absolute_path(dest)
+      dest.dirname.mkpath
+      FileUtils.link(absolute_path(src).to_path, absolute_path(dest).to_path, force: true)
+    end
+
+    def tempfile(&block)
+      t = Tempfile.new
+      t.binmode
+      begin
+        block.call(t)
+      ensure
+        t.close
+        t.unlink
       end
     end
   end
