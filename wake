@@ -56,6 +56,9 @@ module Wake
         sha256: Attribute.new(Verifier),
       },
       implementation: ->(context, url:, sha256:) {
+        # file_info = context.declare_file(path)
+        # context.run(output: file_info) { |actions| actions.download(file_info, url, sha256) }
+        # [file_info]
         file_info = context.download(url, sha256)
         [file_info]
       },
