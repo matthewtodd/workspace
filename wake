@@ -261,12 +261,18 @@ module Wake
         @label = label
       end
 
+      def declare_file(path)
+      end
+
       def download(url, verifier)
         @command.download(@label, url, verifier)
       end
 
       def invoke(rule, attributes)
         @command.register_providers(@label, rule.call(self, **@command.expand(attributes)))
+      end
+
+      def run(outputs:, &block)
       end
     end
   end
@@ -284,6 +290,8 @@ module Wake
       )
 
       @download_rule = ->(context, url:, sha:) {
+        file = context.declare_file(url.path.split("/").last)
+        context.run(outputs: [file]) { |actions| actions.download(path, url, sha) }
         [context.download(url, sha)]
       }
 
