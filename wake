@@ -56,6 +56,9 @@ module Wake
         sha256: Attribute.new(Verifier),
       },
       implementation: ->(context, url:, sha256:) {
+        # How is this going to work?
+        # Perhaps there's a second, expanded graph we can build.
+        # 1. First visit the targets, calling their implementation functions and gathering up a different graph, (inputs, tools, settings, action) -> outputs.
         # file_info = context.declare_file(path)
         # context.run(output: file_info) { |actions| actions.download(file_info, url, sha256) }
         # [file_info]
@@ -177,18 +180,15 @@ module Wake
       cache: FilesystemCache.new(Pathname.new("var/cache")), # deprecated
     )
 
-    plan = ExecutionPlan.new(targets.keys) { |label| targets.fetch(label).dependencies }
-
-    # command = GraphvizCommand.new
-
-    command = BuildCommand.new(
+    actions = Actions.new(
       downloader: HttpDownloader.new,
       filesystem: RealFilesystem.new(Pathname.pwd),
       console: STDOUT,
     )
 
+    command = BuildCommand.new(actions)
+    plan = ExecutionPlan.new(targets.keys) { |label| targets.fetch(label).dependencies }
     plan.each { |label| command.visit(label, targets.fetch(label)) }
-    command.run
 
     0
   end
@@ -199,15 +199,15 @@ module Wake
     Test = Object
   end
 
-  class BuildCommand
+  class Actions
     def initialize(downloader:, filesystem:, console:)
       @downloader = downloader
       @filesystem = filesystem
       @console = console
-      @providers = {}
     end
 
     def download(label, url, verifier)
+      # TODO Actions becomes a factory, download returns a DownloadAction.
       path = File.join(label.package, label.name)
 
       # TODO develop more of a protocol for the console. Can imagine more of a UI for it, multiple download progress bars, etc.
@@ -237,6 +237,13 @@ module Wake
         absolute_path: @filesystem.absolute_path("var/tmp/#{path}"),
       )
     end
+  end
+
+  class BuildCommand
+    def initialize(actions)
+      @actions = actions
+      @providers = {}
+    end
 
     def expand(attributes)
       attributes.using(@providers)
@@ -247,17 +254,15 @@ module Wake
     end
 
     def visit(label, target)
-      target.invoke(Context.new(self, label))
-    end
-
-    def run
+      target.invoke(Context.new(self, @actions, label))
     end
 
     private
 
     class Context
-      def initialize(command, label)
+      def initialize(command, actions, label)
         @command = command
+        @actions = actions
         @label = label
       end
 
@@ -265,7 +270,7 @@ module Wake
       end
 
       def download(url, verifier)
-        @command.download(@label, url, verifier)
+        @actions.download(@label, url, verifier)
       end
 
       def invoke(rule, attributes)
@@ -284,9 +289,11 @@ module Wake
       @console = StringIO.new
 
       @command = BuildCommand.new(
-        downloader: InMemoryDownloader.new(@urls),
-        filesystem: InMemoryFilesystem.new(@files),
-        console: @console,
+        Actions.new(
+          downloader: InMemoryDownloader.new(@urls),
+          filesystem: InMemoryFilesystem.new(@files),
+          console: @console,
+        )
       )
 
       @download_rule = ->(context, url:, sha:) {
@@ -349,9 +356,11 @@ module Wake
       @files["var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}"] = "CONTENTS"
 
       command = BuildCommand.new(
-        downloader: nil, # NOTE no downloader at all!
-        filesystem: InMemoryFilesystem.new(@files),
-        console: @console,
+        Actions.new(
+          downloader: nil, # NOTE no downloader at all!
+          filesystem: InMemoryFilesystem.new(@files),
+          console: @console,
+        )
       )
 
       command.visit Label.parse("//lib/foo:archive"), Target.new(
@@ -427,34 +436,6 @@ module Wake
       def write(content)
         @io.write(content)
         @digest.update(content)
-      end
-    end
-  end
-
-  class GraphvizCommand
-    def initialize
-      @nodes = []
-      @edges = []
-    end
-
-    def visit(label, target)
-      @nodes << label
-      target.dependencies.each do |dependency|
-        @edges << [label, dependency]
-      end
-    end
-
-    def run
-      IO.popen("dot -Tpng", "r+") do |dot|
-        dot.write <<~END
-                    digraph D {
-                      rankdir="LR"
-                      #{@nodes.map { |label| "\"#{label}\"" }.join("\n  ")}
-                      #{@edges.map { |label, dep| "\"#{label}\" -> \"#{dep}\"" }.join("\n  ")}
-                    }
-                  END
-        dot.close_write
-        system("open -f -a /System/Applications/Preview.app", in: dot)
       end
     end
   end
