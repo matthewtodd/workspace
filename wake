@@ -56,12 +56,6 @@ module Wake
         sha256: Attribute.new(Verifier),
       },
       implementation: ->(context, url:, sha256:) {
-        # How is this going to work?
-        # Perhaps there's a second, expanded graph we can build.
-        # 1. First visit the targets, calling their implementation functions and gathering up a different graph, (inputs, tools, settings, action) -> outputs.
-        # file_info = context.declare_file(path)
-        # context.run(output: file_info) { |actions| actions.download(file_info, url, sha256) }
-        # [file_info]
         file_info = context.download(url, sha256)
         [file_info]
       },
@@ -170,6 +164,7 @@ module Wake
 
     registry.new_repository_rule(:ruby_gem)
 
+    # TODO load in parallel?
     Pathname.glob("**/BUILD") do |build|
       registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
     end
@@ -180,15 +175,19 @@ module Wake
       cache: FilesystemCache.new(Pathname.new("var/cache")), # deprecated
     )
 
-    actions = Actions.new(
+    # So we're going to make 2 passes here!
+    # First pass is over the (selected) targets, producing a bunch of actions.
+    # Second pass is over those actions, doing the work of the build.
+    # Perhaps there's then a Third execution phase, running any executables or tests?
+    build = Build.new(
       downloader: HttpDownloader.new,
       filesystem: RealFilesystem.new(Pathname.pwd),
       console: STDOUT,
     )
 
-    command = BuildCommand.new(actions)
-    plan = ExecutionPlan.new(targets.keys) { |label| targets.fetch(label).dependencies }
-    plan.each { |label| command.visit(label, targets.fetch(label)) }
+    plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
+    # TODO analyze in parallel?
+    plan.each { |label| build.visit(label, targets.fetch(label)) }
 
     0
   end
@@ -199,6 +198,151 @@ module Wake
     Test = Object
   end
 
+  class Build
+    def initialize(downloader:, filesystem:, console:)
+      # I wonder if other ~commands might want a different flavor of Actions?
+      # If so, we would pass the different one in here.
+      # At the moment, I'm unsure of the responsibilities, so treating
+      # Actions and ProviderRegistry as analysis-internal is helping me
+      # think manage the complexity.
+      @actions = Actions.new(downloader: downloader, filesystem: filesystem, console: console)
+      @providers = ProviderRegistry.new
+    end
+
+    def visit(label, target)
+      # TODO keep an eye on what this indirection throught context is buying me
+      # i.e., why isn't this `target.invoke(@actions, @providers, label)`?
+      # or maybe @actions.scoped(label), @providers or something?
+      target.invoke(Context.new(@actions, @providers, label))
+    end
+
+    private
+
+    class Context
+      def initialize(actions, providers, label)
+        @actions = actions
+        @providers = providers
+        @label = label
+      end
+
+      def invoke(rule, attributes)
+        # TODO do we want rules to register providers more explicitly?
+        @providers[@label] = rule.call(self, **attributes.using(@providers)) || []
+      end
+
+      def download(url, verifier)
+        @actions.download(@label, url, verifier)
+      end
+    end
+  end
+
+  class BuildTest < Test
+    def setup
+      @urls = {}
+      @files = {}
+      @console = StringIO.new
+
+      @command = Build.new(
+        downloader: InMemoryDownloader.new(@urls),
+        filesystem: InMemoryFilesystem.new(@files),
+        console: @console,
+      )
+
+      @download_rule = ->(context, url:, sha:) {
+        [context.download(url, sha)]
+      }
+
+      @download_schema = AttributeSchema.new(
+        url: Attribute.new(URI),
+        sha: Attribute.new(Verifier),
+      )
+    end
+
+    def test_downloading_verifying_caching_and_linking
+      @urls["https://example.com/foo.tgz"] = "CONTENTS"
+
+      @command.visit Label.parse("//lib/foo:archive"), Target.new(
+        rule: @download_rule,
+        attributes: @download_schema.parse({
+          url: "https://example.com/foo.tgz",
+          sha: Digest::SHA256.hexdigest("CONTENTS"),
+        }),
+      )
+
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+
+      # Now pop back into the command with a new target that asserts on the FileInfo of the download!
+      @command.visit Label.parse("//lib/foo:file"), Target.new(
+        rule: ->(context, archive:) {
+          assert_equal "lib/foo/archive", archive.fetch(FileInfo).relative_path
+          assert_equal "var/tmp/lib/foo/archive", archive.fetch(FileInfo).absolute_path
+          []
+        },
+        attributes: AttributeSchema.new(
+          archive: Attribute.new(Label, providers: [FileInfo]),
+        ).parse({
+          archive: "//lib/foo:archive",
+        }),
+      )
+    end
+
+    def test_invalid_checksum
+      @urls["https://example.com/foo.tgz"] = "THESE ARE NOT THE CONTENTS WE EXPECT!"
+
+      assert_raises do
+        @command.visit Label.parse("//lib/foo:archive"), Target.new(
+          rule: @download_rule,
+          attributes: @download_schema.parse({
+            url: "https://example.com/foo.tgz",
+            sha: Digest::SHA256.hexdigest("CONTENTS"),
+          }),
+        )
+      end
+
+      assert !@files.key?("var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}")
+      assert !@files.key?("var/tmp/lib/foo/archive")
+    end
+
+    def test_already_cached
+      @files["var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}"] = "CONTENTS"
+
+      command = Build.new(
+        downloader: nil, # NOTE no downloader at all!
+        filesystem: InMemoryFilesystem.new(@files),
+        console: @console,
+      )
+
+      command.visit Label.parse("//lib/foo:archive"), Target.new(
+        rule: @download_rule,
+        attributes: @download_schema.parse({
+          url: "https://example.com/foo.tgz",
+          sha: Digest::SHA256.hexdigest("CONTENTS"),
+        }),
+      )
+
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+    end
+
+    def test_unknown_sha
+      @urls["https://example.com/foo.tgz"] = "CONTENTS"
+
+      @command.visit Label.parse("//lib/foo:archive"), Target.new(
+        rule: @download_rule,
+        attributes: @download_schema.parse({
+          url: "https://example.com/foo.tgz",
+          sha: nil,
+        }),
+      )
+
+      assert_equal(<<~END, @console.string)
+        lib/foo/archive
+        #{Digest::SHA256.hexdigest("CONTENTS")}
+      END
+
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+    end
+  end
+
   class Actions
     def initialize(downloader:, filesystem:, console:)
       @downloader = downloader
@@ -207,7 +351,6 @@ module Wake
     end
 
     def download(label, url, verifier)
-      # TODO Actions becomes a factory, download returns a DownloadAction.
       path = File.join(label.package, label.name)
 
       # TODO develop more of a protocol for the console. Can imagine more of a UI for it, multiple download progress bars, etc.
@@ -239,158 +382,81 @@ module Wake
     end
   end
 
-  class BuildCommand
-    def initialize(actions)
-      @actions = actions
+  class ProviderRegistry
+    class MissingLabelError < KeyError
+      def initialize(label)
+        super "#{label} has not been seen"
+      end
+    end
+
+    class MissingProviderError < KeyError
+      def initialize(label, type)
+        super "#{label} does not provide #{type}"
+      end
+    end
+
+    def initialize
       @providers = {}
     end
 
-    def expand(attributes)
-      attributes.using(@providers)
+    def [](label, types)
+      @providers.fetch(label) { raise MissingLabelError.new(label) }.slice(types)
     end
 
-    def register_providers(label, providers)
-      @providers[label] = providers || [] # TODO remove!
-    end
-
-    def visit(label, target)
-      target.invoke(Context.new(self, @actions, label))
+    def []=(label, providers)
+      @providers[label] = Holder.new(label, providers)
     end
 
     private
 
-    class Context
-      def initialize(command, actions, label)
-        @command = command
-        @actions = actions
+    class Holder
+      def initialize(label, providers)
         @label = label
+        @providers = providers.map { |instance| [instance.class, instance] }.to_h.freeze
       end
 
-      def declare_file(path)
+      def fetch(type)
+        @providers.fetch(type) { raise MissingProviderError.new(@label, type) }
       end
 
-      def download(url, verifier)
-        @actions.download(@label, url, verifier)
-      end
-
-      def invoke(rule, attributes)
-        @command.register_providers(@label, rule.call(self, **@command.expand(attributes)))
-      end
-
-      def run(outputs:, &block)
+      def slice(types)
+        Holder.new(@label, @providers.fetch_values(*types) { |missing| raise MissingProviderError.new(@label, missing) })
       end
     end
   end
 
-  class BuildCommandTest < Test
+  class ProviderRegistryTest < Test
     def setup
-      @urls = {}
-      @files = {}
-      @console = StringIO.new
-
-      @command = BuildCommand.new(
-        Actions.new(
-          downloader: InMemoryDownloader.new(@urls),
-          filesystem: InMemoryFilesystem.new(@files),
-          console: @console,
-        )
-      )
-
-      @download_rule = ->(context, url:, sha:) {
-        file = context.declare_file(url.path.split("/").last)
-        context.run(outputs: [file]) { |actions| actions.download(path, url, sha) }
-        [context.download(url, sha)]
-      }
-
-      @download_schema = AttributeSchema.new(
-        url: Attribute.new(URI),
-        sha: Attribute.new(Verifier),
-      )
+      @registry = ProviderRegistry.new
+      @label = Label["//src/main:foo"]
+      @type = Class.new
+      @instance = @type.new
     end
 
-    def test_downloading_verifying_caching_and_linking
-      @urls["https://example.com/foo.tgz"] = "CONTENTS"
-
-      @command.visit Label.parse("//lib/foo:archive"), Target.new(
-        rule: @download_rule,
-        attributes: @download_schema.parse({
-          url: "https://example.com/foo.tgz",
-          sha: Digest::SHA256.hexdigest("CONTENTS"),
-        }),
-      )
-
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
-
-      # Now pop back into the command with a new target that asserts on the FileInfo of the download!
-      @command.visit Label.parse("//lib/foo:file"), Target.new(
-        rule: ->(context, archive:) {
-          assert_equal "lib/foo/archive", archive.fetch(FileInfo).relative_path
-          assert_equal "var/tmp/lib/foo/archive", archive.fetch(FileInfo).absolute_path
-        },
-        attributes: AttributeSchema.new(
-          archive: Attribute.new(Label, providers: [FileInfo]),
-        ).parse({
-          archive: "//lib/foo:archive",
-        }),
-      )
+    def test_happy_path
+      @registry[@label] = [@instance]
+      assert_equal @instance, @registry[@label, [@type]].fetch(@type)
     end
 
-    def test_invalid_checksum
-      @urls["https://example.com/foo.tgz"] = "THESE ARE NOT THE CONTENTS WE EXPECT!"
-
-      assert_raises do
-        @command.visit Label.parse("//lib/foo:archive"), Target.new(
-          rule: @download_rule,
-          attributes: @download_schema.parse({
-            url: "https://example.com/foo.tgz",
-            sha: Digest::SHA256.hexdigest("CONTENTS"),
-          }),
-        )
+    def test_upstream_does_not_exist
+      assert_raises(ProviderRegistry::MissingLabelError) do
+        @registry[@label, [@type]]
       end
-
-      assert !@files.key?("var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}")
-      assert !@files.key?("var/tmp/lib/foo/archive")
     end
 
-    def test_already_cached
-      @files["var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}"] = "CONTENTS"
-
-      command = BuildCommand.new(
-        Actions.new(
-          downloader: nil, # NOTE no downloader at all!
-          filesystem: InMemoryFilesystem.new(@files),
-          console: @console,
-        )
-      )
-
-      command.visit Label.parse("//lib/foo:archive"), Target.new(
-        rule: @download_rule,
-        attributes: @download_schema.parse({
-          url: "https://example.com/foo.tgz",
-          sha: Digest::SHA256.hexdigest("CONTENTS"),
-        }),
-      )
-
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+    def test_upstream_does_not_provide
+      @registry[@label] = []
+      assert_raises(ProviderRegistry::MissingProviderError) do
+        @registry[@label, [@type]]
+      end
     end
 
-    def test_unknown_sha
-      @urls["https://example.com/foo.tgz"] = "CONTENTS"
-
-      @command.visit Label.parse("//lib/foo:archive"), Target.new(
-        rule: @download_rule,
-        attributes: @download_schema.parse({
-          url: "https://example.com/foo.tgz",
-          sha: nil,
-        }),
-      )
-
-      assert_equal(<<~END, @console.string)
-        lib/foo/archive
-        #{Digest::SHA256.hexdigest("CONTENTS")}
-      END
-
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+    def test_current_does_not_depend
+      @registry[@label] = [@instance]
+      providers = @registry[@label, []]
+      assert_raises(ProviderRegistry::MissingProviderError) do
+        providers.fetch(@type)
+      end
     end
   end
 
@@ -1272,9 +1338,9 @@ module Wake
 
     def using(providers, value)
       if @type == Label && !@list
-        Providers.new(value, providers, @providers)
+        providers[value, @providers]
       elsif @type == Label && @list
-        value.map { |v| Providers.new(v, providers, @providers) }
+        value.map { |v| providers[v, @providers] }
       else
         value
       end
@@ -1328,45 +1394,6 @@ module Wake
 
     def test_parse_relative_label
       assert_equal Label["//src/main:foo"], Attribute.new(Label).parse(":foo", package: "src/main")
-    end
-  end
-
-  class Providers
-    class MissingProviderError < KeyError
-      def initialize(label, type)
-        super "#{label} does not provide #{type}"
-      end
-    end
-
-    def initialize(label, values, types)
-      @label = label
-      values_by_type = values.fetch(label, {}).map { |instance| [instance.class, instance] }.to_h
-      @values = values_by_type.fetch_values(*types) { |missing| raise MissingProviderError.new(label, missing) }
-    end
-
-    def fetch(type)
-      @values.find(-> { raise MissingProviderError.new(@label, type) }) { |value| type === value }
-    end
-  end
-
-  class ProvidersTest < Test
-    def setup
-      @label = Label["//src/main:foo"]
-      @type = Class.new
-      @instance = @type.new
-    end
-
-    def test_happy_path
-      assert_equal @instance, Providers.new(@label, { @label => [@instance] }, [@type]).fetch(@type)
-    end
-
-    def test_upstream_does_not_provide
-      assert_raises { Providers.new(@label, {}, [@type]) }
-    end
-
-    def test_current_does_not_depend
-      providers = Providers.new(@label, { @label => [@instance] }, [])
-      assert_raises { providers.fetch(@type) }
     end
   end
 
@@ -1876,7 +1903,7 @@ module Wake
     end
   end
 
-  class ExecutionPlan
+  class Plan
     def initialize(roots, &children)
       @blocked = {}
       @blocking = {}
@@ -1928,7 +1955,7 @@ module Wake
     end
   end
 
-  class ExecutionPlanTest < Test
+  class PlanTest < Test
     def test_each
       #   a     b
       #  / \    |
@@ -1950,7 +1977,7 @@ module Wake
         j: [],
       }
       record = []
-      plan = ExecutionPlan.new([:a, :b]) { |node| edges[node] }
+      plan = Plan.new([:a, :b]) { |node| edges[node] }
       plan.each { |node| record << node }
       assert_equal [:c, :f, :i, :j, :h, :g, :d, :e, :a, :b], record
     end
