@@ -19,6 +19,9 @@ module Wake
     # TODO what do I need from FileInfo?
   end
 
+  class FileGroup < Struct.new(:file_infos, keyword_init: true)
+  end
+
   class Extractor
     def self.parse(key)
       Extractor.new
@@ -45,6 +48,8 @@ module Wake
         # format.extract(archive.fetch(FileInfo).absolute_path, paths: paths, strip_components: strip_components)
         # file_info = context.outputs(paths)
         # [file_info]
+        # outputs = context.files(paths)
+        # context.run(inputs: [archive], outputs: outputs) { |inputs, outputs| format.extract(inputs.first.absolute_path, outputs.map(&:absolute_path)) }
         return
       },
     )
@@ -56,8 +61,9 @@ module Wake
         sha256: Attribute.new(Verifier),
       },
       implementation: ->(context, url:, sha256:) {
-        file_info = context.download(url, sha256)
-        [file_info]
+        file = context.file(url.path.split("/").last)
+        context.download(file, url, sha256)
+        [file]
       },
     )
 
@@ -230,8 +236,12 @@ module Wake
         @providers[@label] = rule.call(self, **attributes.using(@providers)) || []
       end
 
-      def download(url, verifier)
-        @actions.download(@label, url, verifier)
+      def download(file, url, verifier)
+        @actions.download(file, url, verifier)
+      end
+
+      def file(path)
+        @actions.file(@label, path)
       end
     end
   end
@@ -249,7 +259,9 @@ module Wake
       )
 
       @download_rule = ->(context, url:, sha:) {
-        [context.download(url, sha)]
+        file = context.file(url.path.split("/").last)
+        context.download(file, url, sha)
+        [file]
       }
 
       @download_schema = AttributeSchema.new(
@@ -269,13 +281,13 @@ module Wake
         }),
       )
 
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/foo.tgz")
 
       # Now pop back into the command with a new target that asserts on the FileInfo of the download!
       @command.visit Label.parse("//lib/foo:file"), Target.new(
         rule: ->(context, archive:) {
-          assert_equal "lib/foo/archive", archive.fetch(FileInfo).relative_path
-          assert_equal "var/tmp/lib/foo/archive", archive.fetch(FileInfo).absolute_path
+          assert_equal "lib/foo/foo.tgz", archive.fetch(FileInfo).relative_path
+          assert_equal "var/tmp/lib/foo/foo.tgz", archive.fetch(FileInfo).absolute_path
           []
         },
         attributes: AttributeSchema.new(
@@ -300,7 +312,7 @@ module Wake
       end
 
       assert !@files.key?("var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}")
-      assert !@files.key?("var/tmp/lib/foo/archive")
+      assert !@files.key?("var/tmp/lib/foo/foo.tgz")
     end
 
     def test_already_cached
@@ -320,7 +332,7 @@ module Wake
         }),
       )
 
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/foo.tgz")
     end
 
     def test_unknown_sha
@@ -335,11 +347,11 @@ module Wake
       )
 
       assert_equal(<<~END, @console.string)
-        lib/foo/archive
+        lib/foo/foo.tgz
         #{Digest::SHA256.hexdigest("CONTENTS")}
       END
 
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/archive")
+      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/foo.tgz")
     end
   end
 
@@ -350,18 +362,16 @@ module Wake
       @console = console
     end
 
-    def download(label, url, verifier)
-      path = File.join(label.package, label.name)
-
+    def download(file, url, verifier)
       # TODO develop more of a protocol for the console. Can imagine more of a UI for it, multiple download progress bars, etc.
       verifier = verifier.observing do |checksum|
-        @console.puts(path)
+        @console.puts(file.relative_path)
         @console.puts(checksum)
       end
 
       if !verifier.checksum || !@filesystem.exists?("var/cache/#{verifier.checksum}")
         @filesystem.tempfile do |io|
-          verifier.wrapping(path, io) do |verified_io|
+          verifier.wrapping(file.relative_path, io) do |verified_io|
             @downloader.fetch(url).read do |chunk|
               verified_io.write(chunk)
             end
@@ -373,11 +383,14 @@ module Wake
         end
       end
 
-      @filesystem.link("var/cache/#{verifier.checksum}", "var/tmp/#{path}")
+      @filesystem.link("var/cache/#{verifier.checksum}", file.absolute_path)
+    end
 
+    def file(label, path)
+      scoped_path = File.join(label.package, path)
       FileInfo.new(
-        relative_path: path,
-        absolute_path: @filesystem.absolute_path("var/tmp/#{path}"),
+        relative_path: scoped_path,
+        absolute_path: @filesystem.absolute_path("var/tmp/#{scoped_path}"),
       )
     end
   end
