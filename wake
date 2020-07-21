@@ -19,9 +19,6 @@ module Wake
     # TODO what do I need from FileInfo?
   end
 
-  class FileGroup < Struct.new(:file_infos, keyword_init: true)
-  end
-
   class Extractor
     def self.parse(key)
       Extractor.new
@@ -31,39 +28,57 @@ module Wake
   def self.run
     registry = Registry.new
 
-    registry.new_rule(
-      :extracted_files,
-      attributes: {
-        archive: Attribute.new(Label, providers: [FileInfo]),
-        format: Attribute.new(Extractor),
-        paths: Attribute.new(String, list: true),
-        strip_components: Attribute.new(PathCleaner, default: 0),
-      },
-      implementation: ->(context, archive:, format:, paths:, strip_components:) {
-        # 1. How to get package scoping here? Want more than just pwd.
-        # 2. How to expose providers? Can we see some values automatically? Can we call something on context?
-        # 3. How to reflect the decsions / learnings here over in http_file?
-        # In our previous http_file / download rule, the *context* produced the artifact! So the *context* could build the FileInfo.
-        # Maybe we can do that here, too.
-        # format.extract(archive.fetch(FileInfo).absolute_path, paths: paths, strip_components: strip_components)
-        # file_info = context.outputs(paths)
-        # [file_info]
-        # outputs = context.files(paths)
-        # context.run(inputs: [archive], outputs: outputs) { |inputs, outputs| format.extract(inputs.first.absolute_path, outputs.map(&:absolute_path)) }
-        return
-      },
+    # Does this make sense as a target?
+    # Provider registry means we get a singleton, which is nice for queueing.
+    # Could depend on, say, //tools:console for progress bars.
+    # It's nice to move something like this out of the kernel.
+    # Perhaps InMemoryDownloader is unnecessary now!
+    registry.new_target(
+      label: Label.parse("//tools:http"),
+      rule: lambda { |context| [HttpDownloader.new] },
+      attributes: AttributeSchema.new.parse({}),
     )
 
     registry.new_rule(
       :http_file,
       attributes: {
+        http: Attribute.new(Label, default: "//tools:http", providers: [HttpDownloader]),
         url: Attribute.new(URI),
         sha256: Attribute.new(Verifier),
       },
-      implementation: ->(context, url:, sha256:) {
+      implementation: ->(context, http:, url:, sha256:) {
         file = context.file(url.path.split("/").last)
-        context.download(file, url, sha256)
+        # context.download(file, url, sha256)
+        context.run(output: file) do |fs|
+          fs.tempfile do |io|
+            # TODO verifier is awkward. Maybe just inline it here?
+            # Like, this is the only place I need it.
+            # TODO rip out the tell-me-the-sha code. Reintroduce it later.
+            sha256.wrapping(file.relative_path, io) do |verified_io|
+              # TODO maybe kill the .read once we don't have an in-memory version
+              # It's an awkward API as it stands.
+              http.fetch(HttpDownloader).fetch(url).read do |chunk|
+                verified_io.write(chunk)
+              end
+            end
+            io.flush
+            fs.link(io.path, file.absolute_path)
+          end
+        end
         [file]
+      },
+    )
+
+    registry.new_rule(
+      :extract,
+      attributes: {
+        archive: Attribute.new(Label, providers: [FileInfo]),
+        format: Attribute.new(Extractor),
+        path: Attribute.new(String),
+        strip_components: Attribute.new(PathCleaner, default: 0),
+      },
+      implementation: ->(context, archive:, format:, path:, strip_components:) {
+        return
       },
     )
 
@@ -243,10 +258,50 @@ module Wake
       def file(path)
         @actions.file(@label, path)
       end
+
+      def run(output:, &action)
+        @actions.run(@label, output: output, &action)
+      end
     end
   end
 
+  # So, my idea here is to focus the role of the build command:
+  # It is now only concerned with running either ruby or shell code to produce
+  # expected outputs given some inputs.
+  # So, context.file and context.run remain.
+  # Downloading is mored out to an attribute.
+  # Extracting is moved out to an attribute.
+  # Their respective rules use those attributes to do their work, but they must
+  # fulfill the contract as required by context.run.
+  # Otherwise, build gets too big, and this is all too hard to test!
   class BuildTest < Test
+    def setup
+      @files = {}
+      @command = Build.new(downloader: nil, filesystem: InMemoryFilesystem.new(@files), console: StringIO.new)
+      @label = Label.parse("//src:foo")
+      @attributes = AttributeSchema.new.parse({})
+    end
+
+    def test_context_run_happy_path_specified_files_are_created
+      rule = lambda do |context|
+        file = context.file("path.txt")
+        context.run(output: file) do |fs|
+          # TODO perhaps a better API for file operations?
+          # TODO fs can do the sandboxing!!
+          fs.tempfile do |io|
+            io.write("CONTENT")
+            io.flush
+            fs.link(io.path, file.absolute_path) # TODO relative_path?
+          end
+        end
+        [file]
+      end
+      @command.visit @label, Target.new(rule: rule, attributes: @attributes)
+      assert_equal "CONTENT", @files.fetch("var/tmp/src/path.txt")
+    end
+  end
+
+  class OldBuildTest < Test
     def setup
       @urls = {}
       @files = {}
@@ -393,6 +448,53 @@ module Wake
         absolute_path: @filesystem.absolute_path("var/tmp/#{scoped_path}"),
       )
     end
+
+    def run(label, inputs: [], output:, &action)
+      action.call(@filesystem)
+    end
+  end
+
+  class ActionsTest < Test
+    def setup
+      @files = {}
+      @actions = Actions.new(
+        downloader: nil,
+        filesystem: InMemoryFilesystem.new(@files),
+        console: StringIO.new,
+      )
+    end
+
+    def test_run
+      label = Label.parse("//src:foo")
+      file = @actions.file(label, "path.txt")
+      action = lambda do |fs|
+        fs.tempfile do |io|
+          io.write("CONTENT")
+          io.flush
+          fs.link(io.path, file.absolute_path)
+        end
+      end
+
+      @actions.run(label, output: file, &action)
+
+      assert_equal "CONTENT", @files.fetch(file.absolute_path)
+    end
+
+    def test_run_caching
+      label = Label.parse("//src:foo")
+      file = @actions.file(label, "path.txt")
+      action = lambda do |fs|
+        fs.tempfile do |io|
+          io.write("CONTENT")
+          io.flush
+          fs.link(io.path, file.absolute_path)
+        end
+      end
+
+      @actions.run(label, output: file, &action)
+
+      assert_equal "CONTENT", @files.fetch(file.absolute_path)
+    end
   end
 
   class ProviderRegistry
@@ -481,12 +583,11 @@ module Wake
     def initialize(digest, checksum: nil, observer: ->(measured_checksum) { })
       @digest = digest
       @expected_checksum = checksum
-      @measured_checksum = nil
       @observer = observer
     end
 
     def checksum
-      @expected_checksum || @measured_checksum
+      @expected_checksum
     end
 
     def observing(&observer)
@@ -496,11 +597,11 @@ module Wake
     def wrapping(path, io, &block)
       digest = @digest.new
       block.call(Wrapper.new(io, digest))
-      @measured_checksum = digest.hexdigest
+      measured_checksum = digest.hexdigest
       if @expected_checksum
-        raise "Expected #{@expected_checksum} for #{path} but got #{@measured_checksum}" if @expected_checksum != @measured_checksum
+        raise "Expected #{@expected_checksum} for #{path} but got #{measured_checksum}" if @expected_checksum != measured_checksum
       else
-        @observer.call(@measured_checksum)
+        @observer.call(measured_checksum)
       end
     end
 
