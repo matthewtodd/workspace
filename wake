@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby -wU --disable-all
 
-# :set tagfunc=RubyBufferTagFunc
 require "digest/sha2"
 require "fileutils"
 require "net/http"
@@ -48,23 +47,7 @@ module Wake
       },
       implementation: ->(context, http:, url:, sha256:) {
         file = context.file(url.path.split("/").last)
-        # context.download(file, url, sha256)
-        context.run(output: file) do |fs|
-          fs.tempfile do |io|
-            # TODO verifier is awkward. Maybe just inline it here?
-            # Like, this is the only place I need it.
-            # TODO rip out the tell-me-the-sha code. Reintroduce it later.
-            sha256.wrapping(file.relative_path, io) do |verified_io|
-              # TODO maybe kill the .read once we don't have an in-memory version
-              # It's an awkward API as it stands.
-              http.fetch(HttpDownloader).fetch(url).read do |chunk|
-                verified_io.write(chunk)
-              end
-            end
-            io.flush
-            fs.link(io.path, file.absolute_path)
-          end
-        end
+        context.download(file, url, sha256)
         [file]
       },
     )
@@ -221,12 +204,12 @@ module Wake
 
   class Build
     def initialize(downloader:, filesystem:, console:)
-      # I wonder if other ~commands might want a different flavor of Actions?
+      # I wonder if other ~commands might want a different flavor of OldActions?
       # If so, we would pass the different one in here.
       # At the moment, I'm unsure of the responsibilities, so treating
-      # Actions and ProviderRegistry as analysis-internal is helping me
+      # OldActions and ProviderRegistry as analysis-internal is helping me
       # think manage the complexity.
-      @actions = Actions.new(downloader: downloader, filesystem: filesystem, console: console)
+      @actions = OldActions.new(downloader: downloader, filesystem: filesystem, console: console)
       @providers = ProviderRegistry.new
     end
 
@@ -265,43 +248,7 @@ module Wake
     end
   end
 
-  # So, my idea here is to focus the role of the build command:
-  # It is now only concerned with running either ruby or shell code to produce
-  # expected outputs given some inputs.
-  # So, context.file and context.run remain.
-  # Downloading is mored out to an attribute.
-  # Extracting is moved out to an attribute.
-  # Their respective rules use those attributes to do their work, but they must
-  # fulfill the contract as required by context.run.
-  # Otherwise, build gets too big, and this is all too hard to test!
   class BuildTest < Test
-    def setup
-      @files = {}
-      @command = Build.new(downloader: nil, filesystem: InMemoryFilesystem.new(@files), console: StringIO.new)
-      @label = Label.parse("//src:foo")
-      @attributes = AttributeSchema.new.parse({})
-    end
-
-    def test_context_run_happy_path_specified_files_are_created
-      rule = lambda do |context|
-        file = context.file("path.txt")
-        context.run(output: file) do |fs|
-          # TODO perhaps a better API for file operations?
-          # TODO fs can do the sandboxing!!
-          fs.tempfile do |io|
-            io.write("CONTENT")
-            io.flush
-            fs.link(io.path, file.absolute_path) # TODO relative_path?
-          end
-        end
-        [file]
-      end
-      @command.visit @label, Target.new(rule: rule, attributes: @attributes)
-      assert_equal "CONTENT", @files.fetch("var/tmp/src/path.txt")
-    end
-  end
-
-  class OldBuildTest < Test
     def setup
       @urls = {}
       @files = {}
@@ -410,7 +357,7 @@ module Wake
     end
   end
 
-  class Actions
+  class OldActions
     def initialize(downloader:, filesystem:, console:)
       @downloader = downloader
       @filesystem = filesystem
@@ -447,53 +394,6 @@ module Wake
         relative_path: scoped_path,
         absolute_path: @filesystem.absolute_path("var/tmp/#{scoped_path}"),
       )
-    end
-
-    def run(label, inputs: [], output:, &action)
-      action.call(@filesystem)
-    end
-  end
-
-  class ActionsTest < Test
-    def setup
-      @files = {}
-      @actions = Actions.new(
-        downloader: nil,
-        filesystem: InMemoryFilesystem.new(@files),
-        console: StringIO.new,
-      )
-    end
-
-    def test_run
-      label = Label.parse("//src:foo")
-      file = @actions.file(label, "path.txt")
-      action = lambda do |fs|
-        fs.tempfile do |io|
-          io.write("CONTENT")
-          io.flush
-          fs.link(io.path, file.absolute_path)
-        end
-      end
-
-      @actions.run(label, output: file, &action)
-
-      assert_equal "CONTENT", @files.fetch(file.absolute_path)
-    end
-
-    def test_run_caching
-      label = Label.parse("//src:foo")
-      file = @actions.file(label, "path.txt")
-      action = lambda do |fs|
-        fs.tempfile do |io|
-          io.write("CONTENT")
-          io.flush
-          fs.link(io.path, file.absolute_path)
-        end
-      end
-
-      @actions.run(label, output: file, &action)
-
-      assert_equal "CONTENT", @files.fetch(file.absolute_path)
     end
   end
 
@@ -2110,13 +2010,3 @@ module Wake
     exit Wake.run
   end
 end
-
-# TODO this modeline doesn't work. Use this hint to make something that does,
-# and turn on Autoformat the same way.
-
-# Hint: If you would like to do something else than setting an option, you
-# could define an autocommand that checks the file for a specific string. For
-# example:
-#   au BufReadPost * if getline(1) =~ "VAR" | call SetVar() | endif
-# And define a function SetVar() that does something with the line containing
-# "VAR".
