@@ -10,12 +10,17 @@ require "rubygems/package"
 require "set"
 require "stringio"
 require "tempfile"
+require "tmpdir"
 require "uri"
 require "zlib"
 
 module Wake
-  class FileInfo < Struct.new(:relative_path, :absolute_path, keyword_init: true)
-    # TODO what do I need from FileInfo?
+  class DeprecatedFileInfo < Struct.new(:relative_path, :absolute_path, keyword_init: true)
+    # TODO what do I need from DeprecatedFileInfo?
+  end
+
+  class FileInfo < Struct.new(:path)
+    # TODO any behavior?
   end
 
   class Extractor
@@ -32,30 +37,37 @@ module Wake
     # Could depend on, say, //tools:console for progress bars.
     # It's nice to move something like this out of the kernel.
     # Perhaps InMemoryDownloader is unnecessary now!
-    # registry.new_target(
-    #   label: Label.parse("//tools:http"),
-    #   rule: lambda { |context| [HttpDownloader.new] },
-    #   attributes: AttributeSchema.new.parse({}),
-    # )
+    registry.new_target(
+      label: Label.parse("//tools:http"),
+      rule: lambda { |context| [HttpDownloader.new] },
+      attributes: AttributeSchema.new.parse({}),
+    )
 
     registry.new_rule(
       :http_file,
       attributes: {
-        # http: Attribute.new(Label, default: "//tools:http", providers: [HttpDownloader]),
+        http: Attribute.new(Label, default: "//tools:http", providers: [HttpDownloader]),
         url: Attribute.new(URI),
         sha256: Attribute.new(Verifier),
       },
-      implementation: ->(context, url:, sha256:) {
-        file = context.file(url.path.split("/").last)
-        context.download(file, url, sha256)
-        [file]
+      implementation: ->(context, http:, url:, sha256:) {
+        file = url.path.split("/").last
+        deprecated_file_info = context.file(file)
+        context.run(parameters: [url], outputs: [file]) do |fs|
+          fs.open(deprecated_file_info.relative_path, "wb") do |io|
+            http.fetch(HttpDownloader).fetch(url).read do |chunk|
+              io.write(chunk)
+            end
+          end
+        end
+        [FileInfo.new(deprecated_file_info.relative_path), deprecated_file_info]
       },
     )
 
     registry.new_rule(
       :extract,
       attributes: {
-        archive: Attribute.new(Label, providers: [FileInfo]),
+        archive: Attribute.new(Label, providers: [DeprecatedFileInfo]),
         format: Attribute.new(Extractor),
         path: Attribute.new(String),
         strip_components: Attribute.new(PathCleaner, default: 0),
@@ -70,8 +82,8 @@ module Wake
     registry.new_rule(
       :java_import,
       attributes: {
-        jar: Attribute.new(Label, providers: [FileInfo]),
-        source_jar: Attribute.new(Label, providers: [FileInfo]),
+        jar: Attribute.new(Label, providers: [DeprecatedFileInfo]),
+        source_jar: Attribute.new(Label, providers: [DeprecatedFileInfo]),
       },
       implementation: ->(context, jar:, source_jar:) {
         return
@@ -184,8 +196,9 @@ module Wake
     # Second pass is over those actions, doing the work of the build.
     # Perhaps there's then a Third execution phase, running any executables or tests?
     build = Build.new(
+      actions: Actions.new(RealFilesystem.new(Dir.pwd)),
       downloader: HttpDownloader.new,
-      filesystem: RealFilesystem.new(Pathname.pwd),
+      filesystem: DeprecatedFilesystem.new(Pathname.pwd),
       console: STDOUT,
     )
 
@@ -203,28 +216,30 @@ module Wake
   end
 
   class Build
-    def initialize(downloader:, filesystem:, console:)
-      # I wonder if other ~commands might want a different flavor of OldActions?
+    def initialize(actions:, downloader:, filesystem:, console:)
+      # I wonder if other ~commands might want a different flavor of DeprecatedActions?
       # If so, we would pass the different one in here.
       # At the moment, I'm unsure of the responsibilities, so treating
-      # OldActions and ProviderRegistry as analysis-internal is helping me
+      # DeprecatedActions and ProviderRegistry as analysis-internal is helping me
       # think manage the complexity.
-      @actions = OldActions.new(downloader: downloader, filesystem: filesystem, console: console)
+      @actions = actions
+      @deprecated_actions = DeprecatedActions.new(downloader: downloader, filesystem: filesystem, console: console)
       @providers = ProviderRegistry.new
     end
 
     def visit(label, target)
       # TODO keep an eye on what this indirection throught context is buying me
-      # i.e., why isn't this `target.invoke(@actions, @providers, label)`?
-      # or maybe @actions.scoped(label), @providers or something?
-      target.invoke(Context.new(@actions, @providers, label))
+      # i.e., why isn't this `target.invoke(@deprecated_actions, @providers, label)`?
+      # or maybe @deprecated_actions.scoped(label), @providers or something?
+      target.invoke(Context.new(@actions, @deprecated_actions, @providers, label))
     end
 
     private
 
     class Context
-      def initialize(actions, providers, label)
+      def initialize(actions, deprecated_actions, providers, label)
         @actions = actions
+        @deprecated_actions = deprecated_actions
         @providers = providers
         @label = label
       end
@@ -235,15 +250,15 @@ module Wake
       end
 
       def download(file, url, verifier)
-        @actions.download(file, url, verifier)
+        @deprecated_actions.download(file, url, verifier)
       end
 
       def file(path)
-        @actions.file(@label, path)
+        @deprecated_actions.file(@label, path)
       end
 
-      def run(output:, &action)
-        @actions.run(@label, output: output, &action)
+      def run(inputs: [], parameters: [], outputs:, &block)
+        @actions.run(@label, inputs: inputs, parameters: parameters, outputs: outputs, &block)
       end
     end
   end
@@ -255,8 +270,9 @@ module Wake
       @console = StringIO.new
 
       @command = Build.new(
+        actions: Actions.new(InMemoryFilesystem.new("/workspace", @files)),
         downloader: InMemoryDownloader.new(@urls),
-        filesystem: InMemoryFilesystem.new(@files),
+        filesystem: DeprecatedInMemoryFilesystem.new(@files),
         console: @console,
       )
 
@@ -285,15 +301,15 @@ module Wake
 
       assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/foo.tgz")
 
-      # Now pop back into the command with a new target that asserts on the FileInfo of the download!
+      # Now pop back into the command with a new target that asserts on the DeprecatedFileInfo of the download!
       @command.visit Label.parse("//lib/foo:file"), Target.new(
         rule: ->(context, archive:) {
-          assert_equal "lib/foo/foo.tgz", archive.fetch(FileInfo).relative_path
-          assert_equal "var/tmp/lib/foo/foo.tgz", archive.fetch(FileInfo).absolute_path
+          assert_equal "lib/foo/foo.tgz", archive.fetch(DeprecatedFileInfo).relative_path
+          assert_equal "var/tmp/lib/foo/foo.tgz", archive.fetch(DeprecatedFileInfo).absolute_path
           []
         },
         attributes: AttributeSchema.new(
-          archive: Attribute.new(Label, providers: [FileInfo]),
+          archive: Attribute.new(Label, providers: [DeprecatedFileInfo]),
         ).parse({
           archive: "//lib/foo:archive",
         }),
@@ -321,8 +337,9 @@ module Wake
       @files["var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}"] = "CONTENTS"
 
       command = Build.new(
+        actions: Actions.new(InMemoryFilesystem.new("/workspace", @files)),
         downloader: nil, # NOTE no downloader at all!
-        filesystem: InMemoryFilesystem.new(@files),
+        filesystem: DeprecatedInMemoryFilesystem.new(@files),
         console: @console,
       )
 
@@ -357,7 +374,267 @@ module Wake
     end
   end
 
-  class OldActions
+  class Actions
+    def initialize(fs)
+      @fs = fs
+    end
+
+    def run(label, inputs: [], parameters: [], outputs:, &block)
+      key = Digest::SHA256.hexdigest("#{label}-#{inputs.map { |path| checksum(path) }.join("-")}-#{parameters.join("-")}-#{outputs.join("-")}")
+
+      if !@fs.exists?("var/cache/#{key}")
+        @fs.mktmpdir do |dir|
+          inputs.each do |path|
+            if @fs.exists?(path)
+              @fs.link(path, "#{dir}/#{path}")
+            else
+              @fs.link("var/tmp/#{path}", "#{dir}/#{path}")
+            end
+          end
+
+          block.call(@fs.sandbox(dir))
+
+          missing = outputs.reject { |path| @fs.exists?("#{dir}/#{label.package}/#{path}") }
+          raise "Action for #{label} failed to produce outputs #{missing}." if missing.any?
+
+          outputs.each do |path|
+            @fs.link("#{dir}/#{label.package}/#{path}", "var/cache/#{key}/#{label.package}/#{path}")
+          end
+        end
+      end
+
+      outputs.each do |path|
+        @fs.link("var/cache/#{key}/#{label.package}/#{path}", "var/tmp/#{label.package}/#{path}")
+      end
+    end
+
+    private
+
+    def checksum(path)
+      if @fs.exists?(path)
+        @fs.checksum(path)
+      else
+        @fs.checksum("var/tmp/#{path}")
+      end
+    end
+  end
+
+  class ActionsTest < Test
+    def setup
+      @files = {}
+      @actions = Actions.new(InMemoryFilesystem.new("/workspace", @files))
+    end
+
+    def test_run_caching
+      @files["/workspace/src/foo.txt"] = "FOO"
+      @files["/workspace/src/bar.txt"] = "BAR"
+
+      @actions.run(Label["//src:baz"], outputs: ["baz.out"]) do |fs|
+        fs.open("src/baz.out", "w") { |io| io.puts("BAZ") }
+      end
+
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+        fs.open("src/foo.out", "w") do |io|
+          2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
+          2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
+          2.times { fs.open("src/baz.out", "r") { |baz| io.puts(baz.read) } }
+        end
+      end
+
+      assert_equal(<<~END, @files.fetch("/workspace/var/tmp/src/foo.out"))
+        FOO
+        FOO
+        BAR
+        BAR
+        BAZ
+        BAZ
+      END
+
+      # nothing changes (re-run with raising block?)
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+        raise "Shouldn't get here!"
+      end
+
+      # source changes
+      @files["/workspace/src/foo.txt"] = "FOOFOO"
+
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+        fs.open("src/foo.out", "w") do |io|
+          2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
+          2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
+          2.times { fs.open("src/baz.out", "r") { |baz| io.puts(baz.read) } }
+        end
+      end
+
+      assert_equal(<<~END, @files.fetch("/workspace/var/tmp/src/foo.out"))
+        FOOFOO
+        FOOFOO
+        BAR
+        BAR
+        BAZ
+        BAZ
+      END
+
+      # generated changes
+      @actions.run(Label["//src:baz"], parameters: [:changed], outputs: ["baz.out"]) do |fs|
+        fs.open("src/baz.out", "w") { |io| io.puts("BAZBAZ") }
+      end
+
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+        fs.open("src/foo.out", "w") do |io|
+          2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
+          2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
+          2.times { fs.open("src/baz.out", "r") { |baz| io.puts(baz.read) } }
+        end
+      end
+
+      assert_equal(<<~END, @files.fetch("/workspace/var/tmp/src/foo.out"))
+        FOOFOO
+        FOOFOO
+        BAR
+        BAR
+        BAZBAZ
+        BAZBAZ
+      END
+    end
+  end
+
+  class InMemoryFilesystem
+    def initialize(base, files)
+      @base = base
+      @files = files
+    end
+
+    def checksum(path)
+      # A real filesystem would do some caching here, since these are expensive.
+      Digest::SHA256.hexdigest(@files.fetch(absolute_path(path)))
+    end
+
+    def exists?(path)
+      # First clause is for files.
+      # Second clause is a hack for directories, since we're not modeling them fully, just putting path -> contents in a Hash.
+      path = absolute_path(path)
+      @files.key?(path) || @files.keys.any? { |candidate| candidate.start_with?(path) && candidate[path.length] == "/" }
+    end
+
+    def link(src, dest)
+      @files[absolute_path(dest)] = @files.fetch(absolute_path(src))
+    end
+
+    def mktmpdir(&block)
+      tmp = "/tmp/#{Time.now.strftime("%Y%m%d")}-#{$$}-#{rand(0x100000000).to_s(36)}"
+      yield tmp
+    ensure
+      @files.delete_if { |path, content| path.start_with?(tmp) }
+    end
+
+    def sandbox(base)
+      Sandbox.new(absolute_path(base), @files)
+    end
+
+    private
+
+    def absolute_path(path)
+      path.start_with?("/") ? path : "#{@base}/#{path}"
+    end
+
+    class Sandbox
+      def initialize(base, files)
+        @base = base
+        @files = files
+      end
+
+      def open(path, mode, &block)
+        case mode
+        when "r"
+          yield StringIO.new(@files.fetch(File.join(@base, path)))
+        when "w"
+          io = StringIO.new
+          yield io
+          @files[File.join(@base, path)] = io.string
+        else
+          raise "Unsupported mode #{mode}"
+        end
+      end
+    end
+  end
+
+  class RealFilesystem
+    def initialize(base)
+      @base = base
+      @checksums = {}
+      @mtimes = {}
+    end
+
+    def checksum(path)
+      path = absolute_path(path)
+
+      # TODO if these stats get expensive, maybe we eagerly cache checksums for
+      # generated files and take a separate path for "volatile" source files.
+      mtime = File.mtime(path)
+
+      if @mtimes.key?(path) && @mtimes[path] == mtime
+        @checksums.fetch(path)
+      else
+        @mtimes[path] = mtime
+        @checksums[path] = Digest::SHA256.file(path).hexdigest
+      end
+    end
+
+    def exists?(path)
+      path = absolute_path(path)
+      File.exist?(path)
+    end
+
+    def link(src, dest)
+      src = absolute_path(src)
+      dest = absolute_path(dest)
+      FileUtils.mkdir_p(File.dirname(dest))
+      FileUtils.ln(src, dest, force: true)
+    end
+
+    def mktmpdir(&block)
+      Dir.mktmpdir(&block)
+    end
+
+    def sandbox(base)
+      Sandbox.new(absolute_path(base))
+    end
+
+    private
+
+    def absolute_path(path)
+      path.start_with?("/") ? path : "#{@base}/#{path}"
+    end
+
+    class Sandbox
+      def initialize(base)
+        @base = base
+      end
+
+      def open(path, mode, &block)
+        path = File.join(@base, path)
+        FileUtils.mkdir_p(File.dirname(path))
+        File.open(path, mode, &block)
+      end
+    end
+  end
+
+  class RealFilesystemTest < Test
+    def test_changed_checksum
+      fs = RealFilesystem.new(Dir.pwd)
+
+      Dir.mktmpdir do |tmp|
+        path = File.join(tmp, "foo.txt")
+        File.open(path, "w") { |io| io.write("FOO") }
+        assert_equal Digest::SHA256.hexdigest("FOO"), fs.checksum(path)
+        File.open(path, "w") { |io| io.write("BAR") }
+        assert_equal Digest::SHA256.hexdigest("BAR"), fs.checksum(path)
+      end
+    end
+  end
+
+  class DeprecatedActions
     def initialize(downloader:, filesystem:, console:)
       @downloader = downloader
       @filesystem = filesystem
@@ -390,7 +667,7 @@ module Wake
 
     def file(label, path)
       scoped_path = File.join(label.package, path)
-      FileInfo.new(
+      DeprecatedFileInfo.new(
         relative_path: scoped_path,
         absolute_path: @filesystem.absolute_path("var/tmp/#{scoped_path}"),
       )
@@ -928,7 +1205,7 @@ module Wake
     end
   end
 
-  class InMemoryFilesystem
+  class DeprecatedInMemoryFilesystem
     def initialize(files)
       @files = files
     end
@@ -975,7 +1252,7 @@ module Wake
     end
   end
 
-  class RealFilesystem
+  class DeprecatedFilesystem
     def initialize(base)
       @base = base
     end
@@ -1141,8 +1418,8 @@ module Wake
         )
 
         @download_rule = ->(context, download:, downloader:, cache:) {
-          # TODO here's where we put a FileInfo in the context. Or we return one?
-          [FileInfo.new]
+          # TODO here's where we put a DeprecatedFileInfo in the context. Or we return one?
+          [DeprecatedFileInfo.new]
         }
 
         @extract_schema = AttributeSchema.new(
