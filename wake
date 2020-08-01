@@ -15,10 +15,6 @@ require "uri"
 require "zlib"
 
 module Wake
-  class DeprecatedFileInfo < Struct.new(:relative_path, :absolute_path, keyword_init: true)
-    # TODO what do I need from DeprecatedFileInfo?
-  end
-
   class FileInfo < Struct.new(:path)
     # TODO any behavior?
   end
@@ -39,7 +35,8 @@ module Wake
     # Perhaps InMemoryDownloader is unnecessary now!
     registry.new_target(
       label: Label.parse("//tools:http"),
-      rule: lambda { |context, dummy:| [HttpDownloader.new] }, # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
+      # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
+      rule: lambda { |context, dummy:| [HttpDownloader.new] },
       attributes: AttributeSchema.new({ dummy: Attribute.new(String) }).parse({ dummy: "42" }),
     )
 
@@ -51,23 +48,23 @@ module Wake
         sha256: Attribute.new(Verifier),
       },
       implementation: ->(context, http:, url:, sha256:) {
-        file = url.path.split("/").last
-        deprecated_file_info = context.file(file)
-        context.run(parameters: [url], outputs: [file]) do |fs|
-          fs.open(deprecated_file_info.relative_path, "wb") do |io|
+        path = context.expand_path(url.path.split("/").last)
+        # TODO work back in (a new kind of?) verifier
+        context.run(parameters: [url], outputs: [File.basename(path)]) do |fs|
+          fs.open(path, "wb") do |io|
             http.fetch(HttpDownloader).fetch(url).read do |chunk|
               io.write(chunk)
             end
           end
         end
-        [FileInfo.new(deprecated_file_info.relative_path), deprecated_file_info]
+        [FileInfo.new(path)]
       },
     )
 
     registry.new_rule(
       :extract,
       attributes: {
-        archive: Attribute.new(Label, providers: [DeprecatedFileInfo]),
+        archive: Attribute.new(Label, providers: [FileInfo]),
         format: Attribute.new(Extractor),
         path: Attribute.new(String),
         strip_components: Attribute.new(PathCleaner, default: 0),
@@ -82,8 +79,8 @@ module Wake
     registry.new_rule(
       :java_import,
       attributes: {
-        jar: Attribute.new(Label, providers: [DeprecatedFileInfo]),
-        source_jar: Attribute.new(Label, providers: [DeprecatedFileInfo]),
+        jar: Attribute.new(Label, providers: [FileInfo]),
+        source_jar: Attribute.new(Label, providers: [FileInfo]),
       },
       implementation: ->(context, jar:, source_jar:) {
         return
@@ -197,9 +194,6 @@ module Wake
     # Perhaps there's then a Third execution phase, running any executables or tests?
     build = Build.new(
       actions: Actions.new(RealFilesystem.new(Dir.pwd)),
-      downloader: HttpDownloader.new,
-      filesystem: DeprecatedFilesystem.new(Pathname.pwd),
-      console: STDOUT,
     )
 
     plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
@@ -216,14 +210,13 @@ module Wake
   end
 
   class Build
-    def initialize(actions:, downloader:, filesystem:, console:)
+    def initialize(actions:)
       # I wonder if other ~commands might want a different flavor of DeprecatedActions?
       # If so, we would pass the different one in here.
       # At the moment, I'm unsure of the responsibilities, so treating
       # DeprecatedActions and ProviderRegistry as analysis-internal is helping me
       # think manage the complexity.
       @actions = actions
-      @deprecated_actions = DeprecatedActions.new(downloader: downloader, filesystem: filesystem, console: console)
       @providers = ProviderRegistry.new
     end
 
@@ -231,15 +224,14 @@ module Wake
       # TODO keep an eye on what this indirection throught context is buying me
       # i.e., why isn't this `target.invoke(@deprecated_actions, @providers, label)`?
       # or maybe @deprecated_actions.scoped(label), @providers or something?
-      target.invoke(Context.new(@actions, @deprecated_actions, @providers, label))
+      target.invoke(Context.new(@actions, @providers, label))
     end
 
     private
 
     class Context
-      def initialize(actions, deprecated_actions, providers, label)
+      def initialize(actions, providers, label)
         @actions = actions
-        @deprecated_actions = deprecated_actions
         @providers = providers
         @label = label
       end
@@ -249,128 +241,13 @@ module Wake
         @providers[@label] = rule.call(self, **attributes.using(@providers)) || []
       end
 
-      def download(file, url, verifier)
-        @deprecated_actions.download(file, url, verifier)
-      end
-
-      def file(path)
-        @deprecated_actions.file(@label, path)
+      def expand_path(path)
+        File.join(@label.package, path)
       end
 
       def run(inputs: [], parameters: [], outputs:, &block)
         @actions.run(@label, inputs: inputs, parameters: parameters, outputs: outputs, &block)
       end
-    end
-  end
-
-  class BuildTest < Test
-    def setup
-      @urls = {}
-      @files = {}
-      @console = StringIO.new
-
-      @command = Build.new(
-        actions: Actions.new(InMemoryFilesystem.new("/workspace", @files)),
-        downloader: InMemoryDownloader.new(@urls),
-        filesystem: DeprecatedInMemoryFilesystem.new(@files),
-        console: @console,
-      )
-
-      @download_rule = ->(context, url:, sha:) {
-        file = context.file(url.path.split("/").last)
-        context.download(file, url, sha)
-        [file]
-      }
-
-      @download_schema = AttributeSchema.new(
-        url: Attribute.new(URI),
-        sha: Attribute.new(Verifier),
-      )
-    end
-
-    def test_downloading_verifying_caching_and_linking
-      @urls["https://example.com/foo.tgz"] = "CONTENTS"
-
-      @command.visit Label.parse("//lib/foo:archive"), Target.new(
-        rule: @download_rule,
-        attributes: @download_schema.parse({
-          url: "https://example.com/foo.tgz",
-          sha: Digest::SHA256.hexdigest("CONTENTS"),
-        }),
-      )
-
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/foo.tgz")
-
-      # Now pop back into the command with a new target that asserts on the DeprecatedFileInfo of the download!
-      @command.visit Label.parse("//lib/foo:file"), Target.new(
-        rule: ->(context, archive:) {
-          assert_equal "lib/foo/foo.tgz", archive.fetch(DeprecatedFileInfo).relative_path
-          assert_equal "var/tmp/lib/foo/foo.tgz", archive.fetch(DeprecatedFileInfo).absolute_path
-          []
-        },
-        attributes: AttributeSchema.new(
-          archive: Attribute.new(Label, providers: [DeprecatedFileInfo]),
-        ).parse({
-          archive: "//lib/foo:archive",
-        }),
-      )
-    end
-
-    def test_invalid_checksum
-      @urls["https://example.com/foo.tgz"] = "THESE ARE NOT THE CONTENTS WE EXPECT!"
-
-      assert_raises do
-        @command.visit Label.parse("//lib/foo:archive"), Target.new(
-          rule: @download_rule,
-          attributes: @download_schema.parse({
-            url: "https://example.com/foo.tgz",
-            sha: Digest::SHA256.hexdigest("CONTENTS"),
-          }),
-        )
-      end
-
-      assert !@files.key?("var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}")
-      assert !@files.key?("var/tmp/lib/foo/foo.tgz")
-    end
-
-    def test_already_cached
-      @files["var/cache/#{Digest::SHA256.hexdigest("CONTENTS")}"] = "CONTENTS"
-
-      command = Build.new(
-        actions: Actions.new(InMemoryFilesystem.new("/workspace", @files)),
-        downloader: nil, # NOTE no downloader at all!
-        filesystem: DeprecatedInMemoryFilesystem.new(@files),
-        console: @console,
-      )
-
-      command.visit Label.parse("//lib/foo:archive"), Target.new(
-        rule: @download_rule,
-        attributes: @download_schema.parse({
-          url: "https://example.com/foo.tgz",
-          sha: Digest::SHA256.hexdigest("CONTENTS"),
-        }),
-      )
-
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/foo.tgz")
-    end
-
-    def test_unknown_sha
-      @urls["https://example.com/foo.tgz"] = "CONTENTS"
-
-      @command.visit Label.parse("//lib/foo:archive"), Target.new(
-        rule: @download_rule,
-        attributes: @download_schema.parse({
-          url: "https://example.com/foo.tgz",
-          sha: nil,
-        }),
-      )
-
-      assert_equal(<<~END, @console.string)
-        lib/foo/foo.tgz
-        #{Digest::SHA256.hexdigest("CONTENTS")}
-      END
-
-      assert_equal "CONTENTS", @files.fetch("var/tmp/lib/foo/foo.tgz")
     end
   end
 
@@ -1419,8 +1296,7 @@ module Wake
         )
 
         @download_rule = ->(context, download:, downloader:, cache:) {
-          # TODO here's where we put a DeprecatedFileInfo in the context. Or we return one?
-          [DeprecatedFileInfo.new]
+          []
         }
 
         @extract_schema = AttributeSchema.new(
