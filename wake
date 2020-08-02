@@ -19,12 +19,6 @@ module Wake
     # TODO any behavior?
   end
 
-  class Extractor
-    def self.parse(key)
-      Extractor.new
-    end
-  end
-
   def self.run
     registry = Registry.new
 
@@ -70,7 +64,17 @@ module Wake
         strip_components: Attribute.new(PathCleaner, default: 0),
       },
       implementation: ->(context, archive:, format:, path:, strip_components:) {
-        return
+        workspace_path = context.expand_path(path)
+        context.run(inputs: archive.fetch(FileInfo).path, parameters: [format, path, strip_components], outputs: [path]) do |fs|
+          fs.open(archive.fetch(FileInfo).path) do |archive_io|
+            format.extract(archive_io, path, strip_components: strip_components) do |entry_path, entry_io|
+              fs.open(workspace_path, "wb") do |output_io|
+                IO.copy_stream(entry_io, output_io)
+              end
+            end
+          end
+        end
+        return [FileInfo.new(path)]
       },
     )
 
@@ -192,13 +196,17 @@ module Wake
     # First pass is over the (selected) targets, producing a bunch of actions.
     # Second pass is over those actions, doing the work of the build.
     # Perhaps there's then a Third execution phase, running any executables or tests?
-    build = Build.new(
-      actions: Actions.new(RealFilesystem.new(Dir.pwd)),
-    )
+    actions = Actions.new(RealFilesystem.new(Dir.pwd))
+    providers = ProviderRegistry.new
 
     plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
+
     # TODO analyze in parallel?
-    plan.each { |label| build.visit(label, targets.fetch(label)) }
+    plan.each do |label|
+      context = Context.new(actions, providers, label)
+      target = targets.fetch(label)
+      target.invoke(context)
+    end
 
     0
   end
@@ -209,45 +217,24 @@ module Wake
     Test = Object
   end
 
-  class Build
-    def initialize(actions:)
-      # I wonder if other ~commands might want a different flavor of DeprecatedActions?
-      # If so, we would pass the different one in here.
-      # At the moment, I'm unsure of the responsibilities, so treating
-      # DeprecatedActions and ProviderRegistry as analysis-internal is helping me
-      # think manage the complexity.
+  class Context
+    def initialize(actions, providers, label)
       @actions = actions
-      @providers = ProviderRegistry.new
+      @providers = providers
+      @label = label
     end
 
-    def visit(label, target)
-      # TODO keep an eye on what this indirection throught context is buying me
-      # i.e., why isn't this `target.invoke(@deprecated_actions, @providers, label)`?
-      # or maybe @deprecated_actions.scoped(label), @providers or something?
-      target.invoke(Context.new(@actions, @providers, label))
+    def invoke(rule, attributes)
+      # TODO do we want rules to register providers more explicitly?
+      @providers[@label] = rule.call(self, **attributes.using(@providers)) || []
     end
 
-    private
+    def expand_path(path)
+      File.join(@label.package, path)
+    end
 
-    class Context
-      def initialize(actions, providers, label)
-        @actions = actions
-        @providers = providers
-        @label = label
-      end
-
-      def invoke(rule, attributes)
-        # TODO do we want rules to register providers more explicitly?
-        @providers[@label] = rule.call(self, **attributes.using(@providers)) || []
-      end
-
-      def expand_path(path)
-        File.join(@label.package, path)
-      end
-
-      def run(inputs: [], parameters: [], outputs:, &block)
-        @actions.run(@label, inputs: inputs, parameters: parameters, outputs: outputs, &block)
-      end
+    def run(inputs: [], parameters: [], outputs:, &block)
+      @actions.run(@label, inputs: inputs, parameters: parameters, outputs: outputs, &block)
     end
   end
 
@@ -1562,6 +1549,37 @@ module Wake
 
     def test_parse_relative_label
       assert_equal Label["//src/main:foo"], Attribute.new(Label).parse(":foo", package: "src/main")
+    end
+  end
+
+  class Extractor
+    def self.parse(key)
+      Extractor.new(key)
+    end
+
+    def initialize(format)
+      @format = format
+    end
+
+    def extract(io, path, strip_components:, &collector)
+      extractor(strip_components).call(path, io) do |entry_path, entry_io|
+        if path == entry_path
+          collector.call(entry_path, entry_io)
+        end
+      end
+    end
+
+    private
+
+    def extractor(strip_components)
+      case key
+      when :tar_gz
+        Gzip.new(Tar.new(strip_components))
+      when :zip
+        Zip.new(strip_components)
+      else
+        raise "Unsupported Extractor #{key}"
+      end
     end
   end
 
