@@ -19,6 +19,19 @@ module Wake
     # TODO any behavior?
   end
 
+  class FileGroupInfo < Struct.new(:paths)
+    def only
+      raise "More than one file! #{paths.inspect}" unless paths.length == 1
+      paths[0]
+    end
+  end
+
+  class JavaCompilerInfo < Struct.new(:executable, :libs, keyword_init: true)
+    def files
+      [executable, *libs]
+    end
+  end
+
   def self.run
     registry = Registry.new
 
@@ -60,25 +73,42 @@ module Wake
       attributes: {
         archive: Attribute.new(Label, providers: [FileInfo]),
         format: Attribute.new(Extractor),
-        path: Attribute.new(String),
+        paths: Attribute.new(String, list: true),
+        permissions: Attribute.new(Integer, default: 0644),
         strip_components: Attribute.new(PathCleaner, default: 0),
       },
-      implementation: ->(context, archive:, format:, path:, strip_components:) {
-        workspace_path = context.expand_path(path)
-        context.run(inputs: archive.fetch(FileInfo).path, parameters: [format, path, strip_components], outputs: [path]) do |fs|
-          fs.open(archive.fetch(FileInfo).path) do |archive_io|
-            format.extract(archive_io, path, strip_components: strip_components) do |entry_path, entry_io|
-              fs.open(workspace_path, "wb") do |output_io|
-                IO.copy_stream(entry_io, output_io)
+      implementation: ->(context, archive:, format:, paths:, permissions:, strip_components:) {
+        # TODO add permissions to parameters
+        context.run(inputs: [archive.fetch(FileInfo).path], parameters: [format, paths, permissions, strip_components], outputs: paths) do |fs|
+          fs.open(archive.fetch(FileInfo).path, "rb") do |archive_io|
+            format.extract(archive_io, strip_components: strip_components) do |entry_path, entry_io|
+              if paths.include?(entry_path)
+                fs.open(context.expand_path(entry_path), "wb", permissions: permissions) do |output_io|
+                  IO.copy_stream(entry_io, output_io)
+                end
               end
             end
           end
         end
-        return [FileInfo.new(path)]
+        return [FileGroupInfo.new(paths.map { |path| context.expand_path(path) })]
       },
     )
 
-    registry.new_rule(:java_compiler)
+    registry.new_rule(
+      :java_compiler,
+      attributes: {
+        javac: Attribute.new(Label, providers: [FileGroupInfo]),
+        libs: Attribute.new(Label, providers: [FileGroupInfo]),
+      },
+      implementation: ->(context, javac:, libs:) {
+        return [
+                 JavaCompilerInfo.new(
+                   executable: javac.fetch(FileGroupInfo).only,
+                   libs: libs.fetch(FileGroupInfo).paths,
+                 ),
+               ]
+      },
+    )
 
     registry.new_rule(
       :java_import,
@@ -95,8 +125,15 @@ module Wake
       :java_lib,
       attributes: {
         deps: Attribute.new(Label, list: true), # , providers: [JavaInfo]),
-        compiler: Attribute.new(Label, default: "//lib/java:compiler"), #, providers: [JavaCompilerInfo]),
-      # srcs: Attribute.new(Label, list: true),
+        compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
+        srcs: Attribute.new(String, list: true),
+      },
+      implementation: ->(context, deps:, compiler:, srcs:) {
+        javac = compiler.fetch(JavaCompilerInfo)
+        context.run(inputs: [*javac.files, *srcs.map { |path| context.expand_path(path) }], parameters: [], outputs: []) do |fs|
+          fs.exec("./#{javac.executable} -help")
+        end
+        return
       },
     )
 
@@ -408,7 +445,7 @@ module Wake
         @files = files
       end
 
-      def open(path, mode, &block)
+      def open(path, mode, permissions: 0644, &block)
         case mode
         when "r"
           yield StringIO.new(@files.fetch(File.join(@base, path)))
@@ -419,6 +456,10 @@ module Wake
         else
           raise "Unsupported mode #{mode}"
         end
+      end
+
+      def exec(*args)
+        "InMemoryFilesystem::Sandbox doesn't support exec!"
       end
     end
   end
@@ -476,10 +517,15 @@ module Wake
         @base = base
       end
 
-      def open(path, mode, &block)
+      def open(path, mode, permissions: 0644, &block)
         path = File.join(@base, path)
         FileUtils.mkdir_p(File.dirname(path))
-        File.open(path, mode, &block)
+        File.open(path, mode, permissions, &block)
+      end
+
+      def exec(*args)
+        pid = spawn(*args, chdir: @base)
+        Process.wait(pid)
       end
     end
   end
@@ -693,12 +739,11 @@ module Wake
 
   class Registry
     def initialize
-      @alias_rule = ->(context, actual:) { }
-      @alias_schema = AttributeSchema.new(actual: Attribute.new(Label))
       @dsl = Class.new(Dsl)
       @repositories = []
       @targets = {}
       @toolchains = []
+      @toolchain_types = {}
     end
 
     def new_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
@@ -753,7 +798,8 @@ module Wake
       @targets[label] = Target.new(rule: rule, attributes: attributes)
     end
 
-    def new_toolchain_type(package:, name:)
+    def new_toolchain_type(package:, name:, providers:)
+      @toolchain_types[Label.new(package: package, name: name)] = providers
     end
 
     def new_toolchain(package:, name:, os:, toolchain:, toolchain_type:)
@@ -772,9 +818,17 @@ module Wake
       # TODO lazily include toolchains as we will repository targets!
       # So, don't bother with //lib/java:compiler unless one of my targets depends on it.
       @toolchains.select { |toolchain| toolchain.supports?(platform) }.each do |toolchain|
+        providers = @toolchain_types.fetch(toolchain.toolchain_type)
+
         result[toolchain.toolchain_type] = Target.new(
-          rule: @alias_rule,
-          attributes: @alias_schema.parse({ actual: toolchain.toolchain }),
+          attributes: AttributeSchema.new(
+            actual: Attribute.new(Label, providers: providers),
+          ).parse({
+            actual: toolchain.toolchain,
+          }),
+          rule: ->(context, actual:) {
+            providers.map { |provider| actual.fetch(provider) }
+          },
         )
       end
 
@@ -803,8 +857,8 @@ module Wake
         @package = package
       end
 
-      def toolchain_type(name:)
-        @registry.new_toolchain_type(package: @package, name: name)
+      def toolchain_type(name:, providers: [])
+        @registry.new_toolchain_type(package: @package, name: name, providers: providers)
       end
 
       def toolchain(name:, os:, toolchain:, toolchain_type:)
@@ -1561,24 +1615,26 @@ module Wake
       @format = format
     end
 
-    def extract(io, path, strip_components:, &collector)
-      extractor(strip_components).call(path, io) do |entry_path, entry_io|
-        if path == entry_path
-          collector.call(entry_path, entry_io)
-        end
+    def extract(io, strip_components:, &collector)
+      extractor(strip_components).call(nil, io) do |entry_path, entry_io|
+        collector.call(entry_path, entry_io)
       end
+    end
+
+    def to_s
+      "Extractor(#{@format})"
     end
 
     private
 
     def extractor(strip_components)
-      case key
+      case @format
       when :tar_gz
         Gzip.new(Tar.new(strip_components))
       when :zip
         Zip.new(strip_components)
       else
-        raise "Unsupported Extractor #{key}"
+        raise "Unsupported Extractor #{@format}"
       end
     end
   end
@@ -2004,6 +2060,10 @@ module Wake
       result = components.join("/")
       return if result.empty?
       collector.call(result, io)
+    end
+
+    def to_s
+      "PathCleaner(strip_components: #{@strip_components})"
     end
   end
 
