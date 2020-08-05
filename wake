@@ -26,10 +26,14 @@ module Wake
     end
   end
 
-  class JavaCompilerInfo < Struct.new(:executable, :libs, keyword_init: true)
+  class JavaCompilerInfo < Struct.new(:javac, :jar, :libs, keyword_init: true)
     def files
-      [executable, *libs]
+      [javac, jar, *libs]
     end
+  end
+
+  class JavaInfo < Struct.new(:jar, keyword_init: true)
+    # TODO any behavior?
   end
 
   def self.run
@@ -56,7 +60,7 @@ module Wake
       implementation: ->(context, http:, url:, sha256:) {
         path = context.expand_path(url.path.split("/").last)
         # TODO work back in (a new kind of?) verifier
-        context.run(parameters: [url], outputs: [File.basename(path)]) do |fs|
+        context.run(parameters: [url], outputs: [path]) do |fs|
           fs.open(path, "wb") do |io|
             http.fetch(HttpDownloader).fetch(url).read do |chunk|
               io.write(chunk)
@@ -78,7 +82,7 @@ module Wake
       },
       implementation: ->(context, archive:, format:, paths:, permissions:, strip_components:) {
         # TODO add permissions to parameters
-        context.run(inputs: [archive.fetch(FileInfo).path], parameters: [format, paths, permissions, strip_components], outputs: paths) do |fs|
+        context.run(inputs: [archive.fetch(FileInfo).path], parameters: [format, paths, permissions, strip_components], outputs: paths.map { |path| context.expand_path(path) }) do |fs|
           fs.open(archive.fetch(FileInfo).path, "rb") do |archive_io|
             format.extract(archive_io, strip_components: strip_components) do |entry_path, entry_io|
               if paths.include?(entry_path)
@@ -89,7 +93,7 @@ module Wake
             end
           end
         end
-        return [FileGroupInfo.new(paths.map { |path| context.expand_path(path) })]
+        [FileGroupInfo.new(paths.map { |path| context.expand_path(path) })]
       },
     )
 
@@ -97,15 +101,15 @@ module Wake
       :java_compiler,
       attributes: {
         javac: Attribute.new(Label, providers: [FileGroupInfo]),
+        jar: Attribute.new(Label, providers: [FileGroupInfo]),
         libs: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, javac:, libs:) {
-        return [
-                 JavaCompilerInfo.new(
-                   executable: javac.fetch(FileGroupInfo).only,
-                   libs: libs.fetch(FileGroupInfo).paths,
-                 ),
-               ]
+      implementation: ->(context, javac:, jar:, libs:) {
+        [JavaCompilerInfo.new(
+          javac: javac.fetch(FileGroupInfo).only,
+          jar: jar.fetch(FileGroupInfo).only,
+          libs: libs.fetch(FileGroupInfo).paths,
+        )]
       },
     )
 
@@ -116,23 +120,31 @@ module Wake
         source_jar: Attribute.new(Label, providers: [FileInfo]),
       },
       implementation: ->(context, jar:, source_jar:) {
-        return
+        [JavaInfo.new(jar: jar.fetch(FileInfo).path)]
       },
     )
 
     registry.new_rule(
       :java_lib,
       attributes: {
-        deps: Attribute.new(Label, list: true), # , providers: [JavaInfo]),
+        deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
         srcs: Attribute.new(String, list: true),
       },
       implementation: ->(context, deps:, compiler:, srcs:) {
-        javac = compiler.fetch(JavaCompilerInfo)
-        context.run(inputs: [*javac.files, *srcs.map { |path| context.expand_path(path) }], parameters: [], outputs: []) do |fs|
-          fs.exec("./#{javac.executable} -help")
+        jdk = compiler.fetch(JavaCompilerInfo)
+        source_paths = srcs.map { |path| context.expand_path(path) }
+        dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
+        jar = context.expand_path("lib%{name}.jar")
+
+        context.run(inputs: [*jdk.files, *source_paths, *dependency_paths], parameters: [], outputs: [jar]) do |fs|
+          fs.mktmpdir do |tmp|
+            fs.exec(jdk.javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
+            fs.exec(jdk.jar, "cf", jar, "-C", tmp, ".")
+          end
         end
-        return
+
+        [JavaInfo.new(jar: jar)]
       },
     )
 
@@ -157,8 +169,6 @@ module Wake
         return
       },
     )
-
-    registry.new_rule(:ruby_lib)
 
     registry.new_macro(
       :maven_jar,
@@ -190,8 +200,6 @@ module Wake
         end
       },
     )
-
-    registry.new_macro(:ruby_gem)
 
     # TODO load in parallel?
     Pathname.glob("**/BUILD") do |build|
@@ -240,7 +248,7 @@ module Wake
     end
 
     def expand_path(path)
-      File.join(@label.package, path)
+      File.join(@label.package, path.gsub("%{name}", @label.name))
     end
 
     def run(inputs: [], parameters: [], outputs:, &block)
@@ -254,6 +262,9 @@ module Wake
     end
 
     def run(label, inputs: [], parameters: [], outputs:, &block)
+      alien = outputs.reject { |path| path.start_with?(label.package) }
+      raise "Action for #{label} cannot produce outputs outside of #{label.package}, but claims #{alien}." if alien.any?
+
       key = Digest::SHA256.hexdigest("#{label}-#{inputs.map { |path| checksum(path) }.join("-")}-#{parameters.join("-")}-#{outputs.join("-")}")
 
       if !@fs.exists?("var/cache/#{key}")
@@ -268,17 +279,17 @@ module Wake
 
           block.call(@fs.sandbox(dir))
 
-          missing = outputs.reject { |path| @fs.exists?("#{dir}/#{label.package}/#{path}") }
+          missing = outputs.reject { |path| @fs.exists?("#{dir}/#{path}") }
           raise "Action for #{label} failed to produce outputs #{missing}." if missing.any?
 
           outputs.each do |path|
-            @fs.link("#{dir}/#{label.package}/#{path}", "var/cache/#{key}/#{label.package}/#{path}")
+            @fs.link("#{dir}/#{path}", "var/cache/#{key}/#{path}")
           end
         end
       end
 
       outputs.each do |path|
-        @fs.link("var/cache/#{key}/#{label.package}/#{path}", "var/tmp/#{label.package}/#{path}")
+        @fs.link("var/cache/#{key}/#{path}", "var/tmp/#{path}")
       end
     end
 
@@ -303,11 +314,11 @@ module Wake
       @files["/workspace/src/foo.txt"] = "FOO"
       @files["/workspace/src/bar.txt"] = "BAR"
 
-      @actions.run(Label["//src:baz"], outputs: ["baz.out"]) do |fs|
+      @actions.run(Label["//src:baz"], outputs: ["src/baz.out"]) do |fs|
         fs.open("src/baz.out", "w") { |io| io.puts("BAZ") }
       end
 
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         fs.open("src/foo.out", "w") do |io|
           2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
           2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
@@ -325,14 +336,14 @@ module Wake
       END
 
       # nothing changes (re-run with raising block?)
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         raise "Shouldn't get here!"
       end
 
       # source changes
       @files["/workspace/src/foo.txt"] = "FOOFOO"
 
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         fs.open("src/foo.out", "w") do |io|
           2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
           2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
@@ -350,11 +361,11 @@ module Wake
       END
 
       # generated changes
-      @actions.run(Label["//src:baz"], parameters: [:changed], outputs: ["baz.out"]) do |fs|
+      @actions.run(Label["//src:baz"], parameters: [:changed], outputs: ["src/baz.out"]) do |fs|
         fs.open("src/baz.out", "w") { |io| io.puts("BAZBAZ") }
       end
 
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["foo.out"]) do |fs|
+      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         fs.open("src/foo.out", "w") do |io|
           2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
           2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
@@ -432,7 +443,11 @@ module Wake
       end
 
       def exec(*args)
-        "InMemoryFilesystem::Sandbox doesn't support exec!"
+        raise "InMemoryFilesystem::Sandbox doesn't support exec!"
+      end
+
+      def mktmpdir(&block)
+        raise "InMemoryFilesystem::Sandbox doesn't support mktmpdir!"
       end
     end
   end
@@ -497,8 +512,12 @@ module Wake
       end
 
       def exec(*args)
-        pid = spawn(*args, chdir: @base)
-        Process.wait(pid)
+        Process.wait(Process.spawn(*args, chdir: @base))
+        Process.last_status
+      end
+
+      def mktmpdir(&block)
+        Dir.mktmpdir(&block)
       end
     end
   end

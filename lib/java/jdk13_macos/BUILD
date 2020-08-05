@@ -181,6 +181,15 @@ extract(
 )
 
 extract(
+  name: "bin_jar",
+  archive: "//lib/java/jdk13_macos:dist",
+  format: :tar_gz,
+  paths: ["bin/jar"],
+  permissions: 0755,
+  strip_components: 3,
+)
+
+extract(
   name: "bin_javac_libs",
   archive: "//lib/java/jdk13_macos:dist",
   format: :tar_gz,
@@ -253,6 +262,7 @@ extract(
 java_compiler(
   name: "compiler",
   javac: "//lib/java/jdk13_macos:bin_javac",
+  jar: "//lib/java/jdk13_macos:bin_jar",
   libs: "//lib/java/jdk13_macos:bin_javac_libs",
 )
 
