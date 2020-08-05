@@ -39,7 +39,6 @@ module Wake
     # Provider registry means we get a singleton, which is nice for queueing.
     # Could depend on, say, //tools:console for progress bars.
     # It's nice to move something like this out of the kernel.
-    # Perhaps InMemoryDownloader is unnecessary now!
     registry.new_target(
       label: Label.parse("//tools:http"),
       # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
@@ -161,31 +160,7 @@ module Wake
 
     registry.new_rule(:ruby_lib)
 
-    registry.new_repository_rule(
-      :http_archive,
-      attributes: {
-        name: Attribute.new(String),
-        url: Attribute.new(URI),
-        strip_components: Attribute.new(PathCleaner, default: 0),
-        build: Attribute.new(Proc, default: ->() { }),
-      },
-      implementation: ->(context, name:, url:, strip_components:, build:) {
-        extractor = case url.path
-          when /\.tar\.gz$/
-            Gzip.new(Tar.new(strip_components))
-          when /\.zip$/
-            Zip.new(strip_components)
-          else
-            raise "Unsupported archive format #{url}"
-          end
-
-        context.package(name).download(url, extractor: extractor)
-
-        context.package(name, &build)
-      },
-    )
-
-    registry.new_repository_rule(
+    registry.new_macro(
       :maven_jar,
       attributes: {
         repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
@@ -216,7 +191,7 @@ module Wake
       },
     )
 
-    registry.new_repository_rule(:ruby_gem)
+    registry.new_macro(:ruby_gem)
 
     # TODO load in parallel?
     Pathname.glob("**/BUILD") do |build|
@@ -225,8 +200,6 @@ module Wake
 
     targets = registry.resolve(
       platform: Platform.from_ruby_config,
-      downloader: HttpDownloader.new, # deprecated
-      cache: FilesystemCache.new(Pathname.new("var/cache")), # deprecated
     )
 
     # So we're going to make 2 passes here!
@@ -545,46 +518,6 @@ module Wake
   #   end
   # end
 
-  class DeprecatedActions
-    def initialize(downloader:, filesystem:, console:)
-      @downloader = downloader
-      @filesystem = filesystem
-      @console = console
-    end
-
-    def download(file, url, verifier)
-      # TODO develop more of a protocol for the console. Can imagine more of a UI for it, multiple download progress bars, etc.
-      verifier = verifier.observing do |checksum|
-        @console.puts(file.relative_path)
-        @console.puts(checksum)
-      end
-
-      if !verifier.checksum || !@filesystem.exists?("var/cache/#{verifier.checksum}")
-        @filesystem.tempfile do |io|
-          verifier.wrapping(file.relative_path, io) do |verified_io|
-            @downloader.fetch(url).read do |chunk|
-              verified_io.write(chunk)
-            end
-          end
-
-          io.flush
-
-          @filesystem.link(io.path, "var/cache/#{verifier.checksum}")
-        end
-      end
-
-      @filesystem.link("var/cache/#{verifier.checksum}", file.absolute_path)
-    end
-
-    def file(label, path)
-      scoped_path = File.join(label.package, path)
-      DeprecatedFileInfo.new(
-        relative_path: scoped_path,
-        absolute_path: @filesystem.absolute_path("var/tmp/#{scoped_path}"),
-      )
-    end
-  end
-
   class ProviderRegistry
     class MissingLabelError < KeyError
       def initialize(label)
@@ -740,10 +673,13 @@ module Wake
   class Registry
     def initialize
       @dsl = Class.new(Dsl)
-      @repositories = []
       @targets = {}
       @toolchains = []
       @toolchain_types = {}
+    end
+
+    def new_package(package)
+      @dsl.new(registry: self, package: package)
     end
 
     def new_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
@@ -766,34 +702,6 @@ module Wake
       @dsl.class_eval("private :__#{rule_name}")
     end
 
-    def new_repository_rule(rule_name, attributes: {}, implementation: ->(context, **attributes) { })
-      schema = AttributeSchema.new(attributes)
-
-      @dsl.class_eval(<<~END)
-        def #{rule_name}(#{schema.dsl_method_parameters})
-          __#{rule_name}(#{schema.dsl_method_forwarding_parameters})
-        end
-      END
-
-      @dsl.define_method("__#{rule_name}") do |**attributes|
-        @registry.new_repository(
-          package: @package,
-          rule: implementation,
-          attributes: schema.parse(attributes, package: @package),
-        )
-      end
-
-      @dsl.class_eval("private :__#{rule_name}")
-    end
-
-    def new_package(package)
-      @dsl.new(registry: self, package: package)
-    end
-
-    def new_repository(package:, rule:, attributes:)
-      @repositories << Repository.new(package: package, rule: rule, attributes: attributes)
-    end
-
     def new_target(label:, rule:, attributes:)
       @targets[label] = Target.new(rule: rule, attributes: attributes)
     end
@@ -810,9 +718,32 @@ module Wake
       )
     end
 
-    # TODO might downloader and cache be better passed in the Repository constructor?
+    def new_macro(macro_name, attributes: {}, implementation: ->(context, **attributes) { })
+      schema = AttributeSchema.new(attributes)
+
+      @dsl.class_eval(<<~END)
+        def #{macro_name}(#{schema.dsl_method_parameters})
+          __#{macro_name}(#{schema.dsl_method_forwarding_parameters})
+        end
+      END
+
+      @dsl.define_method("__#{macro_name}") do |**attributes|
+        @registry.expand_macro(
+          package: @package,
+          macro: implementation,
+          attributes: schema.parse(attributes, package: @package),
+        )
+      end
+
+      @dsl.class_eval("private :__#{macro_name}")
+    end
+
+    def expand_macro(package:, macro:, attributes:)
+      macro.call(MacroContext.new(registry: self, package: package), **attributes)
+    end
+
     # TODO reshape Platform to be easy to stub with something from the stdlib.
-    def resolve(platform:, downloader:, cache:)
+    def resolve(platform:)
       result = @targets.dup
 
       # TODO lazily include toolchains as we will repository targets!
@@ -830,20 +761,6 @@ module Wake
             providers.map { |provider| actual.fetch(provider) }
           },
         )
-      end
-
-      registries = @repositories.map { |repository| repository.load(dsl: @dsl) }
-
-      result.values.
-        map(&:dependencies).
-        reduce(Set.new, &:+).
-        select { |label| !result.key?(label) }.
-        each do |dependency|
-        registries.each do |registry|
-          registry.resolve(dependency, downloader: downloader, cache: cache) do |label, target|
-            result[label] = target
-          end
-        end
       end
 
       result.freeze
@@ -866,6 +783,17 @@ module Wake
       end
     end
 
+    class MacroContext
+      def initialize(registry:, package:)
+        @registry = registry
+        @package = package
+      end
+
+      def package(name, &block)
+        @registry.new_package([@package, name].join("/")).instance_exec(&block)
+      end
+    end
+
     class Toolchain < Struct.new(:os, :toolchain, :toolchain_type, keyword_init: true)
       def supports?(platform)
         os == platform.host_os
@@ -874,94 +802,12 @@ module Wake
   end
 
   class RegistryTest < Test
-    def test_downloading_extracting_selecting
-      registry = Registry.new
-
-      registry.new_repository_rule(
-        :http_archive,
-        attributes: {
-          url: Attribute.new(URI),
-          name: Attribute.new(String),
-          build: Attribute.new(Proc),
-        },
-        implementation: ->(context, name:, url:, build:) {
-          context.package(name).download(
-            url,
-            extractor: Gzip.new(Tar.new(PathCleaner.new(strip_components: 0))),
-          )
-          context.package(name, &build)
-        },
-      )
-
-      registry.new_rule(
-        :file_group,
-        attributes: {
-          srcs: Attribute.new(Label, list: true),
-        },
-      )
-
-      registry.new_rule(
-        :aka,
-        attributes: {
-          actual: Attribute.new(Label),
-        },
-      )
-
-      registry.new_package("lib").instance_exec do
-        http_archive(
-          name: "stuff",
-          url: "https://example.com/stuff.tgz",
-          build: ->() {
-            file_group(
-              name: "files",
-              srcs: [
-                "path/to/foo.txt",
-                "path/to/bar.txt",
-              ],
-            )
-          },
-        )
-
-        aka(
-          name: "files",
-          actual: "//lib/stuff:files",
-        )
-      end
-
-      # Let's make a tarball!
-      io = StringIO.new
-
-      Zlib::GzipWriter.wrap(io) do |gz|
-        Gem::Package::TarWriter.new(gz) do |tar|
-          tar.add_file_simple("path/to/foo.txt", 0644, 0)
-          tar.add_file_simple("path/to/bar.txt", 0644, 0)
-          tar.add_file_simple("path/to/baz.txt", 0644, 0)
-        end
-      end
-
-      targets = registry.resolve(
-        platform: Platform.from_ruby_config,
-        downloader: InMemoryDownloader.new(
-          "https://example.com/stuff.tgz" => io.string,
-        ),
-        cache: InMemoryCache.new,
-      )
-
-      assert_equal [
-        Label["//lib:files"],
-        Label["//lib/stuff:files"],
-        Label["//lib/stuff:path/to/foo.txt"],
-        Label["//lib/stuff:path/to/bar.txt"],
-        Label["//lib/stuff:stuff.tgz"],
-      ].to_set, targets.keys.to_set
-    end
-
     def test_platform_constraints_for_toolchains
       registry = Registry.new
 
       registry.new_rule(:foo_compiler)
 
-      registry.new_repository_rule(
+      registry.new_macro(
         :foo_compiler_package,
         attributes: {
           name: Attribute.new(String),
@@ -996,14 +842,10 @@ module Wake
 
       linux_targets = registry.resolve(
         platform: Platform.new(host_os: "i686-linux"),
-        downloader: {},
-        cache: {},
       )
 
       macos_targets = registry.resolve(
         platform: Platform.new(host_os: "darwin19"),
-        downloader: {},
-        cache: {},
       )
 
       assert_equal Set[Label["//foo/linux:compiler"]],
@@ -1011,26 +853,6 @@ module Wake
 
       assert_equal Set[Label["//foo/macos:compiler"]],
         macos_targets[Label["//foo:compiler"]].dependencies
-    end
-  end
-
-  class InMemoryDownloader
-    def initialize(entries = {})
-      @entries = entries
-    end
-
-    def fetch(url)
-      Response.new(@entries.transform_keys(&URI.method(:parse)).fetch(url))
-    end
-
-    class Response
-      def initialize(contents)
-        @contents = contents
-      end
-
-      def read(&block)
-        block.call(@contents)
-      end
     end
   end
 
@@ -1059,145 +881,6 @@ module Wake
             response.error!
           end
         end
-      end
-    end
-  end
-
-  class InMemoryCache
-    def initialize
-      @cache = Hash.new { |cache, key| cache[key] = Entry.new }
-    end
-
-    def fetch(key)
-      @cache.fetch(key)
-    end
-
-    def key?(key)
-      @cache.key?(key)
-    end
-
-    def [](key)
-      @cache[key]
-    end
-
-    class Entry
-      def initialize
-        @contents = ""
-      end
-
-      def open(&block)
-        StringIO.open(@contents, "rb+", &block)
-      end
-    end
-  end
-
-  class FilesystemCache
-    def initialize(path)
-      @path = path
-      @path.mkpath
-    end
-
-    def fetch(key)
-      if key?(key)
-        self[key]
-      else
-        raise KeyError.new(receiver: self, key: key)
-      end
-    end
-
-    def key?(key)
-      @path.join(key).exist?
-    end
-
-    def [](key)
-      Entry.new(@path.join(key))
-    end
-
-    class Entry
-      def initialize(path)
-        @path = path
-      end
-
-      def open(&block)
-        @path.open(@path.exist? ? "rb" : "wb", &block)
-      end
-    end
-  end
-
-  class DeprecatedInMemoryFilesystem
-    def initialize(files)
-      @files = files
-    end
-
-    def absolute_path(path)
-      path
-    end
-
-    def exists?(path)
-      @files.key?(path)
-    end
-
-    def link(src, dest)
-      @files[dest] = @files.fetch(src)
-    end
-
-    def tempfile(&block)
-      tempfile = Tempfile.new(@files)
-      block.call(tempfile)
-    ensure
-      tempfile.unlink
-    end
-
-    class Tempfile
-      attr_reader :path
-
-      def initialize(files)
-        @files = files
-        @path = "/tmp/#{Time.now.strftime("%Y%m%d")}-#{$$}-#{rand(0x100000000).to_s(36)}"
-        @io = StringIO.new
-      end
-
-      def write(content)
-        @io.write(content)
-      end
-
-      def flush
-        @files[@path] = @io.string
-      end
-
-      def unlink
-        @files.delete(@path)
-      end
-    end
-  end
-
-  class DeprecatedFilesystem
-    def initialize(base)
-      @base = base
-    end
-
-    def absolute_path(path)
-      @base.join(path)
-    end
-
-    def exists?(path)
-      absolute_path(path).exist?
-    end
-
-    def link(src, dest)
-      dest = absolute_path(dest)
-      dest.dirname.mkpath
-      FileUtils.link(absolute_path(src).to_path, absolute_path(dest).to_path, force: true)
-    end
-
-    def tempfile(&block)
-      t = Tempfile.new
-      t.binmode
-      begin
-        block.call(t)
-      ensure
-        t.close
-        t.unlink
       end
     end
   end
@@ -1306,145 +989,6 @@ module Wake
         Label["//src/main:baz"],
         Label["//src/main:quux"],
       ].to_set, target.dependencies
-    end
-  end
-
-  class Repository
-    def initialize(package:, rule:, attributes:)
-      @package = package
-      @rule = rule
-      @attributes = attributes
-    end
-
-    def load(dsl:)
-      registry = Registry.new(dsl: dsl)
-      @rule.call(Context.new(registry: registry, package: @package), **@attributes)
-      registry
-    end
-
-    private
-
-    class Registry
-      def initialize(dsl:)
-        @dsl = dsl
-        @downloads = {}
-        @targets = {}
-
-        @download_schema = AttributeSchema.new(
-          download: Attribute.new(Download),
-          downloader: Attribute.new(Object),
-          cache: Attribute.new(Object),
-        )
-
-        @download_rule = ->(context, download:, downloader:, cache:) {
-          []
-        }
-
-        @extract_schema = AttributeSchema.new(
-          path: Attribute.new(String),
-          download: Attribute.new(Label),
-        )
-
-        @extract_rule = ->(context, path:, download:) {
-          return
-        }
-      end
-
-      def new_download(package:, url:, extractor:)
-        url = URI.parse(url.to_s)
-        label = Label.new(package: package, name: url.path.split("/").last)
-        @downloads[label] = Download.new(label: label, url: url, extractor: extractor)
-      end
-
-      def new_package(package, &block)
-        @dsl.new(registry: self, package: package).instance_exec(&block)
-      end
-
-      def new_target(label:, rule:, attributes:)
-        @targets[label] = Target.new(rule: rule, attributes: attributes)
-      end
-
-      def resolve(label, downloader:, cache:, &registry)
-        target = nil
-
-        if @targets.key?(label)
-          target = @targets.fetch(label)
-        elsif @downloads.key?(label)
-          target = Target.new(
-            rule: @download_rule,
-            attributes: @download_schema.parse({
-              download: @downloads.fetch(label),
-              downloader: downloader,
-              cache: cache,
-            }),
-          )
-        else
-          @downloads.values.select { |d| d.extracts_to?(label) }.each do |download|
-            target = Target.new(
-              rule: @extract_rule,
-              attributes: @extract_schema.parse({
-                path: label.name,
-                download: download.label,
-              }),
-            )
-          end
-        end
-
-        if target
-          registry.call(label, target)
-
-          target.dependencies.each do |label|
-            resolve(label, downloader: downloader, cache: cache, &registry)
-          end
-        end
-      end
-    end
-
-    class Context
-      def initialize(registry:, package:)
-        @registry = registry
-        @package = package
-      end
-
-      def download(url, extractor: nil) # I may regret this nil
-        @registry.new_download(package: @package, url: url, extractor: extractor)
-      end
-
-      def package(name, &block)
-        package = [@package, name].join("/")
-
-        if block
-          @registry.new_package(package, &block)
-        else
-          self.class.new(registry: @registry, package: package)
-        end
-      end
-    end
-
-    class Download < Struct.new(:label, :url, :extractor, keyword_init: true)
-      def extracts_to?(label)
-        !extractor.nil? && label.package == self.label.package
-      end
-
-      # def each_extracted_artifact(downloader, cache:)
-      #   # TODO pass in the expected sha256 sum
-      #   # TODO content-addressable cache
-      #   key = Digest::SHA256.hexdigest(url.to_s)
-
-      #   if !cache.key?(key)
-      #     cache[key].open do |dest|
-      #       downloader.fetch(url).read do |segment|
-      #         dest.write(segment)
-      #       end
-      #     end
-      #   end
-
-      #   cache.fetch(key).open do |io|
-      #     extractor.call(label.name, io) do |name, _|
-      #       yield Label.new(package: label.package, name: name), Rule.new # FIXME yield something that's already written the io to disk?
-      #     end
-      #   end
-      # end
     end
   end
 
