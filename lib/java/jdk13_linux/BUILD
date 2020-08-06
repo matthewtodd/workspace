@@ -7,15 +7,6 @@ http_file(
 )
 
 extract(
-  name: "bin_javac",
-  archive: "//lib/java/jdk13_linux:dist",
-  format: :tar_gz,
-  paths: ["bin/javac"],
-  permissions: 0755,
-  strip_components: 1,
-)
-
-extract(
   name: "bin_jar",
   archive: "//lib/java/jdk13_linux:dist",
   format: :tar_gz,
@@ -25,7 +16,25 @@ extract(
 )
 
 extract(
-  name: "bin_javac_libs",
+  name: "bin_java",
+  archive: "//lib/java/jdk13_linux:dist",
+  format: :tar_gz,
+  paths: ["bin/java"],
+  permissions: 0755,
+  strip_components: 1,
+)
+
+extract(
+  name: "bin_javac",
+  archive: "//lib/java/jdk13_linux:dist",
+  format: :tar_gz,
+  paths: ["bin/javac"],
+  permissions: 0755,
+  strip_components: 1,
+)
+
+extract(
+  name: "lib",
   archive: "//lib/java/jdk13_linux:dist",
   format: :tar_gz,
   paths: [
@@ -93,9 +102,11 @@ java_compiler(
   name: "compiler",
   javac: "//lib/java/jdk13_linux:bin_javac",
   jar: "//lib/java/jdk13_linux:bin_jar",
-  libs: "//lib/java/jdk13_linux:bin_javac_libs",
+  libs: "//lib/java/jdk13_linux:lib",
 )
 
 java_runtime(
   name: "runtime",
+  java: "//lib/java/jdk13_linux:bin_java",
+  libs: "//lib/java/jdk13_linux:lib",
 )

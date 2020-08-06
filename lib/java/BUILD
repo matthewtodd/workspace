@@ -1,7 +1,7 @@
 # vim: ft=ruby
 
 toolchain_type(name: "compiler", providers: [JavaCompilerInfo])
-toolchain_type(name: "runtime")
+toolchain_type(name: "runtime", providers: [JavaRuntimeInfo])
 
 toolchain(
   name: "jdk13_macos_compiler",

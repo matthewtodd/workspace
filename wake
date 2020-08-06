@@ -15,15 +15,15 @@ require "uri"
 require "zlib"
 
 module Wake
-  class FileInfo < Struct.new(:path)
-    # TODO any behavior?
-  end
-
   class FileGroupInfo < Struct.new(:paths)
     def only
       raise "More than one file! #{paths.inspect}" unless paths.length == 1
       paths[0]
     end
+  end
+
+  class FileInfo < Struct.new(:path)
+    # TODO any behavior?
   end
 
   class JavaCompilerInfo < Struct.new(:javac, :jar, :libs, keyword_init: true)
@@ -34,6 +34,12 @@ module Wake
 
   class JavaInfo < Struct.new(:jar, keyword_init: true)
     # TODO any behavior?
+  end
+
+  class JavaRuntimeInfo < Struct.new(:java, :libs, keyword_init: true)
+    def files
+      [java, *libs]
+    end
   end
 
   def self.run
@@ -93,21 +99,25 @@ module Wake
             end
           end
         end
-        [FileGroupInfo.new(paths.map { |path| context.expand_path(path) })]
+
+        file_group_info = FileGroupInfo.new(paths.map { |path| context.expand_path(path) })
+        result = [file_group_info]
+        result << FileInfo.new(file_group_info.only) if paths.length == 1
+        result
       },
     )
 
     registry.new_rule(
       :java_compiler,
       attributes: {
-        javac: Attribute.new(Label, providers: [FileGroupInfo]),
-        jar: Attribute.new(Label, providers: [FileGroupInfo]),
+        javac: Attribute.new(Label, providers: [FileInfo]),
+        jar: Attribute.new(Label, providers: [FileInfo]),
         libs: Attribute.new(Label, providers: [FileGroupInfo]),
       },
       implementation: ->(context, javac:, jar:, libs:) {
         [JavaCompilerInfo.new(
-          javac: javac.fetch(FileGroupInfo).only,
-          jar: jar.fetch(FileGroupInfo).only,
+          javac: javac.fetch(FileInfo).path,
+          jar: jar.fetch(FileInfo).path,
           libs: libs.fetch(FileGroupInfo).paths,
         )]
       },
@@ -148,9 +158,55 @@ module Wake
       },
     )
 
-    registry.new_rule(:java_runtime)
+    registry.new_rule(
+      :java_runtime,
+      attributes: {
+        java: Attribute.new(Label, providers: [FileInfo]),
+        libs: Attribute.new(Label, providers: [FileGroupInfo]),
+      },
+      implementation: ->(context, java:, libs:) {
+        [JavaRuntimeInfo.new(
+          java: java.fetch(FileInfo).path,
+          libs: libs.fetch(FileGroupInfo).paths,
+        )]
+      },
+    )
 
-    registry.new_rule(:kt_jvm_lib)
+    registry.new_rule(
+      :kt_jvm_lib,
+      attributes: {
+        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
+        kotlin_preloader: Attribute.new(Label, default: "//lib/kotlin:preloader", providers: [JavaInfo]),
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [JavaInfo]),
+        kotlin_runtime: Attribute.new(Label, default: "//lib/kotlin:runtime", providers: [FileGroupInfo]),
+        srcs: Attribute.new(String, list: true),
+        deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
+      },
+      implementation: ->(context, java_runtime:, kotlin_preloader:, kotlin_compiler:, kotlin_runtime:, srcs:, deps:) {
+        jre = java_runtime.fetch(JavaRuntimeInfo)
+        preloader = kotlin_preloader.fetch(JavaInfo).jar
+        compiler = kotlin_compiler.fetch(JavaInfo).jar
+        runtime = kotlin_runtime.fetch(FileGroupInfo).paths
+        source_paths = srcs.map { |path| context.expand_path(path) }
+        dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
+        jar = context.expand_path("lib%{name}.jar")
+
+        context.run(inputs: [*jre.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: [], outputs: [jar]) do |fs|
+          fs.exec(
+            jre.java,
+            "-cp", preloader,
+            "org.jetbrains.kotlin.preloading.Preloader",
+            "-cp", compiler,
+            "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
+            "-cp", dependency_paths.join(":"),
+            "-d", jar,
+                      *source_paths
+          )
+        end
+
+        [JavaInfo.new(jar: jar)]
+      },
+    )
 
     registry.new_rule(
       :kt_jvm_test,

@@ -1,6 +1,13 @@
+# vim: ft=ruby
+
 kt_jvm_lib(
   name: "lib",
-  # srcs: ["ExampleTest.kt"],
+  srcs: ["ExampleTest.kt"],
+  deps: [
+    "//lib/kotlin:test",
+    "//lib/kotlin:test_junit5",
+    "//lib/maven/org_junit_jupiter/junit_jupiter_api:jar",
+  ],
 )
 
 # TODO there's a lot of duplication here, but I'd like to keep the rules
