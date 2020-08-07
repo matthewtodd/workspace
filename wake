@@ -3,6 +3,7 @@
 require "digest/sha2"
 require "fileutils"
 require "net/http"
+require "open3"
 require "pathname"
 require "rbconfig"
 require "rubygems" # TODO write a simple version of Gem::Package::TarReader?
@@ -87,7 +88,6 @@ module Wake
         strip_components: Attribute.new(PathCleaner, default: 0),
       },
       implementation: ->(context, archive:, format:, paths:, permissions:, strip_components:) {
-        # TODO add permissions to parameters
         context.run(inputs: [archive.fetch(FileInfo).path], parameters: [format, paths, permissions, strip_components], outputs: paths.map { |path| context.expand_path(path) }) do |fs|
           fs.open(archive.fetch(FileInfo).path, "rb") do |archive_io|
             format.extract(archive_io, strip_components: strip_components) do |entry_path, entry_io|
@@ -207,6 +207,7 @@ module Wake
             "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
             "-cp", dependency_paths.join(":"),
             "-d", jar,
+            "-jvm-target", "12",
             source_paths
           )
         end
@@ -221,7 +222,7 @@ module Wake
     registry.new_macro(
       :kt_jvm_test,
       attributes: {
-        java_runtime: Attribute.new(Label, default: "//lib/java:runtime"),
+        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         runtime_deps: Attribute.new(Label, list: true),
         test_class: Attribute.new(String),
         test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit"),
@@ -232,6 +233,62 @@ module Wake
         # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
         # So, this rule needs to Provide something that Wake will be able to "run" with.
         return
+      },
+    )
+
+    registry.new_rule(
+      :docs,
+      attributes: {
+        java_compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
+        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
+        kotlin_preloader: Attribute.new(Label, default: "//lib/kotlin:preloader", providers: [JavaInfo]),
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [JavaInfo]),
+        kotlin_runtime: Attribute.new(Label, default: "//lib/kotlin:runtime", providers: [FileGroupInfo]),
+      },
+      implementation: ->(context, java_compiler:, java_runtime:, kotlin_preloader:, kotlin_compiler:, kotlin_runtime:) {
+        jdk = java_compiler.fetch(JavaCompilerInfo)
+        jre = java_runtime.fetch(JavaRuntimeInfo)
+        preloader = kotlin_preloader.fetch(JavaInfo).jar
+        compiler = kotlin_compiler.fetch(JavaInfo).jar
+        runtime = kotlin_runtime.fetch(FileGroupInfo).paths
+
+        java = context.expand_path("java.txt")
+        javac = context.expand_path("javac.txt")
+        jar = context.expand_path("jar.txt")
+        kotlinc = context.expand_path("kotlinc.txt")
+
+        context.run(inputs: [*jre.files], parameters: [], outputs: [java]) do |fs|
+          fs.open(java, "wb") do |io|
+            io.write(fs.exec(jre.java, "-h"))
+          end
+        end
+
+        context.run(inputs: [*jdk.files], parameters: [], outputs: [javac]) do |fs|
+          fs.open(javac, "wb") do |io|
+            io.write(fs.exec(jdk.javac, "--help"))
+          end
+        end
+
+        context.run(inputs: [*jdk.files], parameters: [], outputs: [jar]) do |fs|
+          fs.open(jar, "wb") do |io|
+            io.write(fs.exec(jdk.jar, "--help"))
+          end
+        end
+
+        context.run(inputs: [*jre.files, preloader, compiler, *runtime], parameters: [], outputs: [kotlinc]) do |fs|
+          fs.open(kotlinc, "wb") do |io|
+            io.write(fs.exec(
+              jre.java,
+              "-cp", preloader,
+              "org.jetbrains.kotlin.preloading.Preloader",
+              "-cp", compiler,
+              "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
+              "-h"
+            ))
+          end
+        end
+
+        []
       },
     )
 
@@ -577,8 +634,9 @@ module Wake
       end
 
       def exec(*args)
-        Process.wait(Process.spawn(*args.flatten, chdir: @base))
-        Process.last_status
+        out_and_err, status = Open3.capture2e(*args.flatten, chdir: @base)
+        raise "#{status}\n#{out_and_err}" unless status.success?
+        out_and_err
       end
 
       def mktmpdir(&block)
@@ -586,21 +644,6 @@ module Wake
       end
     end
   end
-
-  # TODO commenting this out because the FS on Travis seems to only support second resolution, and I don't want to sleep.
-  # class RealFilesystemTest < Test
-  #   def test_changed_checksum
-  #     fs = RealFilesystem.new(Dir.pwd)
-
-  #     Dir.mktmpdir do |tmp|
-  #       path = File.join(tmp, "foo.txt")
-  #       File.open(path, "w") { |io| io.write("FOO") }
-  #       assert_equal Digest::SHA256.hexdigest("FOO"), fs.checksum(path)
-  #       File.open(path, "w") { |io| io.write("BAR") }
-  #       assert_equal Digest::SHA256.hexdigest("BAR"), fs.checksum(path)
-  #     end
-  #   end
-  # end
 
   class ProviderRegistry
     class MissingLabelError < KeyError
