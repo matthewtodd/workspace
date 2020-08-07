@@ -173,7 +173,7 @@ http_file(
 
 extract(
   name: "bin_jar",
-  archive: "//lib/java/jdk13_macos:dist",
+  archive: ":dist",
   format: :tar_gz,
   paths: ["bin/jar"],
   permissions: 0755,
@@ -182,7 +182,7 @@ extract(
 
 extract(
   name: "bin_java",
-  archive: "//lib/java/jdk13_macos:dist",
+  archive: ":dist",
   format: :tar_gz,
   paths: ["bin/java"],
   permissions: 0755,
@@ -191,7 +191,7 @@ extract(
 
 extract(
   name: "bin_javac",
-  archive: "//lib/java/jdk13_macos:dist",
+  archive: ":dist",
   format: :tar_gz,
   paths: ["bin/javac"],
   permissions: 0755,
@@ -200,7 +200,7 @@ extract(
 
 extract(
   name: "lib",
-  archive: "//lib/java/jdk13_macos:dist",
+  archive: ":dist",
   format: :tar_gz,
   paths: [
     "lib/classlist",
@@ -270,13 +270,13 @@ extract(
 
 java_compiler(
   name: "compiler",
-  javac: "//lib/java/jdk13_macos:bin_javac",
-  jar: "//lib/java/jdk13_macos:bin_jar",
-  libs: "//lib/java/jdk13_macos:lib",
+  javac: ":bin_javac",
+  jar: ":bin_jar",
+  libs: ":lib",
 )
 
 java_runtime(
   name: "runtime",
-  java: "//lib/java/jdk13_macos:bin_java",
-  libs: "//lib/java/jdk13_macos:lib",
+  java: ":bin_java",
+  libs: ":lib",
 )

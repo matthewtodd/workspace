@@ -32,7 +32,7 @@ module Wake
     end
   end
 
-  class JavaInfo < Struct.new(:jar, keyword_init: true)
+  class JavaInfo < Struct.new(:jar, :deps, keyword_init: true)
     # TODO any behavior?
   end
 
@@ -130,7 +130,10 @@ module Wake
         source_jar: Attribute.new(Label, providers: [FileInfo]),
       },
       implementation: ->(context, jar:, source_jar:) {
-        [JavaInfo.new(jar: jar.fetch(FileInfo).path)]
+        [JavaInfo.new(
+          jar: jar.fetch(FileInfo).path,
+          deps: [],
+        )]
       },
     )
 
@@ -154,7 +157,10 @@ module Wake
           end
         end
 
-        [JavaInfo.new(jar: jar)]
+        [JavaInfo.new(
+          jar: jar,
+          deps: deps.map { |dep| dep.fetch(JavaInfo) },
+        )]
       },
     )
 
@@ -181,8 +187,9 @@ module Wake
         kotlin_runtime: Attribute.new(Label, default: "//lib/kotlin:runtime", providers: [FileGroupInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
+        runtime_deps: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, java_runtime:, kotlin_preloader:, kotlin_compiler:, kotlin_runtime:, srcs:, deps:) {
+      implementation: ->(context, java_runtime:, kotlin_preloader:, kotlin_compiler:, kotlin_runtime:, srcs:, deps:, runtime_deps:) {
         jre = java_runtime.fetch(JavaRuntimeInfo)
         preloader = kotlin_preloader.fetch(JavaInfo).jar
         compiler = kotlin_compiler.fetch(JavaInfo).jar
@@ -200,24 +207,26 @@ module Wake
             "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
             "-cp", dependency_paths.join(":"),
             "-d", jar,
-                      *source_paths
+            source_paths
           )
         end
 
-        [JavaInfo.new(jar: jar)]
+        [JavaInfo.new(
+          jar: jar,
+          deps: [],
+        )]
       },
     )
 
-    registry.new_rule(
+    registry.new_macro(
       :kt_jvm_test,
       attributes: {
-        main_class: Attribute.new(String, default: "org.matthewtodd.junit.WakeLauncher"),
-        runtime: Attribute.new(Label, default: "//lib/java:runtime"),
+        java_runtime: Attribute.new(Label, default: "//lib/java:runtime"),
         runtime_deps: Attribute.new(Label, list: true),
         test_class: Attribute.new(String),
         test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit"),
       },
-      implementation: ->(context, main_class:, runtime:, runtime_deps:, test_class:, test_runner:) {
+      implementation: ->(context, java_runtime:, runtime_deps:, test_class:, test_runner:) {
         # So, what am I doing here?
         # Rule implementations produce declared artifacts.
         # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
@@ -568,7 +577,7 @@ module Wake
       end
 
       def exec(*args)
-        Process.wait(Process.spawn(*args, chdir: @base))
+        Process.wait(Process.spawn(*args.flatten, chdir: @base))
         Process.last_status
       end
 
