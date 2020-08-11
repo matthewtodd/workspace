@@ -53,16 +53,11 @@ extract(
   strip_components: 1,
 )
 
-java_import(
-  name: "preloader",
-  jar: ":lib_kotlin_preloader",
-  source_jar: ":lib_kotlin_preloader", # FIXME what if there's no source_jar?
-)
-
-java_import(
+kotlin_compiler(
   name: "compiler",
-  jar: ":lib_kotlin_compiler",
-  source_jar: ":lib_kotlin_compiler", # FIXME what if there's no source_jar?
+  preloader: ":lib_kotlin_preloader",
+  compiler: ":lib_kotlin_compiler",
+  runtime: ":runtime",
 )
 
 java_import(

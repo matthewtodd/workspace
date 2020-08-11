@@ -31,6 +31,42 @@ module Wake
     def files
       [javac, jar, *libs]
     end
+
+    def compile(srcs:, deps:, context:)
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
+      output = context.expand_path("lib%{name}.jar")
+
+      context.run(inputs: [javac, jar, *libs, *source_paths, *dependency_paths], parameters: [], outputs: [output]) do |fs|
+        fs.mktmpdir do |tmp|
+          fs.exec(javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
+          fs.exec(jar, "cf", output, "-C", tmp, ".")
+        end
+      end
+
+      [JavaInfo.new(
+        jar: output,
+        deps: deps.map { |dep| dep.fetch(JavaInfo) },
+      )]
+    end
+
+    def help_javac(context:)
+      output = context.expand_path("javac.txt")
+      context.run(inputs: [javac, *libs], parameters: [], outputs: [output]) do |fs|
+        fs.open(output, "wb") do |io|
+          io.write(fs.exec(javac, "--help"))
+        end
+      end
+    end
+
+    def help_jar(context:)
+      output = context.expand_path("jar.txt")
+      context.run(inputs: [jar, *libs], parameters: [], outputs: [output]) do |fs|
+        fs.open(output, "wb") do |io|
+          io.write(fs.exec(jar, "--help"))
+        end
+      end
+    end
   end
 
   class JavaInfo < Struct.new(:jar, :deps, keyword_init: true)
@@ -40,6 +76,58 @@ module Wake
   class JavaRuntimeInfo < Struct.new(:java, :libs, keyword_init: true)
     def files
       [java, *libs]
+    end
+
+    def help(context:)
+      output = context.expand_path("java.txt")
+      context.run(inputs: [*files], parameters: [], outputs: [output]) do |fs|
+        fs.open(output, "wb") do |io|
+          io.write(fs.exec(java, "-h"))
+        end
+      end
+    end
+  end
+
+  class KotlinCompilerInfo < Struct.new(:java_runtime, :preloader, :compiler, :runtime, keyword_init: true)
+    def compile(srcs:, deps:, context:)
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
+      output = context.expand_path("lib%{name}.jar")
+
+      context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: [], outputs: [output]) do |fs|
+        fs.exec(
+          java_runtime.java,
+          "-cp", preloader,
+          "org.jetbrains.kotlin.preloading.Preloader",
+          "-cp", compiler,
+          "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
+          "-cp", dependency_paths.join(":"),
+          "-d", output,
+          "-jvm-target", "12",
+          source_paths
+        )
+      end
+
+      [JavaInfo.new(
+        jar: output,
+        deps: [],
+      )]
+    end
+
+    def help(context:)
+      output = context.expand_path("kotlinc.txt")
+      context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime], parameters: [], outputs: [output]) do |fs|
+        fs.open(output, "wb") do |io|
+          io.write(fs.exec(
+            java_runtime.java,
+            "-cp", preloader,
+            "org.jetbrains.kotlin.preloading.Preloader",
+            "-cp", compiler,
+            "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
+            "-h"
+          ))
+        end
+      end
     end
   end
 
@@ -140,27 +228,13 @@ module Wake
     registry.new_rule(
       :java_lib,
       attributes: {
-        deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
         srcs: Attribute.new(String, list: true),
+        deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
       },
       implementation: ->(context, deps:, compiler:, srcs:) {
         jdk = compiler.fetch(JavaCompilerInfo)
-        source_paths = srcs.map { |path| context.expand_path(path) }
-        dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
-        jar = context.expand_path("lib%{name}.jar")
-
-        context.run(inputs: [*jdk.files, *source_paths, *dependency_paths], parameters: [], outputs: [jar]) do |fs|
-          fs.mktmpdir do |tmp|
-            fs.exec(jdk.javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
-            fs.exec(jdk.jar, "cf", jar, "-C", tmp, ".")
-          end
-        end
-
-        [JavaInfo.new(
-          jar: jar,
-          deps: deps.map { |dep| dep.fetch(JavaInfo) },
-        )]
+        jdk.compile(srcs: srcs, deps: deps, context: context)
       },
     )
 
@@ -179,43 +253,34 @@ module Wake
     )
 
     registry.new_rule(
-      :kt_jvm_lib,
+      :kotlin_compiler,
       attributes: {
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        kotlin_preloader: Attribute.new(Label, default: "//lib/kotlin:preloader", providers: [JavaInfo]),
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [JavaInfo]),
-        kotlin_runtime: Attribute.new(Label, default: "//lib/kotlin:runtime", providers: [FileGroupInfo]),
+        preloader: Attribute.new(Label, providers: [FileInfo]),
+        compiler: Attribute.new(Label, providers: [FileInfo]),
+        runtime: Attribute.new(Label, providers: [FileGroupInfo]),
+      },
+      implementation: ->(context, java_runtime:, preloader:, compiler:, runtime:) {
+        [KotlinCompilerInfo.new(
+          java_runtime: java_runtime.fetch(JavaRuntimeInfo),
+          preloader: preloader.fetch(FileInfo).path,
+          compiler: compiler.fetch(FileInfo).path,
+          runtime: runtime.fetch(FileGroupInfo).paths,
+        )]
+      },
+    )
+
+    registry.new_rule(
+      :kt_jvm_lib,
+      attributes: {
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         runtime_deps: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, java_runtime:, kotlin_preloader:, kotlin_compiler:, kotlin_runtime:, srcs:, deps:, runtime_deps:) {
-        jre = java_runtime.fetch(JavaRuntimeInfo)
-        preloader = kotlin_preloader.fetch(JavaInfo).jar
-        compiler = kotlin_compiler.fetch(JavaInfo).jar
-        runtime = kotlin_runtime.fetch(FileGroupInfo).paths
-        source_paths = srcs.map { |path| context.expand_path(path) }
-        dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
-        jar = context.expand_path("lib%{name}.jar")
-
-        context.run(inputs: [*jre.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: [], outputs: [jar]) do |fs|
-          fs.exec(
-            jre.java,
-            "-cp", preloader,
-            "org.jetbrains.kotlin.preloading.Preloader",
-            "-cp", compiler,
-            "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
-            "-cp", dependency_paths.join(":"),
-            "-d", jar,
-            "-jvm-target", "12",
-            source_paths
-          )
-        end
-
-        [JavaInfo.new(
-          jar: jar,
-          deps: [],
-        )]
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, runtime_deps:) {
+        compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
+        compiler.compile(srcs: srcs, deps: deps, context: context)
       },
     )
 
@@ -241,52 +306,17 @@ module Wake
       attributes: {
         java_compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        kotlin_preloader: Attribute.new(Label, default: "//lib/kotlin:preloader", providers: [JavaInfo]),
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [JavaInfo]),
-        kotlin_runtime: Attribute.new(Label, default: "//lib/kotlin:runtime", providers: [FileGroupInfo]),
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
       },
-      implementation: ->(context, java_compiler:, java_runtime:, kotlin_preloader:, kotlin_compiler:, kotlin_runtime:) {
+      implementation: ->(context, java_compiler:, java_runtime:, kotlin_compiler:) {
         jdk = java_compiler.fetch(JavaCompilerInfo)
         jre = java_runtime.fetch(JavaRuntimeInfo)
-        preloader = kotlin_preloader.fetch(JavaInfo).jar
-        compiler = kotlin_compiler.fetch(JavaInfo).jar
-        runtime = kotlin_runtime.fetch(FileGroupInfo).paths
+        kotlin = kotlin_compiler.fetch(KotlinCompilerInfo)
 
-        java = context.expand_path("java.txt")
-        javac = context.expand_path("javac.txt")
-        jar = context.expand_path("jar.txt")
-        kotlinc = context.expand_path("kotlinc.txt")
-
-        context.run(inputs: [*jre.files], parameters: [], outputs: [java]) do |fs|
-          fs.open(java, "wb") do |io|
-            io.write(fs.exec(jre.java, "-h"))
-          end
-        end
-
-        context.run(inputs: [*jdk.files], parameters: [], outputs: [javac]) do |fs|
-          fs.open(javac, "wb") do |io|
-            io.write(fs.exec(jdk.javac, "--help"))
-          end
-        end
-
-        context.run(inputs: [*jdk.files], parameters: [], outputs: [jar]) do |fs|
-          fs.open(jar, "wb") do |io|
-            io.write(fs.exec(jdk.jar, "--help"))
-          end
-        end
-
-        context.run(inputs: [*jre.files, preloader, compiler, *runtime], parameters: [], outputs: [kotlinc]) do |fs|
-          fs.open(kotlinc, "wb") do |io|
-            io.write(fs.exec(
-              jre.java,
-              "-cp", preloader,
-              "org.jetbrains.kotlin.preloading.Preloader",
-              "-cp", compiler,
-              "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
-              "-h"
-            ))
-          end
-        end
+        jdk.help_javac(context: context)
+        jdk.help_jar(context: context)
+        jre.help(context: context)
+        kotlin.help(context: context)
 
         []
       },
