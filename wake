@@ -70,7 +70,9 @@ module Wake
   end
 
   class JavaInfo < Struct.new(:jar, :deps, keyword_init: true)
-    # TODO any behavior?
+    def transitive_dependencies
+      [jar, *deps.map { |dep| dep.transitive_dependencies }]
+    end
   end
 
   class JavaRuntimeInfo < Struct.new(:java, :libs, keyword_init: true)
@@ -110,7 +112,8 @@ module Wake
 
       [JavaInfo.new(
         jar: output,
-        deps: [],
+        deps: deps.map { |dep| dep.fetch(JavaInfo) },
+        # TODO add in the kotlin stdlib as a dependency!
       )]
     end
 
@@ -129,6 +132,10 @@ module Wake
         end
       end
     end
+  end
+
+  class TestExecutableInfo < Struct.new(:executable, :runfiles, :arguments, keyword_init: true)
+    # TODO move any relevant behavior here
   end
 
   def self.run
@@ -284,20 +291,31 @@ module Wake
       },
     )
 
-    registry.new_macro(
+    registry.new_rule(
       :kt_jvm_test,
       attributes: {
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        runtime_deps: Attribute.new(Label, list: true),
+        runtime_deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         test_class: Attribute.new(String),
-        test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit"),
+        test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit", providers: [JavaInfo]),
       },
       implementation: ->(context, java_runtime:, runtime_deps:, test_class:, test_runner:) {
-        # So, what am I doing here?
-        # Rule implementations produce declared artifacts.
-        # The subcommand we run decides what to do with them: build builds; run runs; test runs and interprets the output.
-        # So, this rule needs to Provide something that Wake will be able to "run" with.
-        return
+        jre = java_runtime.fetch(JavaRuntimeInfo)
+
+        classpath = []
+        classpath.append(test_runner)
+        classpath.concat(runtime_deps)
+        classpath = classpath.map { |dep| dep.fetch(JavaInfo).transitive_dependencies }.flatten.sort.uniq
+
+        [TestExecutableInfo.new(
+          executable: jre.java,
+          runfiles: jre.files.concat(classpath),
+          arguments: [
+            "-cp", classpath.join(":"),
+            "org.matthewtodd.junit.WakeLauncher",
+            test_class,
+          ],
+        )]
       },
     )
 
@@ -369,13 +387,25 @@ module Wake
     actions = Actions.new(RealFilesystem.new(Dir.pwd))
     providers = ProviderRegistry.new
 
-    plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
+    build_plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
 
     # TODO analyze in parallel?
-    plan.each do |label|
+    build_plan.each do |label|
       context = Context.new(actions, providers, label)
       target = targets.fetch(label)
       target.invoke(context)
+    end
+
+    tests = providers.of(TestExecutableInfo)
+    test_plan = Plan.new(tests.keys) { |label| [] } # no dependencies
+    test_plan.each do |label|
+      test = tests.fetch(label)
+      output = File.join(label.package, "#{label.name}.txt")
+      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: test.arguments, outputs: [output]) do |fs|
+        fs.open(output, "wb") do |io|
+          io.write(fs.exec(test.executable, *test.arguments))
+        end
+      end
     end
 
     0
@@ -653,6 +683,18 @@ module Wake
     end
 
     class Sandbox
+      class ExecutionException < Exception
+        def initialize(args:, status:, out:)
+          super(<<~MESSAGE)
+            Command exited with status #{status.exitstatus}.
+
+            #{args.join("\n  ")}
+
+            #{out}
+          MESSAGE
+        end
+      end
+
       def initialize(base)
         @base = base
       end
@@ -664,8 +706,9 @@ module Wake
       end
 
       def exec(*args)
+        p args.flatten
         out_and_err, status = Open3.capture2e(*args.flatten, chdir: @base)
-        raise "#{status}\n#{out_and_err}" unless status.success?
+        raise ExecutionException.new(args: args, status: status, out: out_and_err) unless status.success?
         out_and_err
       end
 
@@ -700,6 +743,13 @@ module Wake
       @providers[label] = Holder.new(label, providers)
     end
 
+    def of(type)
+      @providers.
+        select { |label, providers| providers.key?(type) }.
+        map { |label, providers| [label, providers.fetch(type)] }.
+        to_h
+    end
+
     private
 
     class Holder
@@ -710,6 +760,10 @@ module Wake
 
       def fetch(type)
         @providers.fetch(type) { raise MissingProviderError.new(@label, type) }
+      end
+
+      def key?(type)
+        @providers.key?(type)
       end
 
       def slice(types)
@@ -1877,9 +1931,11 @@ module Wake
     end
 
     def each(&block)
-      while node = @available.pop
-        block.call(node)
-        cleanup(node)
+      if !@available.empty?
+        while node = @available.pop
+          block.call(node)
+          cleanup(node)
+        end
       end
     end
 
@@ -1927,6 +1983,20 @@ module Wake
       plan = Plan.new([:a, :b]) { |node| edges[node] }
       plan.each { |node| record << node }
       assert_equal [:c, :f, :i, :j, :h, :g, :d, :e, :a, :b], record
+    end
+
+    def test_each_nothing
+      record = []
+      plan = Plan.new([]) { |node| [] }
+      plan.each { |node| record << node }
+      assert_equal [], record
+    end
+
+    def test_each_no_dependencies
+      record = []
+      plan = Plan.new([:a, :b]) { |node| [] }
+      plan.each { |node| record << node }
+      assert_equal [:a, :b], record
     end
   end
 

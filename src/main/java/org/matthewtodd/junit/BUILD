@@ -9,5 +9,6 @@ java_lib(
     "//lib/maven/org_junit_platform/junit_platform_commons:jar",
     "//lib/maven/org_junit_platform/junit_platform_engine:jar",
     "//lib/maven/org_junit_platform/junit_platform_launcher:jar",
+    "//lib/maven/org_opentest4j/opentest4j:jar",
   ],
 )
