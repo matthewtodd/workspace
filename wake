@@ -2,6 +2,8 @@
 
 require "digest/sha2"
 require "fileutils"
+require "io/console"
+require "io/console"
 require "net/http"
 require "open3"
 require "pathname"
@@ -139,17 +141,23 @@ module Wake
   end
 
   def self.run
+    console = Console.new(STDOUT)
+
     registry = Registry.new
 
-    # Does this make sense as a target?
-    # Provider registry means we get a singleton, which is nice for queueing.
-    # Could depend on, say, //tools:console for progress bars.
-    # It's nice to move something like this out of the kernel.
+    registry.new_target(
+      label: Label.parse("//tools:console"),
+      # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
+      rule: lambda { |context, dummy:| [console] },
+      attributes: AttributeSchema.new({ dummy: Attribute.new(String) }).parse({ dummy: "42" }),
+    )
+
     registry.new_target(
       label: Label.parse("//tools:http"),
-      # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
-      rule: lambda { |context, dummy:| [HttpDownloader.new] },
-      attributes: AttributeSchema.new({ dummy: Attribute.new(String) }).parse({ dummy: "42" }),
+      rule: lambda { |context, console:| [HttpDownloader.new(console.fetch(Console))] },
+      attributes: AttributeSchema.new({
+        console: Attribute.new(Label, default: "//tools:console", providers: [Console]),
+      }).parse({}),
     )
 
     registry.new_rule(
@@ -164,9 +172,7 @@ module Wake
         # TODO work back in (a new kind of?) verifier
         context.run(parameters: [url], outputs: [path]) do |fs|
           fs.open(path, "wb") do |io|
-            http.fetch(HttpDownloader).fetch(url).read do |chunk|
-              io.write(chunk)
-            end
+            http.fetch(HttpDownloader).get(url, io)
           end
         end
         [FileInfo.new(path)]
@@ -1067,32 +1073,150 @@ module Wake
     end
   end
 
-  # TODO observers, progress bars
+  class Console
+    def initialize(io)
+      @delegate = io.tty? ? Tty.new(io) : Batch.new(io)
+    end
+
+    def report_progress(label, percentage)
+      @delegate.report_progress(label, percentage)
+    end
+
+    private
+
+    class Batch
+      def initialize(io)
+        @io = io
+        @progress = {}
+      end
+
+      def report_progress(label, percentage)
+        return if @progress.key?(label)
+        @progress[label] = true
+        @io.puts(label)
+      end
+    end
+
+    class Tty
+      def initialize(io)
+        @io = io
+        @cols = io.winsize[1]
+        @progress = {}
+        @buffer = StringIO.new
+      end
+
+      def report_progress(label, percentage)
+        if percentage == 100
+          @progress.delete(label)
+        else
+          @progress[label] = percentage
+        end
+
+        format = "%s |%s%s| %2d%%"
+        buffer = StringIO.new
+
+        @progress.each do |label, percentage|
+          total_cols = @cols - (format % [label, "", "", percentage]).length
+          bar_cols = (percentage * total_cols / 100.0).floor
+          space_cols = total_cols - bar_cols
+          buffer.puts "%s |%s%s| %d%%" % [label, "=" * bar_cols, " " * space_cols, percentage]
+        end
+
+        if @buffer.length > 0
+          row = @buffer.string.split("\n").size
+          @io.write("\e[#{row}F") # go up to beginning of first output row
+          @io.write("\e[J") # clear from cursor to end of string
+        end
+
+        @buffer.string = buffer.string
+        @io.write(@buffer.string)
+      end
+    end
+  end
+
+  class ConsoleTest < Test
+    def test_report_progress_batch
+      io = StringIO.new
+      console = Console.new(io)
+      console.report_progress("foo", 15)
+      console.report_progress("bar", 30)
+      console.report_progress("foo", 100)
+      assert_equal(<<~END, io.string)
+        foo
+        bar
+      END
+    end
+
+    def test_report_progress_tty
+      io = StringIO.new.extend(FakeTty)
+      console = Console.new(io)
+      console.report_progress("foo", 15)
+      console.report_progress("bar", 30)
+      console.report_progress("foo", 100)
+      # assert_equal(<<~END, io.string)
+      #   foo
+      #   bar
+      # END
+    end
+
+    private
+
+    module FakeTty
+      def winsize
+        [24, 80]
+      end
+
+      def tty?
+        true
+      end
+    end
+  end
+
   # TODO connection pool?
   # TODO worker pool?
   # TODO "integration" test?
   class HttpDownloader
-    def fetch(url)
-      Reader.new(url)
+    def initialize(console = nil)
+      @console = console
     end
 
-    class Reader
-      def initialize(url)
-        @url = url
-      end
-
-      def read(&block)
-        Net::HTTP.get_response(@url) do |response|
-          case response
-          when Net::HTTPSuccess
-            response.read_body(&block)
-          when Net::HTTPRedirection
-            Reader.new(URI.parse(response["location"])).read(&block)
-          else
-            response.error!
-          end
+    def get(url, io, original: url)
+      Net::HTTP.get_response(url) do |response|
+        case response
+        when Net::HTTPSuccess
+          response.read_body(CompositeIO.new(io, Progress.new(@console, original, response["content-length"].to_i)))
+        when Net::HTTPRedirection
+          get(URI.parse(response["location"]), io, original: original)
+        else
+          response.error!
         end
       end
+    end
+
+    private
+
+    class Progress
+      def initialize(console, url, total)
+        @console = console
+        @label = url.path.split("/").last
+        @total = total
+        @current = 0
+      end
+
+      def <<(chunk)
+        @current += chunk.size
+        @console.report_progress(@label, (@current * 100.0 / @total).floor)
+      end
+    end
+  end
+
+  class CompositeIO
+    def initialize(*ios)
+      @ios = ios
+    end
+
+    def <<(chunk)
+      @ios.each { |io| io << chunk }
     end
   end
 
