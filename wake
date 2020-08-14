@@ -323,7 +323,7 @@ module Wake
           runfiles: jre.files.concat(classpath),
           arguments: [
             "-cp", classpath.join(":"),
-            "org.matthewtodd.junit.WakeLauncher",
+            "org.matthewtodd.junit.WakeLauncher", # TODO could pull this into something provided by the test_runner jar.
             test_class,
           ],
         )]
@@ -384,10 +384,6 @@ module Wake
       platform: Platform.from_ruby_config,
     )
 
-    # So we're going to make 2 passes here!
-    # First pass is over the (selected) targets, producing a bunch of actions.
-    # Second pass is over those actions, doing the work of the build.
-    # Perhaps there's then a Third execution phase, running any executables or tests?
     actions = Actions.new(RealFilesystem.new(Dir.pwd))
     providers = ProviderRegistry.new
 
@@ -710,7 +706,6 @@ module Wake
       end
 
       def exec(*args)
-        p args.flatten
         out_and_err, status = Open3.capture2e(*args.flatten, chdir: @base)
         raise ExecutionException.new(args: args, status: status, out: out_and_err) unless status.success?
         out_and_err
@@ -719,6 +714,30 @@ module Wake
       def mktmpdir(&block)
         Dir.mktmpdir(&block)
       end
+    end
+  end
+
+  # Ideas here:
+  # - explicitly put bash in the sandbox, might be a requirement
+  # - first write tests around what is, then develop new api (call it tee:? Look at how tee works.)
+  # - if these tests get slow, break out a separate IntegrationTest class for separate running, or parallel running, or something.
+  # - actually, shouldn't I already be running in parallel? Would be good!
+  # - even after tee is working, it's not clear how to work it into actions.run
+  #   - it would be simple to switch back to actions.run making a single output, but that's
+  #     - inefficient for zip/tgz extraction and
+  #     - maybe insufficient for things like test coverage??
+  # - we can test stdout/stderr and exit codes with bash -c 'echo hi; echo bye>&2; false'
+  class RealFilesystemTest < Test
+    def test_exec
+      tmp = Dir.mktmpdir
+      fs = RealFilesystem.new(tmp)
+      sandbox = fs.sandbox("sandbox")
+      sandbox.open("foo.txt", "wb") do |io|
+        io.write(sandbox.exec("bash -c 'echo hi'"))
+      end
+      assert_equal "hi\n", File.read(File.join(tmp, "sandbox", "foo.txt"))
+    ensure
+      FileUtils.remove_entry(tmp)
     end
   end
 
