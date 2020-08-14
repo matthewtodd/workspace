@@ -13,29 +13,29 @@ function validate {
 export DIR=$(cd `dirname $0`; pwd)
 
 LAUNCHER_COMPILE=(
-  ${DIR}/var/lib/maven/org_apiguardian/apiguardian_api/apiguardian-api.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_engine/junit-jupiter-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_commons/junit-platform-commons.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_engine/junit-platform-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_launcher/junit-platform-launcher.jar
+  ${DIR}/var/tmp/lib/maven/org_apiguardian/apiguardian_api/apiguardian-api-1.1.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_jupiter/junit_jupiter_engine/junit-jupiter-engine-5.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_platform/junit_platform_commons/junit-platform-commons-1.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_platform/junit_platform_engine/junit-platform-engine-1.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_platform/junit_platform_launcher/junit-platform-launcher-1.6.0.jar
 )
 
 TEST_COMPILE=(
-  ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
-  ${DIR}/var/lib/kotlin/lib/kotlin-test-junit5.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_api/junit-jupiter-api.jar
+  ${DIR}/var/tmp/lib/kotlin/lib/kotlin-test.jar
+  ${DIR}/var/tmp/lib/kotlin/lib/kotlin-test-junit5.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_jupiter/junit_jupiter_api/junit-jupiter-api-5.6.0.jar
 )
 
 TEST_RUNTIME=(
   ${DIR}/src/main/java
-  # ${DIR}/var/lib/kotlin/lib/kotlin-stdlib.jar
-  # ${DIR}/var/lib/kotlin/lib/kotlin-test.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_api/junit-jupiter-api.jar
-  ${DIR}/var/lib/maven/org_junit_jupiter/junit_jupiter_engine/junit-jupiter-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_commons/junit-platform-commons.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_engine/junit-platform-engine.jar
-  ${DIR}/var/lib/maven/org_junit_platform/junit_platform_launcher/junit-platform-launcher.jar
-  ${DIR}/var/lib/maven/org_opentest4j/opentest4j/opentest4j.jar
+  ${DIR}/var/tmp/lib/kotlin/lib/kotlin-stdlib.jar
+  ${DIR}/var/tmp/lib/kotlin/lib/kotlin-test.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_jupiter/junit_jupiter_api/junit-jupiter-api-5.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_jupiter/junit_jupiter_engine/junit-jupiter-engine-5.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_platform/junit_platform_commons/junit-platform-commons-1.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_platform/junit_platform_engine/junit-platform-engine-1.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_junit_platform/junit_platform_launcher/junit-platform-launcher-1.6.0.jar
+  ${DIR}/var/tmp/lib/maven/org_opentest4j/opentest4j/opentest4j-1.2.0.jar
   ${DIR}/example-test.jar
 )
 
@@ -44,7 +44,7 @@ TEST_RUNTIME=(
 # It might be nice to avoid the possible pollution of intermediate class files on the filesystem.
 validate ${LAUNCHER_COMPILE[@]}
 
-${DIR}/var/lib/jdk/bin/javac \
+${DIR}/var/tmp/lib/java/jdk13_macos/bin/javac \
   -cp $(join : ${LAUNCHER_COMPILE[@]}) \
   src/main/java/org/matthewtodd/junit/WakeLauncher.java
 
@@ -57,18 +57,20 @@ ${DIR}/var/lib/jdk/bin/javac \
 # Will be considering having long-running workers if it seems they could reduce latency.
 validate ${TEST_COMPILE[@]}
 
-${DIR}/var/lib/jdk/bin/java \
-  -cp ${DIR}/var/lib/kotlin/lib/kotlin-preloader.jar \
+${DIR}/var/tmp/lib/java/jdk13_macos/bin/java \
+  -cp $(join : ${LAUNCHER_COMPILE[@]}) \
+  -cp ${DIR}/var/tmp/lib/kotlin/lib/kotlin-preloader.jar \
   org.jetbrains.kotlin.preloading.Preloader \
-  -cp ${DIR}/var/lib/kotlin/lib/kotlin-compiler.jar \
+  -cp ${DIR}/var/tmp/lib/kotlin/lib/kotlin-compiler.jar \
   org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
   -cp $(join : ${TEST_COMPILE[@]}) \
   -d ${DIR}/example-test.jar \
+  -jvm-target 12 \
   ${DIR}/src/test/kotlin/ExampleTest.kt
 
 validate ${TEST_RUNTIME[@]}
 
-${DIR}/var/lib/jdk/bin/java \
+${DIR}/var/tmp/lib/java/jdk13_macos/bin/java \
   -cp $(join : ${TEST_RUNTIME[@]}) \
   org.matthewtodd.junit.WakeLauncher \
   ExampleTest

@@ -8,6 +8,14 @@ http_file(
 )
 
 extract(
+  name: "lib_kotlin_compiler",
+  archive: ":dist",
+  format: :zip,
+  paths: ["lib/kotlin-compiler.jar"],
+  strip_components: 1,
+)
+
+extract(
   name: "lib_kotlin_preloader",
   archive: ":dist",
   format: :zip,
@@ -16,10 +24,10 @@ extract(
 )
 
 extract(
-  name: "lib_kotlin_compiler",
+  name: "lib_kotlin_stdlib",
   archive: ":dist",
   format: :zip,
-  paths: ["lib/kotlin-compiler.jar"],
+  paths: ["lib/kotlin-stdlib.jar"],
   strip_components: 1,
 )
 
@@ -47,7 +55,6 @@ extract(
     "lib/annotations-13.0.jar",
     "lib/kotlin-reflect.jar",
     "lib/kotlin-script-runtime.jar",
-    "lib/kotlin-stdlib.jar",
     "lib/trove4j.jar",
   ],
   strip_components: 1,
@@ -57,17 +64,22 @@ kotlin_compiler(
   name: "compiler",
   preloader: ":lib_kotlin_preloader",
   compiler: ":lib_kotlin_compiler",
+  stdlib: ":stdlib",
   runtime: ":runtime",
+)
+
+java_import(
+  name: "stdlib",
+  jar: ":lib_kotlin_stdlib",
 )
 
 java_import(
   name: "test",
   jar: ":lib_kotlin_test",
-  source_jar: ":lib_kotlin_test", # FIXME what if there's no source_jar?
 )
 
 java_import(
   name: "test_junit5",
   jar: ":lib_kotlin_test_junit5",
-  source_jar: ":lib_kotlin_test_junit5", # FIXME what if there's no source_jar?
+  neverlink: true,
 )

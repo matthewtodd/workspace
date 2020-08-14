@@ -49,6 +49,7 @@ module Wake
       [JavaInfo.new(
         jar: output,
         deps: deps.map { |dep| dep.fetch(JavaInfo) },
+        neverlink: false,
       )]
     end
 
@@ -71,9 +72,9 @@ module Wake
     end
   end
 
-  class JavaInfo < Struct.new(:jar, :deps, keyword_init: true)
-    def transitive_dependencies
-      [jar, *deps.map { |dep| dep.transitive_dependencies }]
+  class JavaInfo < Struct.new(:jar, :deps, :neverlink, keyword_init: true)
+    def transitive_runtime_dependencies
+      neverlink ? [] : [jar, *deps.map { |dep| dep.transitive_runtime_dependencies }]
     end
   end
 
@@ -92,13 +93,15 @@ module Wake
     end
   end
 
-  class KotlinCompilerInfo < Struct.new(:java_runtime, :preloader, :compiler, :runtime, keyword_init: true)
+  class KotlinCompilerInfo < Struct.new(:java_runtime, :preloader, :compiler, :stdlib, :runtime, keyword_init: true)
     def compile(srcs:, deps:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
-      dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
+      dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
+      dependency_paths = dependencies.map { |java_info| java_info.jar }
       output = context.expand_path("lib%{name}.jar")
+      parameters = ["-jvm-target", "12"]
 
-      context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: [], outputs: [output]) do |fs|
+      context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
         fs.exec(
           java_runtime.java,
           "-cp", preloader,
@@ -107,21 +110,21 @@ module Wake
           "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
           "-cp", dependency_paths.join(":"),
           "-d", output,
-          "-jvm-target", "12",
+          parameters,
           source_paths
         )
       end
 
       [JavaInfo.new(
         jar: output,
-        deps: deps.map { |dep| dep.fetch(JavaInfo) },
-        # TODO add in the kotlin stdlib as a dependency!
+        deps: dependencies,
+        neverlink: false,
       )]
     end
 
     def help(context:)
       output = context.expand_path("kotlinc.txt")
-      context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime], parameters: [], outputs: [output]) do |fs|
+      context.run(inputs: [*java_runtime.files, preloader, compiler, stdlib.jar, *runtime], parameters: [], outputs: [output]) do |fs|
         fs.open(output, "wb") do |io|
           io.write(fs.exec(
             java_runtime.java,
@@ -228,12 +231,13 @@ module Wake
       :java_import,
       attributes: {
         jar: Attribute.new(Label, providers: [FileInfo]),
-        source_jar: Attribute.new(Label, providers: [FileInfo]),
+        neverlink: Attribute.new(TrueClass, default: false),
       },
-      implementation: ->(context, jar:, source_jar:) {
+      implementation: ->(context, jar:, neverlink:) {
         [JavaInfo.new(
           jar: jar.fetch(FileInfo).path,
           deps: [],
+          neverlink: neverlink,
         )]
       },
     )
@@ -271,13 +275,15 @@ module Wake
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         preloader: Attribute.new(Label, providers: [FileInfo]),
         compiler: Attribute.new(Label, providers: [FileInfo]),
+        stdlib: Attribute.new(Label, providers: [JavaInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, java_runtime:, preloader:, compiler:, runtime:) {
+      implementation: ->(context, java_runtime:, preloader:, compiler:, stdlib:, runtime:) {
         [KotlinCompilerInfo.new(
           java_runtime: java_runtime.fetch(JavaRuntimeInfo),
           preloader: preloader.fetch(FileInfo).path,
           compiler: compiler.fetch(FileInfo).path,
+          stdlib: stdlib.fetch(JavaInfo),
           runtime: runtime.fetch(FileGroupInfo).paths,
         )]
       },
@@ -289,9 +295,8 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
-        runtime_deps: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, runtime_deps:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:) {
         compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
         compiler.compile(srcs: srcs, deps: deps, context: context)
       },
@@ -311,7 +316,7 @@ module Wake
         classpath = []
         classpath.append(test_runner)
         classpath.concat(runtime_deps)
-        classpath = classpath.map { |dep| dep.fetch(JavaInfo).transitive_dependencies }.flatten.sort.uniq
+        classpath = classpath.map { |dep| dep.fetch(JavaInfo).transitive_runtime_dependencies }.flatten.sort.uniq
 
         [TestExecutableInfo.new(
           executable: jre.java,
@@ -362,16 +367,9 @@ module Wake
             sha256: sha256,
           )
 
-          http_file(
-            name: artifact.sources.filename,
-            url: artifact.sources.url(repository),
-            sha256: sources_sha256,
-          )
-
           java_import(
             name: "jar",
             jar: artifact.filename,
-            source_jar: artifact.sources.filename,
           )
         end
       },
@@ -1368,8 +1366,9 @@ module Wake
         compiler: Attribute.new(Label, default: "//lib:compiler"),
         strip_components: Attribute.new(PathCleaner, default: 0),
         build: Attribute.new(Proc, default: ->() { }),
+        neverlink: Attribute.new(TrueClass, default: false),
       )
-      assert_equal "name:, deps:, compiler: \"//lib:compiler\", strip_components: 0, build: ->() { }", schema.dsl_method_parameters(:name)
+      assert_equal "name:, deps:, compiler: \"//lib:compiler\", strip_components: 0, build: ->() { }, neverlink: false", schema.dsl_method_parameters(:name)
     end
 
     def test_dsl_method_forwarding_parameters
@@ -1409,7 +1408,7 @@ module Wake
     end
 
     def as_method_parameter(name)
-      @default ? "#{name}: #{@type == Proc ? "->() { }" : @default.inspect}" : "#{name}:"
+      !@default.nil? ? "#{name}: #{@type == Proc ? "->() { }" : @default.inspect}" : "#{name}:"
     end
 
     def dependencies(value)
@@ -1441,6 +1440,8 @@ module Wake
         raw_value
       elsif @type == Label
         @type.parse(raw_value, **options)
+      elsif @type == TrueClass && raw_value == false
+        raw_value
       else
         @type.parse(raw_value)
       end
@@ -1450,6 +1451,7 @@ module Wake
   class AttributeTest < Test
     def test_parse
       assert_equal URI.parse("https://example.com"), Attribute.new(URI).parse("https://example.com")
+      assert Attribute.new(TrueClass).parse(true)
     end
 
     def test_parse_already_parsed
@@ -1458,6 +1460,8 @@ module Wake
 
     def test_parse_default
       assert_equal URI.parse("https://example.com"), Attribute.new(URI, default: "https://example.com").parse(nil)
+      assert Attribute.new(TrueClass, default: true).parse(nil)
+      assert !Attribute.new(TrueClass, default: false).parse(nil)
     end
 
     def test_parse_nil_no_default
@@ -1465,6 +1469,7 @@ module Wake
       assert_raises { Attribute.new(Label).parse(nil) }
       assert_raises { Attribute.new(MavenCoordinates).parse(nil) }
       assert_raises { Attribute.new(String).parse(nil) }
+      assert_raises { Attribute.new(TrueClass).parse(nil) }
       assert_raises { Attribute.new(URI).parse(nil) }
     end
 
