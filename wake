@@ -2,6 +2,7 @@
 
 require "digest/sha2"
 require "fileutils"
+require "find"
 require "io/console"
 require "io/console"
 require "net/http"
@@ -408,6 +409,8 @@ module Wake
       end
     end
 
+    actions.expire(before: Time.now - (60 * 60 * 24))
+
     0
   end
 
@@ -473,6 +476,10 @@ module Wake
       outputs.each do |path|
         @fs.link("var/cache/#{key}/#{path}", "var/tmp/#{path}")
       end
+    end
+
+    def expire(before:)
+      @fs.purge("var/cache", before: before)
     end
 
     private
@@ -666,6 +673,20 @@ module Wake
       dest = absolute_path(dest)
       FileUtils.mkdir_p(File.dirname(dest))
       FileUtils.ln(src, dest, force: true)
+    end
+
+    def purge(path, before:)
+      path = absolute_path(path)
+      Find.find(path).sort.reverse_each do |p|
+        stat = File.stat(p)
+        if stat.birthtime < before
+          if stat.directory? && Dir.empty?(p)
+            FileUtils.remove_entry(p)
+          elsif stat.file? && stat.nlink == 1
+            FileUtils.remove_entry(p)
+          end
+        end
+      end
     end
 
     def mktmpdir(&block)
