@@ -677,16 +677,18 @@ module Wake
 
     def purge(path, before:)
       path = absolute_path(path)
-      Find.find(path).sort.reverse_each do |p|
-        stat = File.stat(p)
-        if stat.birthtime < before
-          if stat.directory? && Dir.empty?(p)
-            FileUtils.remove_entry(p)
-          elsif stat.file? && stat.nlink == 1
-            FileUtils.remove_entry(p)
-          end
-        end
-      end
+
+      Find.find(path).
+        map { |p| [p, File.stat(p)] }.
+        select { |p, stat| stat.file? }.
+        select { |p, stat| stat.mtime < before }.
+        select { |p, stat| stat.nlink == 1 }.
+        each { |p, stat| FileUtils.remove_entry(p) }
+
+      Find.find(path).
+        select { |p| File.directory?(p) }.
+        sort.
+        reverse_each { |p| FileUtils.remove_entry(p) if Dir.empty?(p) }
     end
 
     def mktmpdir(&block)
