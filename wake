@@ -12,6 +12,7 @@ require "rbconfig"
 require "rubygems" # TODO write a simple version of Gem::Package::TarReader?
 require "rubygems/package"
 require "set"
+require "shellwords"
 require "stringio"
 require "tempfile"
 require "tmpdir"
@@ -42,8 +43,8 @@ module Wake
 
       context.run(inputs: [javac, jar, *libs, *source_paths, *dependency_paths], parameters: [], outputs: [output]) do |fs|
         fs.mktmpdir do |tmp|
-          fs.exec(javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
-          fs.exec(jar, "cf", output, "-C", tmp, ".")
+          fs.exec!(javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
+          fs.exec!(jar, "cf", output, "-C", tmp, ".")
         end
       end
 
@@ -76,7 +77,7 @@ module Wake
       parameters = ["-jvm-target", "12"]
 
       context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
-        fs.exec(
+        fs.exec!(
           java_runtime.java,
           "-cp", preloader,
           "org.jetbrains.kotlin.preloading.Preloader",
@@ -337,10 +338,10 @@ module Wake
     test_plan = Plan.new(tests.keys) { |label| [] } # no dependencies
     test_plan.each do |label|
       test = tests.fetch(label)
-      output = File.join(label.package, "#{label.name}.txt")
-      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: test.arguments, outputs: [output]) do |fs|
-        fs.open(output, "wb") do |io|
-          io.write(fs.exec(test.executable, *test.arguments))
+      out = File.join(label.package, "#{label.name}-out.txt")
+      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: test.arguments, outputs: [out]) do |fs|
+        fs.open(out, "wb") do |io|
+          fs.exec(test.executable, *test.arguments, out: io)
         end
       end
     end
@@ -642,15 +643,26 @@ module Wake
     end
 
     class Sandbox
-      class ExecutionException < Exception
-        def initialize(args:, status:, out:)
-          super(<<~MESSAGE)
-            Command exited with status #{status.exitstatus}.
+      class ExecutionError < RuntimeError
+        attr_reader :status
+        attr_reader :out
+        attr_reader :err
 
-            #{args.join("\n  ")}
+        def initialize(args:, status:, out:, err:)
+          @args = args
+          @status = status
+          @out = out
+          @err = err
 
-            #{out}
-          MESSAGE
+          message = [
+            "Commmand exited with status #{status.exitstatus}.",
+            Shellwords.join(args),
+            out.strip,
+            err.strip,
+          ].reject(&:empty?).
+            join("\n")
+
+          super(message)
         end
       end
 
@@ -664,10 +676,24 @@ module Wake
         File.open(path, mode, permissions, &block)
       end
 
-      def exec(*args)
-        out_and_err, status = Open3.capture2e(*args.flatten, chdir: @base)
-        raise ExecutionException.new(args: args, status: status, out: out_and_err) unless status.success?
-        out_and_err
+      def exec(*args, out: StringIO.new, err: StringIO.new)
+        Open3.popen3(*args, chdir: @base) do |i, o, e, t|
+          i.close
+          out_reader = Thread.new { IO.copy_stream(o, out) }
+          err_reader = Thread.new { IO.copy_stream(e, err) }
+          out_reader.join
+          err_reader.join
+          t.value
+        end
+      end
+
+      def exec!(*args, out: StringIO.new, err: StringIO.new)
+        spy_out = StringIO.new
+        spy_err = StringIO.new
+
+        status = exec(*args, out: CompositeIO.new(out, spy_out), err: CompositeIO.new(err, spy_err))
+
+        raise ExecutionError.new(args: args, status: status, out: spy_out.string, err: spy_err.string) if !status.success?
       end
 
       def mktmpdir(&block)
@@ -676,27 +702,32 @@ module Wake
     end
   end
 
-  # Ideas here:
-  # - explicitly put bash in the sandbox, might be a requirement
-  # - first write tests around what is, then develop new api (call it tee:? Look at how tee works.)
-  # - if these tests get slow, break out a separate IntegrationTest class for separate running, or parallel running, or something.
-  # - actually, shouldn't I already be running in parallel? Would be good!
-  # - even after tee is working, it's not clear how to work it into actions.run
-  #   - it would be simple to switch back to actions.run making a single output, but that's
-  #     - inefficient for zip/tgz extraction and
-  #     - maybe insufficient for things like test coverage??
-  # - we can test stdout/stderr and exit codes with bash -c 'echo hi; echo bye>&2; false'
   class RealFilesystemTest < Test
+    def setup; @tmp = Dir.mktmpdir; end
+    def teardown; FileUtils.remove_entry(@tmp); end
+
     def test_exec
-      tmp = Dir.mktmpdir
-      fs = RealFilesystem.new(tmp)
+      fs = RealFilesystem.new(@tmp)
       sandbox = fs.sandbox("sandbox")
       sandbox.open("foo.txt", "wb") do |io|
-        io.write(sandbox.exec("bash -c 'echo hi'"))
+        sandbox.exec("bash", "-c", "echo hi", out: io)
       end
-      assert_equal "hi\n", File.read(File.join(tmp, "sandbox", "foo.txt"))
-    ensure
-      FileUtils.remove_entry(tmp)
+      assert_equal "hi\n", File.read(File.join(@tmp, "sandbox", "foo.txt"))
+    end
+
+    def test_exec!
+      fs = RealFilesystem.new(@tmp)
+      sandbox = fs.sandbox("sandbox")
+      # We don't care what happens to the file (was it partially written?)
+      # because we're typically making sandboxes in tmpdirs that get thrown
+      # away anyway.
+      sandbox.open("foo.txt", "wb") do |io|
+        error = assert_raises(Wake::RealFilesystem::Sandbox::ExecutionError) do
+          sandbox.exec!("bash", "-c", "echo hi; false", out: io)
+        end
+        assert_equal "hi\n", error.out
+        assert_equal "", error.err
+      end
     end
   end
 
@@ -1191,8 +1222,13 @@ module Wake
       @ios = ios
     end
 
-    def <<(chunk)
-      @ios.each { |io| io << chunk }
+    def write(*args)
+      # TODO this gets hinky when the answers are different!
+      @ios.map { |io| io.write(*args) }.max
+    end
+
+    def <<(*args)
+      write(*args)
     end
   end
 
