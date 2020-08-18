@@ -53,24 +53,6 @@ module Wake
         neverlink: false,
       )]
     end
-
-    def help_javac(context:)
-      output = context.expand_path("javac.txt")
-      context.run(inputs: [javac, *libs], parameters: [], outputs: [output]) do |fs|
-        fs.open(output, "wb") do |io|
-          io.write(fs.exec(javac, "--help"))
-        end
-      end
-    end
-
-    def help_jar(context:)
-      output = context.expand_path("jar.txt")
-      context.run(inputs: [jar, *libs], parameters: [], outputs: [output]) do |fs|
-        fs.open(output, "wb") do |io|
-          io.write(fs.exec(jar, "--help"))
-        end
-      end
-    end
   end
 
   class JavaInfo < Struct.new(:jar, :deps, :neverlink, keyword_init: true)
@@ -82,15 +64,6 @@ module Wake
   class JavaRuntimeInfo < Struct.new(:java, :libs, keyword_init: true)
     def files
       [java, *libs]
-    end
-
-    def help(context:)
-      output = context.expand_path("java.txt")
-      context.run(inputs: [*files], parameters: [], outputs: [output]) do |fs|
-        fs.open(output, "wb") do |io|
-          io.write(fs.exec(java, "-h"))
-        end
-      end
     end
   end
 
@@ -121,22 +94,6 @@ module Wake
         deps: dependencies,
         neverlink: false,
       )]
-    end
-
-    def help(context:)
-      output = context.expand_path("kotlinc.txt")
-      context.run(inputs: [*java_runtime.files, preloader, compiler, stdlib.jar, *runtime], parameters: [], outputs: [output]) do |fs|
-        fs.open(output, "wb") do |io|
-          io.write(fs.exec(
-            java_runtime.java,
-            "-cp", preloader,
-            "org.jetbrains.kotlin.preloading.Preloader",
-            "-cp", compiler,
-            "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
-            "-h"
-          ))
-        end
-      end
     end
   end
 
@@ -328,27 +285,6 @@ module Wake
             test_class,
           ],
         )]
-      },
-    )
-
-    registry.new_rule(
-      :docs,
-      attributes: {
-        java_compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
-        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
-      },
-      implementation: ->(context, java_compiler:, java_runtime:, kotlin_compiler:) {
-        jdk = java_compiler.fetch(JavaCompilerInfo)
-        jre = java_runtime.fetch(JavaRuntimeInfo)
-        kotlin = kotlin_compiler.fetch(KotlinCompilerInfo)
-
-        jdk.help_javac(context: context)
-        jdk.help_jar(context: context)
-        jre.help(context: context)
-        kotlin.help(context: context)
-
-        []
       },
     )
 
