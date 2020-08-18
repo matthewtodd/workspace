@@ -339,9 +339,26 @@ module Wake
     test_plan.each do |label|
       test = tests.fetch(label)
       out = File.join(label.package, "#{label.name}-out.txt")
+
+      action_did_run = false
+
       actions.run(label, inputs: [test.executable, *test.runfiles], parameters: test.arguments, outputs: [out]) do |fs|
+        action_did_run = true
+        rd, wr = IO.pipe
+        reader = Thread.new { until rd.eof?; console.report_test_result(label, rd.readline.chomp); end }
         fs.open(out, "wb") do |io|
-          fs.exec(test.executable, *test.arguments, out: io)
+          fs.exec(test.executable, *test.arguments, out: CompositeIO.new(io, wr))
+        end
+        wr.close
+        reader.join
+      end
+
+      if !action_did_run
+        # TODO var/tmp is duplication with Actions
+        File.open(File.join("var/tmp", out), "rb") do |io|
+          until io.eof?
+            console.report_test_result(label, io.readline.chomp)
+          end
         end
       end
     end
@@ -677,7 +694,7 @@ module Wake
       end
 
       def exec(*args, out: StringIO.new, err: StringIO.new)
-        Open3.popen3(*args, chdir: @base) do |i, o, e, t|
+        Open3.popen3(*args.flatten, chdir: @base) do |i, o, e, t|
           i.close
           out_reader = Thread.new { IO.copy_stream(o, out) }
           err_reader = Thread.new { IO.copy_stream(e, err) }
@@ -1089,6 +1106,10 @@ module Wake
       @delegate.report_progress(label, percentage)
     end
 
+    def report_test_result(label, result)
+      @delegate.report_test_result(label, result)
+    end
+
     private
 
     class Batch
@@ -1101,6 +1122,10 @@ module Wake
         return if @progress.key?(label)
         @progress[label] = true
         @io.puts(label)
+      end
+
+      def report_test_result(label, result)
+        @io.puts(result)
       end
     end
 
@@ -1137,6 +1162,10 @@ module Wake
 
         @buffer.string = buffer.string
         @io.write(@buffer.string)
+      end
+
+      def report_test_result(label, result)
+        @io.puts(result)
       end
     end
   end
