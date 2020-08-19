@@ -3,8 +3,8 @@
 # https://kotlinlang.org/docs/reference/compiler-reference.html
 http_file(
   name: "dist",
-  url: "https://github.com/JetBrains/kotlin/releases/download/v1.3.61/kotlin-compiler-1.3.61.zip",
-  sha256: "3901151ad5d94798a268d1771c6c0b7e305a608c2889fc98a674802500597b1c",
+  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.0/kotlin-compiler-1.4.0.zip",
+  sha256: "590391d13b3c65ba52cba470f56efd5b14e2b1f5b9459f63aa12eb38ef52f161",
 )
 
 extract(
@@ -30,12 +30,27 @@ extract(
   paths: ["lib/kotlin-stdlib.jar"],
   strip_components: 1,
 )
+extract(
+  name: "lib_kotlin_stdlib_js",
+  archive: ":dist",
+  format: :zip,
+  paths: ["lib/kotlin-stdlib-js.jar"],
+  strip_components: 1,
+)
 
 extract(
   name: "lib_kotlin_test",
   archive: ":dist",
   format: :zip,
   paths: ["lib/kotlin-test.jar"],
+  strip_components: 1,
+)
+
+extract(
+  name: "lib_kotlin_test_js",
+  archive: ":dist",
+  format: :zip,
+  paths: ["lib/kotlin-test-js.jar"],
   strip_components: 1,
 )
 
@@ -65,6 +80,7 @@ kotlin_compiler(
   preloader: ":lib_kotlin_preloader",
   compiler: ":lib_kotlin_compiler",
   stdlib: ":stdlib",
+  stdlib_js: ":stdlib_js",
   runtime: ":runtime",
 )
 
@@ -73,9 +89,19 @@ java_import(
   jar: ":lib_kotlin_stdlib",
 )
 
+kt_js_import(
+  name: "stdlib_js",
+  jar: ":lib_kotlin_stdlib_js",
+)
+
 java_import(
   name: "test",
   jar: ":lib_kotlin_test",
+)
+
+kt_js_import(
+  name: "test_js",
+  jar: ":lib_kotlin_test_js",
 )
 
 java_import(

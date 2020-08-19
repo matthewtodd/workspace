@@ -15,6 +15,6 @@ class ExampleTest {
     throw Exception("Boom!")
   }
 
-  @Test @Ignore("Reason.") fun skipped() {
+  @Test @Ignore() fun skipped() {
   }
 }

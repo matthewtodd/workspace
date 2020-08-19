@@ -68,8 +68,48 @@ module Wake
     end
   end
 
-  class KotlinCompilerInfo < Struct.new(:java_runtime, :preloader, :compiler, :stdlib, :runtime, keyword_init: true)
-    def compile(srcs:, deps:, context:)
+  class NodeRuntimeInfo < Struct.new(:node, keyword_init: true)
+  end
+
+  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
+    # TODO need deps to use some other provider type. Though they're jars, JavaInfo is making less sense.
+    def compile_js(srcs:, deps:, context:)
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
+      dependency_paths = dependencies.map(&:jar)
+      output = context.expand_path("lib%{name}.jar")
+      parameters = [
+        "-meta-info",
+        "-module-kind", "plain",
+        "-source-map",
+        "-source-map-base-dirs", "%{tmp}",
+        "-source-map-embed-sources", "always",
+        "-target", "v6",
+        "-Werror",
+      ]
+
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
+        fs.mktmpdir do |tmp|
+          fs.exec!(
+            java_runtime.java,
+            "-cp", preloader,
+            "org.jetbrains.kotlin.preloading.Preloader",
+            "-cp", compiler,
+            "org.jetbrains.kotlin.cli.js.K2JSCompiler",
+            "-libraries", dependency_paths.join(":"),
+            "-output", File.join(tmp, context.expand_path("lib%{name}.js")),
+            parameters.map { |p| p.gsub("%{tmp}", tmp) },
+            source_paths
+          )
+
+          fs.exec!(java_compiler.jar, "cf", output, "-C", tmp, ".")
+        end
+      end
+
+      []
+    end
+
+    def compile_jvm(srcs:, deps:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
       dependency_paths = dependencies.map { |java_info| java_info.jar }
@@ -96,6 +136,9 @@ module Wake
         neverlink: false,
       )]
     end
+  end
+
+  class KotlinJsInfo < Struct.new(:jar, :deps, keyword_init: true)
   end
 
   class TestExecutableInfo < Struct.new(:executable, :runfiles, :arguments, keyword_init: true)
@@ -231,19 +274,70 @@ module Wake
     registry.new_rule(
       :kotlin_compiler,
       attributes: {
+        java_compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         preloader: Attribute.new(Label, providers: [FileInfo]),
         compiler: Attribute.new(Label, providers: [FileInfo]),
         stdlib: Attribute.new(Label, providers: [JavaInfo]),
+        stdlib_js: Attribute.new(Label, providers: [KotlinJsInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, java_runtime:, preloader:, compiler:, stdlib:, runtime:) {
+      implementation: ->(context, java_compiler:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:) {
         [KotlinCompilerInfo.new(
+          java_compiler: java_compiler.fetch(JavaCompilerInfo),
           java_runtime: java_runtime.fetch(JavaRuntimeInfo),
           preloader: preloader.fetch(FileInfo).path,
           compiler: compiler.fetch(FileInfo).path,
           stdlib: stdlib.fetch(JavaInfo),
+          stdlib_js: stdlib_js.fetch(KotlinJsInfo),
           runtime: runtime.fetch(FileGroupInfo).paths,
+        )]
+      },
+    )
+
+    registry.new_rule(
+      :kt_js_import,
+      attributes: {
+        jar: Attribute.new(Label, providers: [FileInfo]),
+      },
+      implementation: ->(context, jar:) {
+        [KotlinJsInfo.new(
+          jar: jar.fetch(FileInfo).path,
+          deps: [],
+        )]
+      },
+    )
+
+    registry.new_rule(
+      :kt_js_lib,
+      attributes: {
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
+        srcs: Attribute.new(String, list: true),
+        deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo]),
+      },
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:) {
+        compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
+        compiler.compile_js(srcs: srcs, deps: deps, context: context)
+      },
+    )
+
+    registry.new_rule(
+      :kt_js_test,
+      attributes: {
+        node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
+      },
+      implementation: ->(context, node_runtime:) {
+        node = node_runtime.fetch(NodeRuntimeInfo)
+
+        # TODO maybe we can use node -r here?
+        # Also maybe we need to publish more artifacts inside KotlinJsInfo, not just the jar
+        # Like the plain .js file
+        # We will need topological sorting in the require list, requiring root deps first.
+        # Maybe that is as simple as returning [*deps, me] (vs. [me, *deps]) from the Info class.
+        [TestExecutableInfo.new(
+          executable: node.node,
+          runfiles: [],
+          arguments: [],
         )]
       },
     )
@@ -257,7 +351,7 @@ module Wake
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:) {
         compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
-        compiler.compile(srcs: srcs, deps: deps, context: context)
+        compiler.compile_jvm(srcs: srcs, deps: deps, context: context)
       },
     )
 
@@ -285,6 +379,18 @@ module Wake
             "org.matthewtodd.junit.WakeLauncher", # TODO could pull this into something provided by the test_runner jar.
             test_class,
           ],
+        )]
+      },
+    )
+
+    registry.new_rule(
+      :node_runtime,
+      attributes: {
+        node: Attribute.new(Label, providers: [FileInfo]),
+      },
+      implementation: ->(context, node:) {
+        [NodeRuntimeInfo.new(
+          node: node.fetch(FileInfo).path,
         )]
       },
     )
@@ -1239,7 +1345,7 @@ module Wake
         @current = 0
       end
 
-      def <<(chunk)
+      def write(chunk)
         @current += chunk.size
         @console.report_progress(@label, (@current * 100.0 / @total).floor)
       end
