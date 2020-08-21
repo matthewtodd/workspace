@@ -381,7 +381,7 @@ module Wake
           'use strict';
           var kotlin_test = require("kotlin-test");
           var wake_test = require("libwake-test");
-          kotlin_test.setAdapter(new wake_test.WakeFrameworkAdapter());
+          kotlin_test.setAdapter(new wake_test.WakeTest());
           require("#{test_module}");
         END
 
