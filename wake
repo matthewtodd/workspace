@@ -982,8 +982,8 @@ module Wake
       end
 
       def write(content)
-        @io.write(content)
         @digest.update(content)
+        @io.write(content)
       end
     end
   end
@@ -1348,6 +1348,7 @@ module Wake
       def write(chunk)
         @current += chunk.size
         @console.report_progress(@label, (@current * 100.0 / @total).floor)
+        chunk.size
       end
     end
   end
