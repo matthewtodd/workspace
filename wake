@@ -4,7 +4,6 @@ require "digest/sha2"
 require "fileutils"
 require "find"
 require "io/console"
-require "io/console"
 require "net/http"
 require "open3"
 require "pathname"
@@ -71,24 +70,38 @@ module Wake
   class NodeRuntimeInfo < Struct.new(:node, keyword_init: true)
   end
 
+  # https://kotlinlang.org/docs/reference/compiler-reference.html
   class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
-    # TODO need deps to use some other provider type. Though they're jars, JavaInfo is making less sense.
     def compile_js(srcs:, deps:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
       dependency_paths = dependencies.map(&:jar)
-      output = context.expand_path("lib%{name}.jar")
+      output_js = context.expand_path("lib%{name}.js")
+      output_jar = context.expand_path("lib%{name}.jar")
       parameters = [
         "-meta-info",
-        "-module-kind", "plain",
-        "-source-map",
-        "-source-map-base-dirs", "%{tmp}",
-        "-source-map-embed-sources", "always",
+        "-module-kind", "umd",
         "-target", "v6",
         "-Werror",
       ]
 
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
+      # Make the js file.
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_js]) do |fs|
+        fs.exec!(
+          java_runtime.java,
+          "-cp", preloader,
+          "org.jetbrains.kotlin.preloading.Preloader",
+          "-cp", compiler,
+          "org.jetbrains.kotlin.cli.js.K2JSCompiler",
+          "-libraries", dependency_paths.join(":"),
+          "-output", output_js,
+          parameters,
+          source_paths
+        )
+      end
+
+      # Make the library.
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_jar]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
@@ -97,16 +110,19 @@ module Wake
             "-cp", compiler,
             "org.jetbrains.kotlin.cli.js.K2JSCompiler",
             "-libraries", dependency_paths.join(":"),
-            "-output", File.join(tmp, context.expand_path("lib%{name}.js")),
-            parameters.map { |p| p.gsub("%{tmp}", tmp) },
+            "-output", File.join(tmp, output_js),
+            parameters,
             source_paths
           )
 
-          fs.exec!(java_compiler.jar, "cf", output, "-C", tmp, ".")
+          fs.exec!(java_compiler.jar, "cf", output_jar, "-C", tmp, ".")
         end
       end
 
-      []
+      [KotlinJsInfo.new(
+        jar: output_jar,
+        deps: [], # TODO
+      )]
     end
 
     def compile_jvm(srcs:, deps:, context:)
@@ -114,7 +130,10 @@ module Wake
       dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
       dependency_paths = dependencies.map { |java_info| java_info.jar }
       output = context.expand_path("lib%{name}.jar")
-      parameters = ["-jvm-target", "12"]
+      parameters = [
+        "-jvm-target", "12",
+        "-Werror",
+      ]
 
       context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
         fs.exec!(
@@ -299,8 +318,9 @@ module Wake
       :kt_js_import,
       attributes: {
         jar: Attribute.new(Label, providers: [FileInfo]),
+        paths: Attribute.new(String, list: true, default: []), # TODO remove default
       },
-      implementation: ->(context, jar:) {
+      implementation: ->(context, jar:, paths:) {
         [KotlinJsInfo.new(
           jar: jar.fetch(FileInfo).path,
           deps: [],

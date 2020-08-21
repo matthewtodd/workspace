@@ -1,7 +1,7 @@
 # vim: ft=ruby
 
 kt_js_lib(
-  name: "js",
+  name: "example-test-js",
   srcs: ["ExampleTest.kt"],
   deps: [
     "//lib/kotlin:test_js",
@@ -13,7 +13,7 @@ kt_js_test(
 )
 
 kt_jvm_lib(
-  name: "jvm",
+  name: "example-test-jvm",
   srcs: ["ExampleTest.kt"],
   deps: [
     "//lib/kotlin:test",
@@ -24,6 +24,6 @@ kt_jvm_lib(
 
 kt_jvm_test(
   name: "ExampleTestJvm",
-  runtime_deps: ["//src/test/kotlin:jvm"],
+  runtime_deps: ["//src/test/kotlin:example-test-jvm"],
   test_class: "ExampleTest",
 )
