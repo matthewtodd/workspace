@@ -121,7 +121,8 @@ module Wake
 
       [KotlinJsInfo.new(
         jar: output_jar,
-        deps: [], # TODO
+        js: output_js,
+        deps: [stdlib_js, *dependencies],
       )]
     end
 
@@ -157,10 +158,13 @@ module Wake
     end
   end
 
-  class KotlinJsInfo < Struct.new(:jar, :deps, keyword_init: true)
+  class KotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)
+    def transitive_runtime_dependencies
+      [js, *deps.map(&:transitive_runtime_dependencies)]
+    end
   end
 
-  class TestExecutableInfo < Struct.new(:executable, :runfiles, :arguments, keyword_init: true)
+  class TestExecutableInfo < Struct.new(:executable, :runfiles, :arguments, :env, keyword_init: true)
     # TODO move any relevant behavior here
   end
 
@@ -318,11 +322,28 @@ module Wake
       :kt_js_import,
       attributes: {
         jar: Attribute.new(Label, providers: [FileInfo]),
-        paths: Attribute.new(String, list: true, default: []), # TODO remove default
+        js_path: Attribute.new(String),
       },
-      implementation: ->(context, jar:, paths:) {
+      implementation: ->(context, jar:, js_path:) {
+        format = Extractor.parse(:zip)
+
+        context.run(inputs: [jar.fetch(FileInfo).path], parameters: [format, js_path], outputs: [context.expand_path(js_path)]) do |fs|
+          fs.open(jar.fetch(FileInfo).path, "rb") do |archive_io|
+            # TODO can we nest strip_components inside the block instead? Would be nice to make it optional.
+            # TODO and, while we're at it, couldn't we nest tar inside gzip in the same way? None of this @delegate stuff.
+            format.extract(archive_io, strip_components: PathCleaner.parse(0)) do |entry_path, entry_io|
+              if js_path == entry_path
+                fs.open(context.expand_path(entry_path), "wb") do |output_io|
+                  IO.copy_stream(entry_io, output_io)
+                end
+              end
+            end
+          end
+        end
+
         [KotlinJsInfo.new(
           jar: jar.fetch(FileInfo).path,
+          js: context.expand_path(js_path),
           deps: [],
         )]
       },
@@ -345,19 +366,34 @@ module Wake
       :kt_js_test,
       attributes: {
         node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
+        runtime_deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo]),
+        test_module: Attribute.new(String),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/org/matthewtodd/kotlin/test:wake-test", providers: [KotlinJsInfo]),
       },
-      implementation: ->(context, node_runtime:) {
+      implementation: ->(context, node_runtime:, runtime_deps:, test_module:, test_runner:) {
         node = node_runtime.fetch(NodeRuntimeInfo)
 
-        # TODO maybe we can use node -r here?
-        # Also maybe we need to publish more artifacts inside KotlinJsInfo, not just the jar
-        # Like the plain .js file
-        # We will need topological sorting in the require list, requiring root deps first.
-        # Maybe that is as simple as returning [*deps, me] (vs. [me, *deps]) from the Info class.
+        modules = [test_runner, *runtime_deps].map { |dep| dep.fetch(KotlinJsInfo).transitive_runtime_dependencies }.flatten.sort.uniq
+
+        script = context.expand_path("%{name}-test-script.js")
+
+        contents = <<~END
+          'use strict';
+          var kotlin_test = require("kotlin-test");
+          var wake_test = require("libwake-test");
+          kotlin_test.setAdapter(new wake_test.WakeFrameworkAdapter());
+          require("#{test_module}");
+        END
+
+        context.run(inputs: [], parameters: [contents], outputs: [script]) do |fs|
+          fs.open(script, "wb") { |io| io.write(contents) }
+        end
+
         [TestExecutableInfo.new(
           executable: node.node,
-          runfiles: [],
-          arguments: [],
+          runfiles: [script, *modules],
+          arguments: [script],
+          env: { "NODE_PATH" => modules.map { |path| File.join(".", File.dirname(path)) }.uniq.join(":") },
         )]
       },
     )
@@ -399,6 +435,7 @@ module Wake
             "org.matthewtodd.junit.WakeLauncher", # TODO could pull this into something provided by the test_runner jar.
             test_class,
           ],
+          env: {},
         )]
       },
     )
@@ -468,12 +505,12 @@ module Wake
 
       action_did_run = false
 
-      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: test.arguments, outputs: [out]) do |fs|
+      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: [*test.arguments, *test.env.flatten], outputs: [out]) do |fs|
         action_did_run = true
         rd, wr = IO.pipe
         reader = Thread.new { until rd.eof?; console.report_test_result(label, rd.readline.chomp); end }
         fs.open(out, "wb") do |io|
-          fs.exec(test.executable, *test.arguments, out: CompositeIO.new(io, wr))
+          fs.exec!(test.executable, *test.arguments, out: CompositeIO.new(io, wr), env: test.env)
         end
         wr.close
         reader.join
@@ -711,7 +748,7 @@ module Wake
         end
       end
 
-      def exec(*args)
+      def exec!(*args)
         raise "InMemoryFilesystem::Sandbox doesn't support exec!"
       end
 
@@ -790,22 +827,34 @@ module Wake
         attr_reader :status
         attr_reader :out
         attr_reader :err
+        attr_reader :env
 
-        def initialize(args:, status:, out:, err:)
+        def initialize(args:, status:, out:, err:, env:, files: [])
           @args = args
           @status = status
           @out = out
           @err = err
+          @env = env
+          @files = files
 
-          message = [
-            "Commmand exited with status #{status.exitstatus}.",
-            Shellwords.join(args),
-            out.strip,
-            err.strip,
-          ].reject(&:empty?).
-            join("\n")
+          super(<<~END)
+            Commmand exited with status #{status.exitstatus}.
 
-          super(message)
+            COMMAND:
+            #{Shellwords.join(args)}
+
+            ENV:
+            #{env.map { |k, v| "#{k}=#{v}" }.join("\n")}
+
+            FILES:
+            #{files.sort.join("\n")}
+
+            OUT:
+            #{out.strip}
+
+            ERR:
+            #{err.strip}
+          END
         end
       end
 
@@ -819,8 +868,28 @@ module Wake
         File.open(path, mode, permissions, &block)
       end
 
-      def exec(*args, out: StringIO.new, err: StringIO.new)
-        Open3.popen3(*args.flatten, chdir: @base) do |i, o, e, t|
+      def exec!(*args, out: StringIO.new, err: StringIO.new, env: {})
+        spy_out = StringIO.new
+        spy_err = StringIO.new
+
+        status = exec(*args, out: CompositeIO.new(out, spy_out), err: CompositeIO.new(err, spy_err), env: env)
+
+        if !status.success?
+          files = Find.find(@base).
+            reject { |path| File.directory?(path) }.
+            map { |path| path[@base.length + 1, path.length - 1] }
+          raise ExecutionError.new(args: args, status: status, out: spy_out.string, err: spy_err.string, env: env, files: files)
+        end
+      end
+
+      def mktmpdir(&block)
+        Dir.mktmpdir(&block)
+      end
+
+      private
+
+      def exec(*args, out: StringIO.new, err: StringIO.new, env: {})
+        Open3.popen3(env, *args.flatten, chdir: @base, unsetenv_others: true) do |i, o, e, t|
           i.close
           out_reader = Thread.new { IO.copy_stream(o, out) }
           err_reader = Thread.new { IO.copy_stream(e, err) }
@@ -828,19 +897,6 @@ module Wake
           err_reader.join
           t.value
         end
-      end
-
-      def exec!(*args, out: StringIO.new, err: StringIO.new)
-        spy_out = StringIO.new
-        spy_err = StringIO.new
-
-        status = exec(*args, out: CompositeIO.new(out, spy_out), err: CompositeIO.new(err, spy_err))
-
-        raise ExecutionError.new(args: args, status: status, out: spy_out.string, err: spy_err.string) if !status.success?
-      end
-
-      def mktmpdir(&block)
-        Dir.mktmpdir(&block)
       end
     end
   end
@@ -853,12 +909,12 @@ module Wake
       fs = RealFilesystem.new(@tmp)
       sandbox = fs.sandbox("sandbox")
       sandbox.open("foo.txt", "wb") do |io|
-        sandbox.exec("bash", "-c", "echo hi", out: io)
+        sandbox.exec!("bash", "-c", "echo hi", out: io)
       end
       assert_equal "hi\n", File.read(File.join(@tmp, "sandbox", "foo.txt"))
     end
 
-    def test_exec!
+    def test_exec_raises
       fs = RealFilesystem.new(@tmp)
       sandbox = fs.sandbox("sandbox")
       # We don't care what happens to the file (was it partially written?)

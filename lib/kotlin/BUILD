@@ -92,6 +92,7 @@ java_import(
 kt_js_import(
   name: "stdlib_js",
   jar: ":lib_kotlin_stdlib_js",
+  js_path: "kotlin.js",
 )
 
 java_import(
@@ -102,6 +103,7 @@ java_import(
 kt_js_import(
   name: "test_js",
   jar: ":lib_kotlin_test_js",
+  js_path: "kotlin-test.js",
 )
 
 java_import(

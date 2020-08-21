@@ -10,6 +10,8 @@ kt_js_lib(
 
 kt_js_test(
   name: "ExampleTestJs",
+  runtime_deps: [":example-test-js"],
+  test_module: "libexample-test-js",
 )
 
 kt_jvm_lib(
@@ -24,6 +26,6 @@ kt_jvm_lib(
 
 kt_jvm_test(
   name: "ExampleTestJvm",
-  runtime_deps: ["//src/test/kotlin:example-test-jvm"],
+  runtime_deps: [":example-test-jvm"],
   test_class: "ExampleTest",
 )
