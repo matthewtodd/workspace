@@ -458,9 +458,8 @@ module Wake
         repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
         artifact: Attribute.new(MavenCoordinates),
         sha256: Attribute.new(Verifier),
-        sources_sha256: Attribute.new(Verifier),
       },
-      implementation: ->(context, repository:, artifact:, sha256:, sources_sha256:) {
+      implementation: ->(context, repository:, artifact:, sha256:) {
         context.package(artifact.package_path) do
           http_file(
             name: artifact.filename,

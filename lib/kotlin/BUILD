@@ -63,6 +63,14 @@ extract(
 )
 
 extract(
+  name: "lib_kotlinx_serialization_compiler_plugin",
+  archive: ":dist",
+  format: :zip,
+  paths: ["lib/kotlinx-serialization-compiler-plugin.jar"],
+  strip_components: 1,
+)
+
+extract(
   name: "runtime",
   archive: ":dist",
   format: :zip,
