@@ -1,8 +1,18 @@
 # vim: ft=ruby
 
-java_lib(
+kt_js_lib(
+  name: "wake-test",
+  srcs: [
+    "JavascriptTestRunner.kt",
+  ],
+  deps: [
+    "//lib/kotlin:test_js",
+  ],
+)
+
+kt_jvm_lib(
   name: "junit",
-  srcs: ["WakeLauncher.java"],
+  srcs: ["JUnitLauncher.kt"],
   deps: [
     "//lib/maven/org_apiguardian/apiguardian_api:jar",
     "//lib/maven/org_junit_jupiter/junit_jupiter_engine:jar",

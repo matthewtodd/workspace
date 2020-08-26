@@ -368,7 +368,7 @@ module Wake
         node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
         runtime_deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo]),
         test_module: Attribute.new(String),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/org/matthewtodd/kotlin/test:wake-test", providers: [KotlinJsInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/org/matthewtodd/wake/test:wake-test", providers: [KotlinJsInfo]),
       },
       implementation: ->(context, node_runtime:, runtime_deps:, test_module:, test_runner:) {
         node = node_runtime.fetch(NodeRuntimeInfo)
@@ -417,7 +417,7 @@ module Wake
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         runtime_deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         test_class: Attribute.new(String),
-        test_runner: Attribute.new(Label, default: "//src/main/java/org/matthewtodd/junit:junit", providers: [JavaInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/org/matthewtodd/wake/test:junit", providers: [JavaInfo]),
       },
       implementation: ->(context, java_runtime:, runtime_deps:, test_class:, test_runner:) {
         jre = java_runtime.fetch(JavaRuntimeInfo)
@@ -432,7 +432,7 @@ module Wake
           runfiles: jre.files.concat(classpath),
           arguments: [
             "-cp", classpath.join(":"),
-            "org.matthewtodd.junit.WakeLauncher", # TODO could pull this into something provided by the test_runner jar.
+            "org.matthewtodd.wake.test.JUnitLauncherKt", # TODO could pull this into something provided by the test_runner jar.
             test_class,
           ],
           env: {},
