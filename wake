@@ -71,7 +71,7 @@ module Wake
   end
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
-  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
+  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :plugins, :stdlib, :stdlib_js, :runtime, keyword_init: true)
     def compile_js(srcs:, deps:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
@@ -83,10 +83,11 @@ module Wake
         "-module-kind", "umd",
         "-target", "v6",
         "-Werror",
+        *plugins.map { |path| "-Xplugin=#{path}" },
       ]
 
       # Make the js file.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_js]) do |fs|
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugins, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_js]) do |fs|
         fs.exec!(
           java_runtime.java,
           "-cp", preloader,
@@ -101,7 +102,7 @@ module Wake
       end
 
       # Make the library.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_jar]) do |fs|
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugins, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_jar]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
@@ -134,9 +135,10 @@ module Wake
       parameters = [
         "-jvm-target", "12",
         "-Werror",
+        *plugins.map { |path| "-Xplugin=#{path}" },
       ]
 
-      context.run(inputs: [*java_runtime.files, preloader, compiler, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
+      context.run(inputs: [*java_runtime.files, preloader, compiler, *plugins, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
         fs.exec!(
           java_runtime.java,
           "-cp", preloader,
@@ -301,16 +303,18 @@ module Wake
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         preloader: Attribute.new(Label, providers: [FileInfo]),
         compiler: Attribute.new(Label, providers: [FileInfo]),
+        plugins: Attribute.new(Label, list: true, providers: [FileInfo]),
         stdlib: Attribute.new(Label, providers: [JavaInfo]),
         stdlib_js: Attribute.new(Label, providers: [KotlinJsInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, java_compiler:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:) {
+      implementation: ->(context, java_compiler:, java_runtime:, preloader:, compiler:, plugins:, stdlib:, stdlib_js:, runtime:) {
         [KotlinCompilerInfo.new(
           java_compiler: java_compiler.fetch(JavaCompilerInfo),
           java_runtime: java_runtime.fetch(JavaRuntimeInfo),
           preloader: preloader.fetch(FileInfo).path,
           compiler: compiler.fetch(FileInfo).path,
+          plugins: plugins.map { |p| p.fetch(FileInfo).path },
           stdlib: stdlib.fetch(JavaInfo),
           stdlib_js: stdlib_js.fetch(KotlinJsInfo),
           runtime: runtime.fetch(FileGroupInfo).paths,
@@ -470,6 +474,31 @@ module Wake
           java_import(
             name: "jar",
             jar: artifact.filename,
+          )
+        end
+      },
+    )
+
+    registry.new_macro(
+      :maven_kt_js_jar,
+      attributes: {
+        repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
+        artifact: Attribute.new(MavenCoordinates),
+        sha256: Attribute.new(Verifier),
+        js_path: Attribute.new(String),
+      },
+      implementation: ->(context, repository:, artifact:, sha256:, js_path:) {
+        context.package(artifact.package_path) do
+          http_file(
+            name: artifact.filename,
+            url: artifact.url(repository),
+            sha256: sha256,
+          )
+
+          kt_js_import(
+            name: "jar",
+            jar: artifact.filename,
+            js_path: js_path,
           )
         end
       },

@@ -5,13 +5,10 @@ maven_jar(
   sha256: "a9aae9ff8ae3e17a2a18f79175e82b16267c246fbbd3ca9dfbbb290b08dcfdd4",
 )
 
-# TODO we want this to provide KotlinJsInfo
-# Perhaps that means we have maven_artifact as a thin wrapper around http_file
-# (can packaging go in the coordinates?), then do the java_import manually from
-# there?
-maven_jar(
+maven_kt_js_jar(
   artifact: "org.jetbrains.kotlinx:kotlinx-serialization-core-js:1.0.0-RC",
   sha256: nil,
+  js_path: "kotlinx-serialization-kotlinx-serialization-core-jsLegacy.js",
 )
 
 maven_jar(
