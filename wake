@@ -368,7 +368,7 @@ module Wake
         node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
         runtime_deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo]),
         test_module: Attribute.new(String),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/org/matthewtodd/wake/test:wake-test", providers: [KotlinJsInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:wake-test", providers: [KotlinJsInfo]),
       },
       implementation: ->(context, node_runtime:, runtime_deps:, test_module:, test_runner:) {
         node = node_runtime.fetch(NodeRuntimeInfo)
@@ -380,7 +380,7 @@ module Wake
         contents = <<~END
           'use strict';
           var kotlin_test = require("kotlin-test");
-          var wake_test = require("libwake-test");
+          var wake_test = require("libwake-test").org.matthewtodd.wake.test;
           kotlin_test.setAdapter(new wake_test.WakeTest());
           require("#{test_module}");
         END
@@ -417,7 +417,7 @@ module Wake
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         runtime_deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         test_class: Attribute.new(String),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/org/matthewtodd/wake/test:junit", providers: [JavaInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:junit", providers: [JavaInfo]),
       },
       implementation: ->(context, java_runtime:, runtime_deps:, test_class:, test_runner:) {
         jre = java_runtime.fetch(JavaRuntimeInfo)
