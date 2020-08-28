@@ -87,10 +87,14 @@ kotlin_compiler(
   name: "compiler",
   preloader: ":lib_kotlin_preloader",
   compiler: ":lib_kotlin_compiler",
-  plugins: [":lib_kotlinx_serialization_compiler_plugin"],
   stdlib: ":stdlib",
   stdlib_js: ":stdlib_js",
   runtime: ":runtime",
+)
+
+java_import(
+  name: "serialization_compiler_plugin",
+  jar: ":lib_kotlinx_serialization_compiler_plugin",
 )
 
 java_import(

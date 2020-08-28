@@ -71,11 +71,12 @@ module Wake
   end
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
-  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :plugins, :stdlib, :stdlib_js, :runtime, keyword_init: true)
-    def compile_js(srcs:, deps:, context:)
+  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
+    def compile_js(srcs:, deps:, plugins:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
       dependency_paths = dependencies.map(&:jar)
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
       output_js = context.expand_path("lib%{name}.js")
       output_jar = context.expand_path("lib%{name}.jar")
       parameters = [
@@ -83,11 +84,11 @@ module Wake
         "-module-kind", "umd",
         "-target", "v6",
         "-Werror",
-        *plugins.map { |path| "-Xplugin=#{path}" },
+        *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
       # Make the js file.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugins, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_js]) do |fs|
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_js]) do |fs|
         fs.exec!(
           java_runtime.java,
           "-cp", preloader,
@@ -102,7 +103,7 @@ module Wake
       end
 
       # Make the library.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugins, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_jar]) do |fs|
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_jar]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
@@ -127,18 +128,19 @@ module Wake
       )]
     end
 
-    def compile_jvm(srcs:, deps:, context:)
+    def compile_jvm(srcs:, deps:, plugins:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
       dependency_paths = dependencies.map { |java_info| java_info.jar }
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
       output = context.expand_path("lib%{name}.jar")
       parameters = [
         "-jvm-target", "12",
         "-Werror",
-        *plugins.map { |path| "-Xplugin=#{path}" },
+        *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
-      context.run(inputs: [*java_runtime.files, preloader, compiler, *plugins, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
+      context.run(inputs: [*java_runtime.files, preloader, compiler, *plugin_paths, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
         fs.exec!(
           java_runtime.java,
           "-cp", preloader,
@@ -303,18 +305,16 @@ module Wake
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         preloader: Attribute.new(Label, providers: [FileInfo]),
         compiler: Attribute.new(Label, providers: [FileInfo]),
-        plugins: Attribute.new(Label, list: true, providers: [FileInfo]),
         stdlib: Attribute.new(Label, providers: [JavaInfo]),
         stdlib_js: Attribute.new(Label, providers: [KotlinJsInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, java_compiler:, java_runtime:, preloader:, compiler:, plugins:, stdlib:, stdlib_js:, runtime:) {
+      implementation: ->(context, java_compiler:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:) {
         [KotlinCompilerInfo.new(
           java_compiler: java_compiler.fetch(JavaCompilerInfo),
           java_runtime: java_runtime.fetch(JavaRuntimeInfo),
           preloader: preloader.fetch(FileInfo).path,
           compiler: compiler.fetch(FileInfo).path,
-          plugins: plugins.map { |p| p.fetch(FileInfo).path },
           stdlib: stdlib.fetch(JavaInfo),
           stdlib_js: stdlib_js.fetch(KotlinJsInfo),
           runtime: runtime.fetch(FileGroupInfo).paths,
@@ -359,10 +359,11 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo]),
+        plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:) {
         compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
-        compiler.compile_js(srcs: srcs, deps: deps, context: context)
+        compiler.compile_js(srcs: srcs, deps: deps, plugins: plugins, context: context)
       },
     )
 
@@ -408,10 +409,11 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
+        plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:) {
         compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
-        compiler.compile_jvm(srcs: srcs, deps: deps, context: context)
+        compiler.compile_jvm(srcs: srcs, deps: deps, plugins: plugins, context: context)
       },
     )
 

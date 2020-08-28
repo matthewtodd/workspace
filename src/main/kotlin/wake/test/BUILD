@@ -10,6 +10,9 @@ kt_js_lib(
     "//lib/kotlin:test_js",
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:jar",
   ],
+  plugins: [
+    "//lib/kotlin:serialization_compiler_plugin",
+  ],
 )
 
 kt_jvm_lib(
@@ -26,5 +29,8 @@ kt_jvm_lib(
     "//lib/maven/org_junit_platform/junit_platform_engine:jar",
     "//lib/maven/org_junit_platform/junit_platform_launcher:jar",
     "//lib/maven/org_opentest4j/opentest4j:jar",
+  ],
+  plugins: [
+    "//lib/kotlin:serialization_compiler_plugin",
   ],
 )
