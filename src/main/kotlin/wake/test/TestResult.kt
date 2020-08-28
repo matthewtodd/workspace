@@ -4,14 +4,14 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class TestResult(
-    val className: String,
+    val class_name: String,
     val name: String,
     val time: Long,
-    val errors: List<TestError>,
-    val failures: List<TestFailure>,
-    val skipped: List<TestSkip>,
-    val systemOut: String,
-    val systemErr: String,
+    val errors: List<TestError> = emptyList(),
+    val failures: List<TestFailure> = emptyList(),
+    val skipped: List<TestSkip> = emptyList(),
+    val system_out: String = "",
+    val system_err: String = "",
 )
 
 @Serializable

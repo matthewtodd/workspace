@@ -16,6 +16,8 @@ import org.junit.platform.launcher.core.LauncherFactory
 import java.lang.System.currentTimeMillis
 import java.util.Arrays
 import java.util.LinkedHashMap
+import kotlinx.serialization.* // TODO understand why we need this * import!
+import kotlinx.serialization.json.Json
 
 fun main(args: Array<String>) {
     val launcher = LauncherFactory.create(
@@ -51,22 +53,12 @@ class WakeListener : TestExecutionListener {
             // TODO handle other kinds of sources as needed.
             val source = testIdentifier.getSource().get() as MethodSource
 
-            println(
-                JsonObject()
-                    .add("class_name", source.getClassName())
-                    .add("name", source.getMethodName())
-                    .add("time", 0)
-                    .addArray("errors")
-                    .addArray("failures")
-                    .addArray(
-                        "skipped",
-                        JsonObject()
-                            .add("message", reason)
-                            .add("location", "")
-                    ) // TODO can we get this anywhere?
-                    .add("system_out", "")
-                    .add("system_err", "")
-            )
+            println(Json.encodeToString(TestResult(
+                class_name = source.getClassName(),
+                name = source.getMethodName(),
+                time = 0,
+                skipped = listOf(TestSkip(message = reason, location = "")),
+            )))
         }
     }
 
@@ -81,97 +73,42 @@ class WakeListener : TestExecutionListener {
             // TODO handle other kinds of sources
             val source = testIdentifier.getSource().get() as MethodSource
 
-            val json = JsonObject()
-                .add("class_name", source.getClassName())
-                .add("name", source.getMethodName())
-                .add("time", currentTimeMillis() - startTimes.get(testIdentifier)!!)
+            val base = TestResult(
+                class_name = source.getClassName(),
+                name = source.getMethodName(),
+                time = currentTimeMillis() - startTimes.get(testIdentifier)!!,
+                system_out = "", // TODO StreamInterceptingTestExecutionListener
+                system_err = "", // TODO StreamInterceptingTestExecutionListener
+            )
 
-            when (testExecutionResult.getStatus()!!) {
-                SUCCESSFUL -> json.addArray("errors").addArray("failures")
+            val result = when(testExecutionResult.getStatus()!!) {
+                SUCCESSFUL -> base
                 ABORTED -> throw UnsupportedOperationException("ABORTED comes from JUnit's assume, which kotlin.test doesn't have.")
                 FAILED -> {
                     val e = testExecutionResult.getThrowable().get()
                     if (e is AssertionError) {
-                        json
-                            .addArray("errors")
-                            .addArray(
-                                "failures",
-                                JsonObject()
-                                    .add("message", e.message!!)
-                                    .add("location", filter(e.stackTrace)[0])
-                            )
+                        base.copy(failures = listOf(TestFailure(
+                            message = e.message!!,
+                            location = filter(e.stackTrace)[0].toString()
+                        )))
                     } else {
-                        json
-                            .addArray(
-                                "errors",
-                                JsonObject()
-                                    .add("type", e.javaClass.getName())
-                                    .add("message", e.message!!)
-                                    .add("backtrace", filter(e.stackTrace))
-                            )
-                            .addArray("failures")
+                        base.copy(errors = listOf(TestError(
+                            type = e.javaClass.getName(),
+                            message = e.message!!,
+                            backtrace = filter(e.stackTrace).map { it.toString() },
+                        )))
                     }
                 }
             }
 
-            json.addArray("skipped")
-                .add("system_out", "") // TODO StreamInterceptingTestExecutionListener
-                .add("system_err", "") // TODO StreamInterceptingTestExecutionListener
-
-            println(json)
+            println(Json.encodeToString(result))
         }
     }
 
-    private fun filter(stackTrace: Array<StackTraceElement>): Array<StackTraceElement> {
+    private fun filter(stackTrace: Array<StackTraceElement>): List<StackTraceElement> {
         return stackTrace
             .filterNot { it.getClassName().startsWith("jdk.internal") }
             .filterNot { it.getClassName().startsWith("kotlin.test") }
             .takeWhile { !it.getClassName().startsWith("org.junit") }
-            .toTypedArray()
-    }
-
-    private class JsonObject internal constructor() {
-        private val buffer: StringBuilder
-
-        init {
-            this.buffer = StringBuilder()
-        }
-
-        internal fun add(key: String, value: String): JsonObject {
-            return literal(key, quote(escape(value)))
-        }
-
-        internal fun add(key: String, value: Number): JsonObject {
-            return literal(key, value)
-        }
-
-        internal fun add(key: String, value: StackTraceElement): JsonObject {
-            return add(key, value.toString())
-        }
-
-        internal fun addArray(key: String, vararg values: JsonObject): JsonObject {
-            return literal(key, Arrays.toString(values))
-        }
-
-        internal fun add(key: String, values: Array<StackTraceElement>): JsonObject {
-            return literal(key, Arrays.toString(values.map { quote(escape(it.toString())) }.toTypedArray()))
-        }
-
-        public override fun toString(): String {
-            return "{" + buffer.toString() + "}"
-        }
-
-        private fun quote(value: String): String {
-            return "\"" + value + "\""
-        }
-
-        private fun escape(raw: String): String {
-            return raw.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
-        }
-
-        private fun literal(key: String, value: Any): JsonObject {
-            buffer.append(String.format("\"%s\":%s,", key, value))
-            return this
-        }
     }
 }
