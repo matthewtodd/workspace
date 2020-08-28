@@ -1,5 +1,7 @@
 package org.matthewtodd.wake.test
 
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.engine.JupiterTestEngine
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.TestExecutionResult.Status.ABORTED
@@ -14,101 +16,110 @@ import org.junit.platform.launcher.core.LauncherConfig.builder
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder.request
 import org.junit.platform.launcher.core.LauncherFactory
 import java.lang.System.currentTimeMillis
-import java.util.Arrays
 import java.util.LinkedHashMap
-import kotlinx.serialization.* // TODO understand why we need this * import!
-import kotlinx.serialization.json.Json
 
 fun main(args: Array<String>) {
-    val launcher = LauncherFactory.create(
-        builder()
-            .enableTestEngineAutoRegistration(false)
-            .enableTestExecutionListenerAutoRegistration(false)
-            .addTestEngines(JupiterTestEngine())
-            .addTestExecutionListeners(WakeListener())
-            .build()
-    )
+  val launcher = LauncherFactory.create(
+    builder()
+      .enableTestEngineAutoRegistration(false)
+      .enableTestExecutionListenerAutoRegistration(false)
+      .addTestEngines(JupiterTestEngine())
+      .addTestExecutionListeners(WakeListener())
+      .build()
+  )
 
-    launcher.execute(
-        request()
-            .selectors(args.map(DiscoverySelectors::selectClass))
-            .build()
-    )
+  launcher.execute(
+    request()
+      .selectors(args.map(DiscoverySelectors::selectClass))
+      .build()
+  )
 }
 
 class WakeListener : TestExecutionListener {
-    val startTimes = LinkedHashMap<TestIdentifier, Long>()
-    var testPlan: TestPlan? = null
+  val startTimes = LinkedHashMap<TestIdentifier, Long>()
+  var testPlan: TestPlan? = null
 
-    override fun testPlanExecutionStarted(testPlan: TestPlan) {
-        this.testPlan = testPlan
+  override fun testPlanExecutionStarted(testPlan: TestPlan) {
+    this.testPlan = testPlan
+  }
+
+  override fun executionSkipped(testIdentifier: TestIdentifier, reason: String) {
+    if (testIdentifier.isContainer()) {
+      for (child in testPlan!!.getChildren(testIdentifier)) {
+        executionSkipped(child, reason)
+      }
+    } else {
+      // TODO handle other kinds of sources as needed.
+      val source = testIdentifier.getSource().get() as MethodSource
+
+      println(
+        Json.encodeToString(
+          TestResult(
+            class_name = source.getClassName(),
+            name = source.getMethodName(),
+            time = 0,
+            skipped = listOf(TestSkip(message = reason, location = "")),
+          )
+        )
+      )
     }
+  }
 
-    override fun executionSkipped(testIdentifier: TestIdentifier, reason: String) {
-        if (testIdentifier.isContainer()) {
-            for (child in testPlan!!.getChildren(testIdentifier)) {
-                executionSkipped(child, reason)
-            }
-        } else {
-            // TODO handle other kinds of sources as needed.
-            val source = testIdentifier.getSource().get() as MethodSource
-
-            println(Json.encodeToString(TestResult(
-                class_name = source.getClassName(),
-                name = source.getMethodName(),
-                time = 0,
-                skipped = listOf(TestSkip(message = reason, location = "")),
-            )))
-        }
+  override fun executionStarted(testIdentifier: TestIdentifier) {
+    if (testIdentifier.isTest()) {
+      startTimes.put(testIdentifier, currentTimeMillis())
     }
+  }
 
-    override fun executionStarted(testIdentifier: TestIdentifier) {
-        if (testIdentifier.isTest()) {
-            startTimes.put(testIdentifier, currentTimeMillis())
-        }
-    }
+  override fun executionFinished(testIdentifier: TestIdentifier, testExecutionResult: TestExecutionResult) {
+    if (testIdentifier.isTest()) {
+      // TODO handle other kinds of sources
+      val source = testIdentifier.getSource().get() as MethodSource
 
-    override fun executionFinished(testIdentifier: TestIdentifier, testExecutionResult: TestExecutionResult) {
-        if (testIdentifier.isTest()) {
-            // TODO handle other kinds of sources
-            val source = testIdentifier.getSource().get() as MethodSource
+      val base = TestResult(
+        class_name = source.getClassName(),
+        name = source.getMethodName(),
+        time = currentTimeMillis() - startTimes.get(testIdentifier)!!,
+        system_out = "", // TODO StreamInterceptingTestExecutionListener
+        system_err = "", // TODO StreamInterceptingTestExecutionListener
+      )
 
-            val base = TestResult(
-                class_name = source.getClassName(),
-                name = source.getMethodName(),
-                time = currentTimeMillis() - startTimes.get(testIdentifier)!!,
-                system_out = "", // TODO StreamInterceptingTestExecutionListener
-                system_err = "", // TODO StreamInterceptingTestExecutionListener
+      val result = when (testExecutionResult.getStatus()!!) {
+        SUCCESSFUL -> base
+        ABORTED -> throw UnsupportedOperationException("ABORTED comes from JUnit's assume, which kotlin.test doesn't have.")
+        FAILED -> {
+          val e = testExecutionResult.getThrowable().get()
+          if (e is AssertionError) {
+            base.copy(
+              failures = listOf(
+                TestFailure(
+                  message = e.message!!,
+                  location = filter(e.stackTrace)[0].toString()
+                )
+              )
             )
-
-            val result = when(testExecutionResult.getStatus()!!) {
-                SUCCESSFUL -> base
-                ABORTED -> throw UnsupportedOperationException("ABORTED comes from JUnit's assume, which kotlin.test doesn't have.")
-                FAILED -> {
-                    val e = testExecutionResult.getThrowable().get()
-                    if (e is AssertionError) {
-                        base.copy(failures = listOf(TestFailure(
-                            message = e.message!!,
-                            location = filter(e.stackTrace)[0].toString()
-                        )))
-                    } else {
-                        base.copy(errors = listOf(TestError(
-                            type = e.javaClass.getName(),
-                            message = e.message!!,
-                            backtrace = filter(e.stackTrace).map { it.toString() },
-                        )))
-                    }
-                }
-            }
-
-            println(Json.encodeToString(result))
+          } else {
+            base.copy(
+              errors = listOf(
+                TestError(
+                  type = e.javaClass.getName(),
+                  message = e.message!!,
+                  backtrace = filter(e.stackTrace).map { it.toString() },
+                )
+              )
+            )
+          }
         }
-    }
+      }
 
-    private fun filter(stackTrace: Array<StackTraceElement>): List<StackTraceElement> {
-        return stackTrace
-            .filterNot { it.getClassName().startsWith("jdk.internal") }
-            .filterNot { it.getClassName().startsWith("kotlin.test") }
-            .takeWhile { !it.getClassName().startsWith("org.junit") }
+      println(Json.encodeToString(result))
     }
+  }
+
+  private fun filter(stackTrace: Array<StackTraceElement>): List<StackTraceElement> {
+    return stackTrace
+      .filterNot { it.getClassName().startsWith("jdk.internal") }
+      .filterNot { it.getClassName().startsWith("kotlin.test") }
+      .takeWhile { !it.getClassName().startsWith("org.junit") }
+  }
 }

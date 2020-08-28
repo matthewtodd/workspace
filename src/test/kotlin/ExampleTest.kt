@@ -23,6 +23,8 @@ class ExampleTest {
     throw Exception("Boom!")
   }
 
-  @Test @Ignore() fun skipped() {
+  @Test
+  @Ignore()
+  fun skipped() {
   }
 }
