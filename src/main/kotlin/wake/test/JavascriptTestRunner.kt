@@ -2,23 +2,67 @@ package org.matthewtodd.wake.test
 
 import kotlin.test.FrameworkAdapter
 
-// https://mochajs.org/#third-party-reporters
-// https://github.com/mochajs/mocha-examples/blob/master/packages/third-party-reporter/lib/my-reporter.js
 class WakeTest : FrameworkAdapter {
-  // I think we're going to make a data class that gets serialized to JSON?
+  private val suite = SuiteListener()
+
   override fun suite(name: String, ignored: Boolean, suiteFn: () -> Unit) {
-    println(name)
+    suite.begin(name)
     suiteFn()
+    suite.end()
   }
 
   override fun test(name: String, ignored: Boolean, testFn: () -> Any?) {
-    // TODO handle ignored
+    val test = suite.test(name)
+
+    if (ignored) {
+      test.skip()
+      return
+    }
+
     try {
       testFn()
-      println(name)
+      test.success()
     } catch (e: AssertionError) {
+      test.failure(e)
+    } catch (e: Throwable) {
+      test.error(e)
+    }
+  }
+
+  class SuiteListener {
+    val stack: MutableList<String> = mutableListOf()
+
+    fun begin(name: String) {
+      stack.add(name)
+    }
+
+    fun test(name: String): TestListener {
+      return TestListener(stack.joinToString("."), name)
+    }
+
+    fun end() {
+      stack.removeAt(stack.count() - 1)
+    }
+  }
+
+  class TestListener(suiteName: String, name: String) {
+    val template = TestResult(
+      class_name = suiteName,
+      name = name,
+      time = 0,
+    )
+
+    fun success() {
+    }
+
+    fun skip() {
+    }
+
+    fun failure(e: AssertionError) {
       println(e.message)
-    } catch (t: Throwable) {
+    }
+
+    fun error(t: Throwable) {
       println(t.message)
     }
   }
