@@ -7,6 +7,7 @@ require "io/console"
 require "net/http"
 require "open3"
 require "pathname"
+require "psych"
 require "rbconfig"
 require "rubygems" # TODO write a simple version of Gem::Package::TarReader?
 require "rubygems/package"
@@ -793,8 +794,15 @@ module Wake
   class RealFilesystem
     def initialize(base)
       @base = base
-      @checksums = {}
-      @mtimes = {}
+      path = absolute_path("var/run/filesystem.yml")
+      cache = Psych.load_file(path) rescue Hash.new
+      @checksums = cache.fetch(:checksums, {})
+      @mtimes = cache.fetch(:mtimes, {})
+      at_exit {
+        cache = { checksums: @checksums, mtimes: @mtimes }
+        FileUtils.mkdir_p(File.dirname(path))
+        File.open(path, "wb") { |io| Psych.dump(cache, io) }
+      }
     end
 
     def checksum(path)
