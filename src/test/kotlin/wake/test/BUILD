@@ -16,22 +16,6 @@ kt_js_test(
   test_module: "libtest-result-test-js",
 )
 
-kt_js_lib(
-  name: "wake-test-test-js",
-  srcs: ["WakeTestTest.kt"],
-  deps: [
-    "//lib/kotlin:test_js",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:jar",
-    "//src/main/kotlin/wake/test:wake-test",
-  ],
-)
-
-kt_js_test(
-  name: "WakeTestTestJs",
-  runtime_deps: [":wake-test-test-js"],
-  test_module: "libwake-test-test-js",
-)
-
 kt_jvm_lib(
   name: "test-result-test-jvm",
   srcs: ["TestResultTest.kt"],

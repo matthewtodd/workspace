@@ -4,6 +4,7 @@ require "digest/sha2"
 require "fileutils"
 require "find"
 require "io/console"
+require "json"
 require "net/http"
 require "open3"
 require "pathname"
@@ -541,7 +542,7 @@ module Wake
       actions.run(label, inputs: [test.executable, *test.runfiles], parameters: [*test.arguments, *test.env.flatten], outputs: [out]) do |fs|
         action_did_run = true
         rd, wr = IO.pipe
-        reader = Thread.new { until rd.eof?; console.report_test_result(label, rd.readline.chomp); end }
+        reader = Thread.new { until rd.eof?; console.report_test_result(label, TestCase.json_create(JSON.parse(rd.readline.chomp))); end }
         fs.open(out, "wb") do |io|
           fs.exec!(test.executable, *test.arguments, out: CompositeIO.new(io, wr), env: test.env)
         end
@@ -553,7 +554,7 @@ module Wake
         # TODO var/tmp is duplication with Actions
         File.open(File.join("var/tmp", out), "rb") do |io|
           until io.eof?
-            console.report_test_result(label, io.readline.chomp)
+            console.report_test_result(label, TestCase.json_create(JSON.parse(io.readline.chomp)))
           end
         end
       end
@@ -1387,7 +1388,8 @@ module Wake
       end
 
       def report_test_result(label, result)
-        @io.puts(result)
+        # @io.print(result.result_code)
+        @io.puts(result.inspect)
       end
     end
   end
@@ -2392,6 +2394,105 @@ module Wake
       plan = Plan.new([:a, :b]) { |node| [] }
       plan.each { |node| record << node }
       assert_equal [:a, :b], record
+    end
+  end
+
+  # https://stackoverflow.com/questions/4922867/what-is-the-junit-xml-format-specification-that-hudson-supports/9691131#9691131
+  class TestCase
+    class Error < Struct.new(:type, :message, :backtrace)
+      def self.json_create(object)
+        new(
+          object.fetch("type"),
+          object.fetch("message"),
+          object.fetch("backtrace")
+        )
+      end
+    end
+
+    class Failure < Struct.new(:message, :location)
+      def self.json_create(object)
+        new(
+          object.fetch("message"),
+          object.fetch("location")
+        )
+      end
+    end
+
+    class Skipped < Struct.new(:message, :location)
+      def self.json_create(object)
+        new(
+          object.fetch("message"),
+        )
+      end
+    end
+
+    attr_reader :error_count
+    attr_reader :failure_count
+    attr_reader :skip_count
+    attr_reader :time
+
+    def self.json_create(object)
+      new(
+        class_name: object.fetch("class_name"),
+        name: object.fetch("name"),
+        time: object.fetch("time"),
+        skipped: object.fetch("skipped", []).map(&Skipped.method(:json_create)),
+        errors: object.fetch("errors", []).map(&Error.method(:json_create)),
+        failures: object.fetch("failures", []).map(&Failure.method(:json_create)),
+        system_out: object.fetch("system_out"),
+        system_err: object.fetch("system_err"),
+      )
+    end
+
+    def initialize(**kwargs)
+      @class_name = kwargs.fetch(:class_name)
+      @name = kwargs.fetch(:name)
+      @time = kwargs.fetch(:time)
+      @skipped = kwargs.fetch(:skipped)
+      @errors = kwargs.fetch(:errors)
+      @failures = kwargs.fetch(:failures)
+      @system_out = kwargs.fetch(:system_out)
+      @system_err = kwargs.fetch(:system_err)
+
+      @error_count = @errors.length
+      @failure_count = @failures.length
+      @skip_count = @skipped.length
+    end
+
+    def passed?
+      @skipped.empty? && @errors.empty? && @failures.empty?
+    end
+
+    def skipped?
+      !@skipped.empty? && @errors.empty? && @failures.empty?
+    end
+
+    def result_code
+      if @skipped.any?
+        "S"
+      elsif @errors.any?
+        "E"
+      elsif @failures.any?
+        "F"
+      else
+        "."
+      end
+    end
+
+    def location
+      "#{@class_name}##{@name}"
+    end
+
+    def each_error
+      @errors.each { |e| yield e }
+    end
+
+    def each_failure
+      @failures.each { |f| yield f }
+    end
+
+    def each_skip
+      @skipped.each { |s| yield s }
     end
   end
 
