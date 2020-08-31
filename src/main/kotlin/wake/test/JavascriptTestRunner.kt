@@ -2,76 +2,98 @@ package org.matthewtodd.wake.test
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlin.js.js
 import kotlin.test.FrameworkAdapter
+import kotlin.time.ExperimentalTime
+import kotlin.time.measureTime
 
 class WakeTest : FrameworkAdapter {
-  private val suite = SuiteListener()
+  private val runner = TestRunner()
 
   override fun suite(name: String, ignored: Boolean, suiteFn: () -> Unit) {
-    suite.begin(name)
-    suiteFn()
-    suite.end()
+    runner.suite(name, suiteFn)
   }
 
   override fun test(name: String, ignored: Boolean, testFn: () -> Any?) {
-    val test = suite.test(name)
-
-    if (ignored) {
-      test.skip()
-      return
-    }
-
-    try {
-      testFn()
-      test.success()
-    } catch (e: AssertionError) {
-      test.failure(e)
-    } catch (e: Throwable) {
-      test.error(e)
+    runner.test(name) {
+      if (ignored) {
+        skip()
+      } else {
+        try {
+          testFn()
+        } catch (e: AssertionError) {
+          failure(e)
+        } catch (e: Throwable) {
+          error(e)
+        }
+      }
     }
   }
 
-  class SuiteListener() {
-    val stack: MutableList<String> = mutableListOf()
+  class TestRunner() {
+    private val suiteNames: MutableList<String> = mutableListOf()
 
-    fun begin(name: String) {
-      stack.add(name)
+    fun suite(name: String, suiteFn: () -> Unit) {
+      suiteNames.add(name)
+      suiteFn()
+      suiteNames.removeAt(suiteNames.count() - 1)
     }
 
-    fun end() {
-      stack.removeAt(stack.count() - 1)
-    }
+    @OptIn(ExperimentalTime::class)
+    fun test(name: String, run: ResultRecorder.() -> Unit) {
+      val recorder = ResultRecorder()
 
-    fun test(name: String): TestListener {
-      return TestListener(stack.joinToString("."), name)
+      val time = measureTime {
+        recorder.run()
+      }
+
+      println(
+        Json.encodeToString(
+          TestResult(
+            class_name = suiteNames.joinToString("."),
+            name = name,
+            time = time.inMilliseconds.toLong(),
+            skipped = recorder.skipped,
+            failures = recorder.failures,
+            errors = recorder.errors,
+          )
+        )
+      )
     }
   }
 
-  class TestListener(suiteName: String, name: String) {
-    val template = TestResult(
-      class_name = suiteName,
-      name = name,
-      time = 0,
-    )
-
-    fun success() {
-      emit(template)
-    }
+  class ResultRecorder() {
+    val skipped: MutableList<TestSkip> = mutableListOf()
+    val failures: MutableList<TestFailure> = mutableListOf()
+    val errors: MutableList<TestError> = mutableListOf()
 
     fun skip() {
-      emit(template.copy(skipped = listOf(TestSkip())))
+      skipped.add(
+        TestSkip("@Ignored.")
+      )
     }
 
     fun failure(e: AssertionError) {
-      emit(template.copy(failures = listOf(TestFailure(e.message!!, location = "TODO"))))
+      failures.add(
+        TestFailure(
+          message = e.message!!,
+          location = stack(e).lineSequence().drop(1).take(1).joinToString(), // TODO further massage location
+        )
+      )
     }
 
     fun error(e: Throwable) {
-      emit(template.copy(errors = listOf(TestError("TODO", e.message!!, backtrace = listOf("TODO")))))
+      errors.add(
+        TestError(
+          type = stack(e).lineSequence().take(1).joinToString().splitToSequence(":").take(1).joinToString(),
+          message = e.message!!,
+          backtrace = stack(e).lineSequence().drop(1).toList(), // TODO further massage / filter backtrace
+        )
+      )
     }
 
-    private fun emit(r: TestResult) {
-      println(Json.encodeToString(r))
+    fun stack(@Suppress("UNUSED_PARAMETER") e: Throwable): String {
+      return js("e.stack")
     }
   }
 }

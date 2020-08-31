@@ -58,7 +58,7 @@ class WakeListener : TestExecutionListener {
             class_name = source.getClassName(),
             name = source.getMethodName(),
             time = 0,
-            skipped = listOf(TestSkip(message = reason, location = "")),
+            skipped = listOf(TestSkip(reason)),
           )
         )
       )
@@ -112,7 +112,9 @@ class WakeListener : TestExecutionListener {
         }
       }
 
-      println(Json.encodeToString(result))
+      println(
+        Json.encodeToString(result)
+      )
     }
   }
 

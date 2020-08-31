@@ -29,6 +29,5 @@ data class TestFailure(
 
 @Serializable
 data class TestSkip(
-  val message: String = "skipped",
-  val location: String = "unknown",
+  val message: String,
 )

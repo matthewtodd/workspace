@@ -84,6 +84,7 @@ module Wake
         "-module-kind", "umd",
         "-target", "v6",
         "-Werror",
+        "-Xopt-in=kotlin.RequiresOptIn",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
@@ -137,6 +138,7 @@ module Wake
       parameters = [
         "-jvm-target", "12",
         "-Werror",
+        "-Xopt-in=kotlin.RequiresOptIn",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
