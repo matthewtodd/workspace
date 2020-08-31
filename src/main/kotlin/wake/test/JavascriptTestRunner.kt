@@ -1,5 +1,7 @@
 package org.matthewtodd.wake.test
 
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlin.test.FrameworkAdapter
 
 class WakeTest : FrameworkAdapter {
@@ -29,19 +31,19 @@ class WakeTest : FrameworkAdapter {
     }
   }
 
-  class SuiteListener {
+  class SuiteListener() {
     val stack: MutableList<String> = mutableListOf()
 
     fun begin(name: String) {
       stack.add(name)
     }
 
-    fun test(name: String): TestListener {
-      return TestListener(stack.joinToString("."), name)
-    }
-
     fun end() {
       stack.removeAt(stack.count() - 1)
+    }
+
+    fun test(name: String): TestListener {
+      return TestListener(stack.joinToString("."), name)
     }
   }
 
@@ -53,17 +55,23 @@ class WakeTest : FrameworkAdapter {
     )
 
     fun success() {
+      emit(template)
     }
 
     fun skip() {
+      emit(template.copy(skipped = listOf(TestSkip())))
     }
 
     fun failure(e: AssertionError) {
-      println(e.message)
+      emit(template.copy(failures = listOf(TestFailure(e.message!!, location = "TODO"))))
     }
 
-    fun error(t: Throwable) {
-      println(t.message)
+    fun error(e: Throwable) {
+      emit(template.copy(errors = listOf(TestError("TODO", e.message!!, backtrace = listOf("TODO")))))
+    }
+
+    private fun emit(r: TestResult) {
+      println(Json.encodeToString(r))
     }
   }
 }
