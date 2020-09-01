@@ -567,6 +567,29 @@ module Wake
 
   if Kernel.const_defined? :Minitest
     Test = Minitest::Test
+
+    module ::Minitest
+      class WakeReporter < AbstractReporter
+        def initialize(io)
+          @io = io
+        end
+
+        def record(result)
+          @io.print(result.result_code)
+          @io.flush
+        end
+
+        def report
+          @io.puts
+        end
+      end
+
+      def self.plugin_wake_init(options)
+        reporter.reporters = [WakeReporter.new(options[:io])]
+      end
+    end
+
+    Minitest.extensions << :wake
   else
     Test = Object
   end
