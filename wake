@@ -1324,117 +1324,67 @@ module Wake
 
   class Console
     def initialize(io)
-      @delegate = io.tty? ? Tty.new(io) : Batch.new(io)
+      @io = io
+      @cols = io.tty? ? io.winsize[1] : 80
+      @progress = {}
+      @test_results = []
+      @show_test_summary = false
+      @buffer = StringIO.new
     end
 
     def report_progress(label, percentage)
-      @delegate.report_progress(label, percentage)
+      @progress[label] = percentage
+      redraw
     end
 
     def report_test_result(label, result)
-      @delegate.report_test_result(label, result)
+      @test_results << result
+      redraw
     end
 
     def report_test_summary
-      puts "TEST SUMMARY GOES HERE"
+      @show_test_summary = true
+      redraw
     end
 
     private
 
-    class Batch
-      def initialize(io)
-        @io = io
-        @progress = {}
+    def redraw
+      buffer = StringIO.new
+
+      format = "%s |%s%s| %2d%%"
+
+      @progress.each do |label, percentage|
+        total_cols = @cols - (format % [label, "", "", percentage]).length
+        bar_cols = (percentage * total_cols / 100.0).floor
+        space_cols = total_cols - bar_cols
+        buffer.puts "%s |%s%s| %d%%" % [label, "=" * bar_cols, " " * space_cols, percentage]
       end
 
-      def report_progress(label, percentage)
-        return if @progress.key?(label)
-        @progress[label] = true
-        @io.puts(label)
+      color = "\e[%dm%s\e[0m"
+      @test_results.each do |result|
+        buffer.print case result.result_code
+          when "."
+            color % [32, "."]
+          when "S"
+            color % [36, "S"]
+          when "F"
+            color % [31, "F"]
+          when "E"
+            color % [31, "E"]
+          end
       end
 
-      def report_test_result(label, result)
-        @io.puts(result)
-      end
-    end
+      buffer.puts
 
-    class Tty
-      def initialize(io)
-        @io = io
-        @cols = io.winsize[1]
-        @progress = {}
-        @buffer = StringIO.new
+      if @buffer.length > 0
+        row = @buffer.string.split("\n").size
+        @io.write("\e[#{row}F") # go up to beginning of first output row
+        @io.write("\e[J") # clear from cursor to end of string
       end
 
-      def report_progress(label, percentage)
-        if percentage == 100
-          @progress.delete(label)
-        else
-          @progress[label] = percentage
-        end
-
-        format = "%s |%s%s| %2d%%"
-        buffer = StringIO.new
-
-        @progress.each do |label, percentage|
-          total_cols = @cols - (format % [label, "", "", percentage]).length
-          bar_cols = (percentage * total_cols / 100.0).floor
-          space_cols = total_cols - bar_cols
-          buffer.puts "%s |%s%s| %d%%" % [label, "=" * bar_cols, " " * space_cols, percentage]
-        end
-
-        if @buffer.length > 0
-          row = @buffer.string.split("\n").size
-          @io.write("\e[#{row}F") # go up to beginning of first output row
-          @io.write("\e[J") # clear from cursor to end of string
-        end
-
-        @buffer.string = buffer.string
-        @io.write(@buffer.string)
-      end
-
-      def report_test_result(label, result)
-        # @io.print(result.result_code)
-        @io.puts(result.inspect)
-      end
-    end
-  end
-
-  class ConsoleTest < Test
-    def test_report_progress_batch
-      io = StringIO.new
-      console = Console.new(io)
-      console.report_progress("foo", 15)
-      console.report_progress("bar", 30)
-      console.report_progress("foo", 100)
-      assert_equal(<<~END, io.string)
-        foo
-        bar
-      END
-    end
-
-    def test_report_progress_tty
-      io = StringIO.new.extend(FakeTty)
-      console = Console.new(io)
-      console.report_progress("foo", 15)
-      console.report_progress("bar", 30)
-      console.report_progress("foo", 100)
-      # assert_equal(<<~END, io.string)
-      #   foo
-      #   bar
-      # END
-    end
-
-    private
-
-    module FakeTty
-      def winsize
-        [24, 80]
-      end
-
-      def tty?
-        true
-      end
+      @buffer.string = buffer.string
+      @io.write(@buffer.string)
     end
   end
 
