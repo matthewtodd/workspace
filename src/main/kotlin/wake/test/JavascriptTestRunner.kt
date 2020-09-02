@@ -34,9 +34,13 @@ class WakeTest : FrameworkAdapter {
     private val suiteNames: MutableList<String> = mutableListOf()
 
     fun suite(name: String, suiteFn: () -> Unit) {
-      suiteNames.add(name)
+      if (name.isNotBlank()) {
+        suiteNames.add(name)
+      }
       suiteFn()
-      suiteNames.removeAt(suiteNames.count() - 1)
+      if (name.isNotBlank()) {
+        suiteNames.removeAt(suiteNames.count() - 1)
+      }
     }
 
     @OptIn(ExperimentalTime::class)

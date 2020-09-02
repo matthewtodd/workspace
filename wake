@@ -1361,21 +1361,29 @@ module Wake
         buffer.puts "%s |%s%s| %d%%" % [label, "=" * bar_cols, " " * space_cols, percentage]
       end
 
-      color = "\e[%dm%s\e[0m"
-      @test_results.each do |result|
-        buffer.print case result.result_code
-          when "."
-            color % [32, "."]
-          when "S"
-            color % [36, "S"]
-          when "F"
-            color % [31, "F"]
-          when "E"
-            color % [31, "E"]
-          end
-      end
+      if @test_results.any?
+        color = "\e[%dm%s\e[0m"
+        @test_results.each do |result|
+          buffer.print case result.result_code
+            when "."
+              color % [32, "."]
+            when "S"
+              color % [36, "S"]
+            when "F"
+              color % [31, "F"]
+            when "E"
+              color % [31, "E"]
+            end
+        end
 
-      buffer.puts
+        buffer.puts
+
+        if @test_results.any?(&:unsuccessful?)
+          @test_results.select(&:unsuccessful?).each_with_index do |result, i|
+            buffer.puts "\n%3d) %s" % [i + 1, result]
+          end
+        end
+      end
 
       if @buffer.length > 0
         row = @buffer.string.split("\n").size
@@ -2413,12 +2421,8 @@ module Wake
       @skip_count = @skipped.length
     end
 
-    def passed?
-      @skipped.empty? && @errors.empty? && @failures.empty?
-    end
-
-    def skipped?
-      !@skipped.empty? && @errors.empty? && @failures.empty?
+    def unsuccessful?
+      @errors.any? || @failures.any?
     end
 
     def result_code
@@ -2433,20 +2437,23 @@ module Wake
       end
     end
 
-    def location
-      "#{@class_name}##{@name}"
-    end
+    def to_s
+      location = "#{@class_name}##{@name}"
 
-    def each_error
-      @errors.each { |e| yield e }
-    end
-
-    def each_failure
-      @failures.each { |f| yield f }
-    end
-
-    def each_skip
-      @skipped.each { |s| yield s }
+      if @skipped.any?
+        "Skipped:\n#{location}:\n#{@skipped.first.message}\n"
+      elsif @failures.any?
+        "Failed:\n#{location}:\n#{@failures.first.message}\n"
+      elsif @errors.any?
+        <<~END
+          Error:
+          #{location}:
+          #{@errors.first.type}: #{@errors.first.message}
+          #{@errors.first.backtrace.join("\n")}
+        END
+      else
+        location
+      end
     end
   end
 

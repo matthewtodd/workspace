@@ -2,6 +2,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Ignore
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ExampleTest {
@@ -16,7 +17,7 @@ class ExampleTest {
   }
 
   @Test fun failed() {
-    assertTrue(false)
+    assertEquals(true, false, "This is supposed to fail")
   }
 
   @Test fun error() {
