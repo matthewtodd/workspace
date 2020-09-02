@@ -52,7 +52,7 @@ class WakeTest : FrameworkAdapter {
           TestResult(
             class_name = suiteNames.joinToString("."),
             name = name,
-            time = time.inMilliseconds.toLong(),
+            time = time.inSeconds,
             skipped = recorder.skipped,
             failures = recorder.failures,
             errors = recorder.errors,

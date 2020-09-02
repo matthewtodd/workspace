@@ -560,6 +560,8 @@ module Wake
       end
     end
 
+    console.report_test_summary
+
     actions.expire(before: Time.now - (60 * 60 * 24))
 
     0
@@ -567,29 +569,6 @@ module Wake
 
   if Kernel.const_defined? :Minitest
     Test = Minitest::Test
-
-    module ::Minitest
-      class WakeReporter < AbstractReporter
-        def initialize(io)
-          @io = io
-        end
-
-        def record(result)
-          @io.print(result.result_code)
-          @io.flush
-        end
-
-        def report
-          @io.puts
-        end
-      end
-
-      def self.plugin_wake_init(options)
-        reporter.reporters = [WakeReporter.new(options[:io])]
-      end
-    end
-
-    Minitest.extensions << :wake
   else
     Test = Object
   end
@@ -1354,6 +1333,10 @@ module Wake
 
     def report_test_result(label, result)
       @delegate.report_test_result(label, result)
+    end
+
+    def report_test_summary
+      puts "TEST SUMMARY GOES HERE"
     end
 
     private
@@ -2441,11 +2424,9 @@ module Wake
       end
     end
 
-    class Skipped < Struct.new(:message, :location)
+    class Skipped < Struct.new(:message)
       def self.json_create(object)
-        new(
-          object.fetch("message"),
-        )
+        new(object.fetch("message"))
       end
     end
 
@@ -2528,7 +2509,56 @@ module Wake
     end
   end
 
-  if __FILE__ == $0 && !Kernel.const_defined?(:Minitest)
+  class MinitestReporter
+    def initialize(console)
+      @console = console
+      @ok = true
+    end
+
+    def start
+    end
+
+    def record(result)
+      @console.report_test_result(nil, test_case(result))
+      @ok &&= (result.passed? || result.skipped?)
+    end
+
+    def report
+      @console.report_test_summary
+    end
+
+    def passed?
+      @ok
+    end
+
+    private
+
+    def test_case(result)
+      TestCase.new(
+        class_name: result.class.name,
+        name: result.name,
+        time: result.time,
+        skipped: result.failures.
+          select { |f| Minitest::Skip === f }.
+          collect { |f| TestCase::Skipped.new(f.message) },
+        errors: result.failures.
+          select { |f| Minitest::UnexpectedError === f }.
+          collect { |f| TestCase::Error.new(f.error.class.name, f.error.message, Minitest.filter_backtrace(f.backtrace)) },
+        failures: result.failures.
+          select { |f| Minitest::Assertion === f }.
+          collect { |f| TestCase::Failure.new(f.error.message, Minitest.filter_backtrace(f.error.backtrace).first) },
+        system_out: "",
+        system_err: "",
+      )
+    end
+  end
+
+  if Kernel.const_defined?(:Minitest)
+    Minitest.extensions << :wake
+    def Minitest.plugin_wake_init(options)
+      reporter.reporters = [MinitestReporter.new(Console.new(options[:io]))]
+    end
+  elsif __FILE__ == $0
     exit Wake.run
   end
 end

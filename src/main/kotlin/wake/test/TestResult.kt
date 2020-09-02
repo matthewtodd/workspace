@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 data class TestResult(
   val class_name: String,
   val name: String,
-  val time: Long,
+  val time: Double,
   val errors: List<TestError> = emptyList(),
   val failures: List<TestFailure> = emptyList(),
   val skipped: List<TestSkip> = emptyList(),

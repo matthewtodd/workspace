@@ -15,8 +15,10 @@ import org.junit.platform.launcher.TestPlan
 import org.junit.platform.launcher.core.LauncherConfig.builder
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder.request
 import org.junit.platform.launcher.core.LauncherFactory
-import java.lang.System.currentTimeMillis
 import java.util.LinkedHashMap
+import kotlin.time.ExperimentalTime
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 fun main(args: Array<String>) {
   val launcher = LauncherFactory.create(
@@ -35,8 +37,9 @@ fun main(args: Array<String>) {
   )
 }
 
+@OptIn(ExperimentalTime::class)
 class WakeListener : TestExecutionListener {
-  val startTimes = LinkedHashMap<TestIdentifier, Long>()
+  val startTimes = LinkedHashMap<TestIdentifier, TimeMark>()
   var testPlan: TestPlan? = null
 
   override fun testPlanExecutionStarted(testPlan: TestPlan) {
@@ -57,7 +60,7 @@ class WakeListener : TestExecutionListener {
           TestResult(
             class_name = source.getClassName(),
             name = source.getMethodName(),
-            time = 0,
+            time = 0.0,
             skipped = listOf(TestSkip(reason)),
           )
         )
@@ -67,7 +70,7 @@ class WakeListener : TestExecutionListener {
 
   override fun executionStarted(testIdentifier: TestIdentifier) {
     if (testIdentifier.isTest()) {
-      startTimes.put(testIdentifier, currentTimeMillis())
+      startTimes.put(testIdentifier, TimeSource.Monotonic.markNow())
     }
   }
 
@@ -79,7 +82,7 @@ class WakeListener : TestExecutionListener {
       val base = TestResult(
         class_name = source.getClassName(),
         name = source.getMethodName(),
-        time = currentTimeMillis() - startTimes.get(testIdentifier)!!,
+        time = startTimes.get(testIdentifier)!!.elapsedNow().inSeconds,
         system_out = "", // TODO StreamInterceptingTestExecutionListener
         system_err = "", // TODO StreamInterceptingTestExecutionListener
       )

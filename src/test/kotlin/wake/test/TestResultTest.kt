@@ -11,7 +11,7 @@ class TestResultTest {
     val obj = TestResult(
       class_name = "org.example.Foo",
       name = "bar",
-      time = 42,
+      time = 0.042,
     )
 
     assertEquals(obj, Json.decodeFromString(Json.encodeToString(obj)))
