@@ -81,7 +81,7 @@ class WakeTest : FrameworkAdapter {
       failures.add(
         TestFailure(
           message = e.message!!,
-          location = stack(e).lineSequence().drop(1).take(1).joinToString(), // TODO further massage location
+          location = stack(e).lineSequence().drop(1).dropWhile(::shouldFilter).take(1).map(String::trim).joinToString(), // TODO further massage location
         )
       )
     }
@@ -91,9 +91,17 @@ class WakeTest : FrameworkAdapter {
         TestError(
           type = stack(e).lineSequence().take(1).joinToString().splitToSequence(":").take(1).joinToString(),
           message = e.message!!,
-          backtrace = stack(e).lineSequence().drop(1).toList(), // TODO further massage / filter backtrace
+          backtrace = stack(e).lineSequence().drop(1).dropWhile(::shouldFilter).map(String::trim).toList(), // TODO further massage / filter backtrace
         )
       )
+    }
+
+    fun shouldFilter(@Suppress("UNUSED_PARAMETER") line: String): Boolean {
+      return listOf(
+        "Object.captureStack",
+        "/kotlin.js",
+        "/kotlin-test.js",
+      ).any(line::contains)
     }
 
     fun stack(@Suppress("UNUSED_PARAMETER") e: Throwable): String {

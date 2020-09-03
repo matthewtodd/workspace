@@ -531,18 +531,26 @@ module Wake
       target.invoke(context)
     end
 
+    broken_tests = []
     tests = providers.of(TestExecutableInfo)
     test_plan = Plan.new(tests.keys) { |label| [] } # no dependencies
     test_plan.each do |label|
       test = tests.fetch(label)
       out = File.join(label.package, "#{label.name}-out.txt")
+      process_test_output = lambda do |io|
+        until io.eof?
+          test_case = TestCase.json_create(JSON.parse(io.readline.chomp))
+          console.report_test_result(test_case)
+          broken_tests << test_case if test_case.broken?
+        end
+      end
 
       action_did_run = false
 
       actions.run(label, inputs: [test.executable, *test.runfiles], parameters: [*test.arguments, *test.env.flatten], outputs: [out]) do |fs|
         action_did_run = true
         rd, wr = IO.pipe
-        reader = Thread.new { until rd.eof?; console.report_test_result(label, TestCase.json_create(JSON.parse(rd.readline.chomp))); end }
+        reader = Thread.new(rd, &process_test_output)
         fs.open(out, "wb") do |io|
           fs.exec!(test.executable, *test.arguments, out: CompositeIO.new(io, wr), env: test.env)
         end
@@ -552,11 +560,7 @@ module Wake
 
       if !action_did_run
         # TODO var/tmp is duplication with Actions
-        File.open(File.join("var/tmp", out), "rb") do |io|
-          until io.eof?
-            console.report_test_result(label, TestCase.json_create(JSON.parse(io.readline.chomp)))
-          end
-        end
+        File.open(File.join("var/tmp", out), "rb", &process_test_output)
       end
     end
 
@@ -564,7 +568,7 @@ module Wake
 
     actions.expire(before: Time.now - (60 * 60 * 24))
 
-    0
+    broken_tests.count
   end
 
   if Kernel.const_defined? :Minitest
@@ -1337,7 +1341,7 @@ module Wake
       redraw
     end
 
-    def report_test_result(label, result)
+    def report_test_result(result)
       @test_results << result
       redraw
     end
@@ -1362,18 +1366,8 @@ module Wake
       end
 
       if @test_results.any?
-        color = "\e[%dm%s\e[0m"
         @test_results.each do |result|
-          buffer.print case result.result_code
-            when "."
-              color % [32, "."]
-            when "S"
-              color % [36, "S"]
-            when "F"
-              color % [31, "F"]
-            when "E"
-              color % [31, "E"]
-            end
+          buffer.print "\e[%sm%s\e[0m" % [result.ansi_color_code, result.result_code]
         end
 
         buffer.puts
@@ -1385,8 +1379,8 @@ module Wake
         # as shown and issuing only the necessary update commands, or (2)
         # pushing terminal updates only every, say, 100ms?
         if @show_test_summary
-          @test_results.select(&:unsuccessful?).each_with_index do |result, i|
-            buffer.puts "\n%3d) %s" % [i + 1, result]
+          @test_results.reject(&:passed?).each_with_index do |result, i|
+            buffer.puts "\n%3d) \e[%sm%s\e[0m:\n%s" % [i + 1, result.ansi_color_code, result.result_label, result]
           end
         end
       end
@@ -2394,11 +2388,6 @@ module Wake
       end
     end
 
-    attr_reader :error_count
-    attr_reader :failure_count
-    attr_reader :skip_count
-    attr_reader :time
-
     def self.json_create(object)
       new(
         class_name: object.fetch("class_name"),
@@ -2412,6 +2401,10 @@ module Wake
       )
     end
 
+    attr_reader :ansi_color_code
+    attr_reader :result_code
+    attr_reader :result_label
+
     def initialize(**kwargs)
       @class_name = kwargs.fetch(:class_name)
       @name = kwargs.fetch(:name)
@@ -2422,44 +2415,49 @@ module Wake
       @system_out = kwargs.fetch(:system_out)
       @system_err = kwargs.fetch(:system_err)
 
-      @error_count = @errors.length
-      @failure_count = @failures.length
-      @skip_count = @skipped.length
-    end
-
-    def unsuccessful?
-      @errors.any? || @failures.any?
-    end
-
-    def result_code
-      if @skipped.any?
-        "S"
-      elsif @errors.any?
-        "E"
-      elsif @failures.any?
-        "F"
-      else
-        "."
-      end
-    end
-
-    def to_s
       location = "#{@class_name}##{@name}"
 
       if @skipped.any?
-        "Skipped:\n#{location}:\n#{@skipped.first.message}\n"
+        @result_code = "S"
+        @result_label = "Skipped"
+        @ansi_color_code = "95" # solarized purple is bright magenta
+        @to_s = "#{location}:\n#{@skipped.first.message}"
       elsif @failures.any?
-        "Failed:\n#{location}:\n#{@failures.first.message}\n"
+        @result_code = "F"
+        @result_label = "Failed"
+        @ansi_color_code = "31"
+        @to_s = <<~END
+          #{location}:
+          #{@failures.first.message}
+              #{@failures.first.location}
+        END
       elsif @errors.any?
-        <<~END
-          Error:
+        @result_code = "E"
+        @result_label = "Error"
+        @ansi_color_code = "33"
+        @to_s = <<~END
           #{location}:
           #{@errors.first.type}: #{@errors.first.message}
-          #{@errors.first.backtrace.join("\n")}
+              #{@errors.first.backtrace.join("\n    ")}
         END
       else
-        location
+        @result_code = "."
+        @result_label = "Passed"
+        @ansi_color_code = "32"
+        @to_s = location
       end
+    end
+
+    def passed?
+      @skipped.empty? && !broken?
+    end
+
+    def broken?
+      @errors.any? || @failures.any?
+    end
+
+    def to_s
+      @to_s
     end
   end
 
@@ -2482,7 +2480,7 @@ module Wake
     end
 
     def record(result)
-      @console.report_test_result(nil, test_case(result))
+      @console.report_test_result(test_case(result))
       @ok &&= (result.passed? || result.skipped?)
     end
 

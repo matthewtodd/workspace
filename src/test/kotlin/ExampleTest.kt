@@ -1,8 +1,6 @@
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
-import kotlin.test.Ignore
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ExampleTest {
@@ -16,16 +14,20 @@ class ExampleTest {
     assertTrue(true)
   }
 
-  @Test fun failed() {
-    assertEquals(true, false, "This is supposed to fail")
-  }
+  // Uncomment these tests when working on test output formatting.
+  // Also make Wake.run unconditionally return 0.
 
-  @Test fun error() {
-    throw Exception("Boom!")
-  }
+  // @Test fun failed() {
+  //   import kotlin.test.assertEquals
+  //   assertEquals(true, false, "This is supposed to fail")
+  // }
 
-  @Test
-  @Ignore()
-  fun skipped() {
-  }
+  // @Test fun error() {
+  //   throw Exception("Boom!")
+  // }
+
+  // @Test
+  // @Ignore()
+  // fun skipped() {
+  // }
 }
