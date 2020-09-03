@@ -1378,7 +1378,13 @@ module Wake
 
         buffer.puts
 
-        if @test_results.any?(&:unsuccessful?)
+        # TODO can we get the redrawing fast / efficient enough that we can see
+        # failure detail before all tests have finished? Or, hopefully, the
+        # tests are fast enough that we don't need it!
+        # Strategies could include (1) figuring out the diff with the terminal
+        # as shown and issuing only the necessary update commands, or (2)
+        # pushing terminal updates only every, say, 100ms?
+        if @show_test_summary
           @test_results.select(&:unsuccessful?).each_with_index do |result, i|
             buffer.puts "\n%3d) %s" % [i + 1, result]
           end
