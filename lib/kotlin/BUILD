@@ -1,5 +1,7 @@
 # vim: ft=ruby
 
+# https://kotlinlang.org/releases.html
+# https://github.com/JetBrains/kotlin/releases/latest
 # https://kotlinlang.org/docs/reference/compiler-reference.html
 http_file(
   name: "dist",

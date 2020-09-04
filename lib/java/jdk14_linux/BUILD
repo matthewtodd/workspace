@@ -2,8 +2,8 @@
 
 http_file(
   name: "dist",
-  url: "https://download.java.net/java/GA/jdk13.0.2/d4173c853231432d94f001e99d882ca7/8/GPL/openjdk-13.0.2_linux-x64_bin.tar.gz",
-  sha256: "acc7a6aabced44e62ec3b83e3b5959df2b1aa6b3d610d58ee45f0c21a7821a71",
+  url: "https://download.java.net/java/GA/jdk14.0.2/205943a0976c4ed48cb16f1043c5c647/12/GPL/openjdk-14.0.2_linux-x64_bin.tar.gz",
+  sha256: "91310200f072045dc6cef2c8c23e7e6387b37c46e9de49623ce0fa461a24623d",
 )
 
 extract(
@@ -79,7 +79,6 @@ extract(
     "lib/libsctp.so",
     "lib/libsplashscreen.so",
     "lib/libsunec.so",
-    "lib/libunpack.so",
     "lib/libverify.so",
     "lib/libzip.so",
     "lib/modules",
