@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
 
   launcher.execute(
     request()
-      .selectors(args.map(DiscoverySelectors::selectClass))
+      .selectors(DiscoverySelectors.selectClasspathRoots(args.map { java.nio.file.Path.of(it) }.toSet()))
       .build()
   )
 }
