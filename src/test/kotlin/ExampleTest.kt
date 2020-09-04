@@ -4,11 +4,9 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class ExampleTest {
-  @BeforeTest fun setup() {
-  }
+  @BeforeTest fun setup() = Unit
 
-  @AfterTest fun teardown() {
-  }
+  @AfterTest fun teardown() = Unit
 
   @Test fun successful() {
     assertTrue(true)
@@ -18,7 +16,6 @@ class ExampleTest {
   // Also make Wake.run unconditionally return 0.
 
   // @Test fun failed() {
-  //   import kotlin.test.assertEquals
   //   assertEquals(true, false, "This is supposed to fail")
   // }
 
@@ -27,7 +24,6 @@ class ExampleTest {
   // }
 
   // @Test
-  // @Ignore()
-  // fun skipped() {
-  // }
+  // @Ignore
+  // fun skipped() = Unit
 }

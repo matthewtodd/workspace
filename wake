@@ -87,7 +87,7 @@ module Wake
         "-target", "v6",
         "-Werror",
         "-Xopt-in=kotlin.RequiresOptIn",
-        "-Xuse-ir",
+        # "-Xuse-ir",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
@@ -139,10 +139,10 @@ module Wake
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
       output = context.expand_path("lib%{name}.jar")
       parameters = [
-        "-jvm-target", "12",
+        "-jvm-target", "14",
         "-Werror",
         "-Xopt-in=kotlin.RequiresOptIn",
-        "-Xuse-ir",
+        # "-Xuse-ir",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
@@ -934,7 +934,7 @@ module Wake
           files = Find.find(@base).
             reject { |path| File.directory?(path) }.
             map { |path| path[@base.length + 1, path.length - 1] }
-          raise ExecutionError.new(args: args, status: status, out: spy_out.string, err: spy_err.string, env: env, files: files)
+          raise ExecutionError.new(args: args.flatten, status: status, out: spy_out.string, err: spy_err.string, env: env, files: files)
         end
       end
 
@@ -2423,36 +2423,33 @@ module Wake
       @failures = kwargs.fetch(:failures)
       @system_out = kwargs.fetch(:system_out)
       @system_err = kwargs.fetch(:system_err)
+      @result_code = " " # Use a space with reversed video to get a big, colorful bar!
 
       location = "#{@class_name}##{@name}"
 
       if @skipped.any?
-        @result_code = "S"
         @result_label = "Skipped"
-        @ansi_color_code = "95" # solarized purple is bright magenta
+        @ansi_color_code = "7;95" # solarized purple is bright magenta, 95
         @to_s = "#{location}:\n#{@skipped.first.message}"
       elsif @failures.any?
-        @result_code = "F"
         @result_label = "Failed"
-        @ansi_color_code = "31"
+        @ansi_color_code = "7;31"
         @to_s = <<~END
           #{location}:
           #{@failures.first.message}
               #{@failures.first.location}
         END
       elsif @errors.any?
-        @result_code = "E"
         @result_label = "Error"
-        @ansi_color_code = "33"
+        @ansi_color_code = "7;33"
         @to_s = <<~END
           #{location}:
           #{@errors.first.type}: #{@errors.first.message}
               #{@errors.first.backtrace.join("\n    ")}
         END
       else
-        @result_code = "."
         @result_label = "Passed"
-        @ansi_color_code = "32"
+        @ansi_color_code = "7;32"
         @to_s = location
       end
     end
