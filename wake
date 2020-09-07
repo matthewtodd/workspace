@@ -82,12 +82,13 @@ module Wake
       output_js = context.expand_path("lib%{name}.js")
       output_jar = context.expand_path("lib%{name}.jar")
       parameters = [
+        "-api-version", "1.4",
+        "-language-version", "1.4",
         "-meta-info",
         "-module-kind", "umd",
         "-target", "v6",
         "-Werror",
         "-Xopt-in=kotlin.RequiresOptIn",
-        # "-Xuse-ir",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
@@ -139,10 +140,12 @@ module Wake
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
       output = context.expand_path("lib%{name}.jar")
       parameters = [
+        "-api-version", "1.4",
+        "-language-version", "1.4",
         "-jvm-target", "14",
         "-Werror",
         "-Xopt-in=kotlin.RequiresOptIn",
-        # "-Xuse-ir",
+        "-Xuse-ir",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
@@ -519,26 +522,27 @@ module Wake
       },
     )
 
-    # TODO load in parallel?
     Pathname.glob("**/BUILD") do |build|
       registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
     end
 
-    targets = registry.resolve(
-      platform: Platform.from_ruby_config,
-    )
-
-    actions = Actions.new(RealFilesystem.new(Dir.pwd))
+    targets = registry.resolve(platform: Platform.new(host_os: RbConfig::CONFIG.fetch("host_os")))
+    actions = Actions.new(console, RealFilesystem.new(Dir.pwd))
     providers = ProviderRegistry.new
 
     build_plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
 
-    # TODO analyze in parallel?
-    build_plan.each do |label|
-      context = Context.new(actions, providers, label)
-      target = targets.fetch(label)
-      target.invoke(context)
+    workers = Array.new(1) do
+      Thread.new(build_plan) do |plan|
+        plan.each do |label|
+          context = Context.new(actions, providers, label)
+          target = targets.fetch(label)
+          target.invoke(context)
+        end
+      end
     end
+
+    workers.each(&:join)
 
     broken_tests = []
     tests = providers.of(TestExecutableInfo)
@@ -608,7 +612,8 @@ module Wake
   end
 
   class Actions
-    def initialize(fs)
+    def initialize(console, fs)
+      @console = console
       @fs = fs
     end
 
@@ -628,7 +633,10 @@ module Wake
             end
           end
 
+          t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           block.call(@fs.sandbox(dir))
+          time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+          @console.report_action_timing(label, time: time, outputs: outputs)
 
           missing = outputs.reject { |path| @fs.exists?("#{dir}/#{path}") }
           raise "Action for #{label} failed to produce outputs #{missing}." if missing.any?
@@ -662,7 +670,7 @@ module Wake
   class ActionsTest < Test
     def setup
       @files = {}
-      @actions = Actions.new(InMemoryFilesystem.new("/workspace", @files))
+      @actions = Actions.new(Console.new(StringIO.new), InMemoryFilesystem.new("/workspace", @files))
     end
 
     def test_run_caching
@@ -814,6 +822,7 @@ module Wake
       cache = Psych.load_file(path) rescue Hash.new
       @checksums = cache.fetch(:checksums, {})
       @mtimes = cache.fetch(:mtimes, {})
+      @mutex = Mutex.new
       at_exit {
         cache = { checksums: @checksums, mtimes: @mtimes }
         FileUtils.mkdir_p(File.dirname(path))
@@ -828,11 +837,13 @@ module Wake
       # generated files and take a separate path for "volatile" source files.
       mtime = File.mtime(path)
 
-      if @mtimes.key?(path) && @mtimes[path] == mtime
-        @checksums.fetch(path)
-      else
-        @mtimes[path] = mtime
-        @checksums[path] = Digest::SHA256.file(path).hexdigest
+      @mutex.synchronize do
+        if @mtimes.key?(path) && @mtimes[path] == mtime
+          @checksums.fetch(path)
+        else
+          @mtimes[path] = mtime
+          @checksums[path] = Digest::SHA256.file(path).hexdigest
+        end
       end
     end
 
@@ -928,13 +939,14 @@ module Wake
         spy_out = StringIO.new
         spy_err = StringIO.new
 
+        args = args.flatten.map { |a| a.gsub("%{pwd}", @base) }
         status = exec(*args, out: CompositeIO.new(out, spy_out), err: CompositeIO.new(err, spy_err), env: env)
 
         if !status.success?
           files = Find.find(@base).
             reject { |path| File.directory?(path) }.
             map { |path| path[@base.length + 1, path.length - 1] }
-          raise ExecutionError.new(args: args.flatten, status: status, out: spy_out.string, err: spy_err.string, env: env, files: files)
+          raise ExecutionError.new(args: args, status: status, out: spy_out.string, err: spy_err.string, env: env, files: files)
         end
       end
 
@@ -1001,6 +1013,7 @@ module Wake
 
     def initialize
       @providers = {}
+      @mutex = Mutex.new
     end
 
     def [](label, types)
@@ -1008,7 +1021,9 @@ module Wake
     end
 
     def []=(label, providers)
-      @providers[label] = Holder.new(label, providers)
+      @mutex.synchronize do
+        @providers[label] = Holder.new(label, providers)
+      end
     end
 
     def of(type)
@@ -1121,10 +1136,6 @@ module Wake
   end
 
   class Platform
-    def self.from_ruby_config(config = RbConfig::CONFIG)
-      new(host_os: config.fetch("host_os"))
-    end
-
     def initialize(host_os:)
       @host_os = host_os
     end
@@ -1340,13 +1351,24 @@ module Wake
       @io = io
       @cols = io.tty? ? io.winsize[1] : 80
       @progress = {}
+      @action_timing = Hash.new { |h, k| h[k] = {} }
       @test_results = []
       @show_test_summary = false
       @buffer = StringIO.new
     end
 
     def report_progress(label, percentage)
-      @progress[label] = percentage
+      if percentage == 100
+        @progress.delete(label)
+      else
+        @progress[label] = percentage
+      end
+
+      redraw
+    end
+
+    def report_action_timing(label, time:, outputs:)
+      @action_timing[label][outputs] = time
       redraw
     end
 
@@ -1372,6 +1394,12 @@ module Wake
         bar_cols = (percentage * total_cols / 100.0).floor
         space_cols = total_cols - bar_cols
         buffer.puts "%s |%s%s| %d%%" % [label, "=" * bar_cols, " " * space_cols, percentage]
+      end
+
+      @action_timing.each do |label, info|
+        info.each do |outputs, time|
+          buffer.puts "#{time} #{outputs.inspect}"
+        end
       end
 
       if @test_results.any?
