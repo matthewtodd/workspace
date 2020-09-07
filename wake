@@ -312,6 +312,33 @@ module Wake
     )
 
     registry.new_rule(
+      :java_scratch,
+      attributes: {
+        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
+        deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
+        main_class: Attribute.new(String),
+      },
+      implementation: ->(context, java_runtime:, deps:, main_class:) {
+        java_runtime = java_runtime.fetch(JavaRuntimeInfo)
+        deps = deps.map { |dep| dep.fetch(JavaInfo).transitive_runtime_dependencies }.flatten.sort.uniq
+        output = context.expand_path("%{name}.txt")
+
+        context.run(inputs: [*java_runtime.files, *deps], parameters: [main_class], outputs: [output]) do |fs|
+          fs.open(output, "wb") do |io|
+            fs.exec!(
+              java_runtime.java,
+              "-cp", deps.join(":"),
+              main_class,
+              out: io,
+            )
+          end
+        end
+
+        []
+      },
+    )
+
+    registry.new_rule(
       :kotlin_compiler,
       attributes: {
         java_compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
@@ -880,7 +907,7 @@ module Wake
     end
 
     def sandbox(base)
-      Sandbox.new(absolute_path(base))
+      Sandbox.new(self, absolute_path(base))
     end
 
     private
@@ -890,54 +917,24 @@ module Wake
     end
 
     class Sandbox
-      class ExecutionError < RuntimeError
-        attr_reader :status
-        attr_reader :out
-        attr_reader :err
-        attr_reader :env
-
-        def initialize(args:, status:, out:, err:, env:, files: [])
-          @args = args
-          @status = status
-          @out = out
-          @err = err
-          @env = env
-          @files = files
-
-          super(<<~END)
-            Commmand exited with status #{status.exitstatus}.
-
-            COMMAND:
-            #{Shellwords.join(args)}
-
-            ENV:
-            #{env.map { |k, v| "#{k}=#{v}" }.join("\n")}
-
-            FILES:
-            #{files.sort.join("\n")}
-
-            OUT:
-            #{out.strip}
-
-            ERR:
-            #{err.strip}
-          END
-        end
-      end
-
-      def initialize(base)
+      def initialize(fs, base)
+        @fs = fs
         @base = base
       end
 
       def open(path, mode, permissions: 0644, &block)
         path = File.join(@base, path)
         FileUtils.mkdir_p(File.dirname(path))
-        File.open(path, mode, permissions, &block)
+        File.open(path, mode, permissions) { |io| io.sync = true; block.call(io) }
       end
 
       def exec!(*args, out: StringIO.new, err: StringIO.new, env: {})
         spy_out = StringIO.new
         spy_err = StringIO.new
+
+        initial_files = Find.find(@base).
+          reject { |path| File.directory?(path) }.
+          map { |path| path[@base.length + 1, path.length - 1] }
 
         args = args.flatten.map { |a| a.gsub("%{pwd}", @base) }
         status = exec(*args, out: CompositeIO.new(out, spy_out), err: CompositeIO.new(err, spy_err), env: env)
@@ -946,12 +943,12 @@ module Wake
           files = Find.find(@base).
             reject { |path| File.directory?(path) }.
             map { |path| path[@base.length + 1, path.length - 1] }
-          raise ExecutionError.new(args: args, status: status, out: spy_out.string, err: spy_err.string, env: env, files: files)
+          raise ExecutionError.new(args: args, status: status, out: spy_out.string, err: spy_err.string, env: env, pwd: @base, files: files, initial_files: initial_files)
         end
       end
 
       def mktmpdir(&block)
-        Dir.mktmpdir(&block)
+        @fs.mktmpdir(&block)
       end
 
       private
@@ -964,6 +961,49 @@ module Wake
           out_reader.join
           err_reader.join
           t.value
+        end
+      end
+
+      class ExecutionError < RuntimeError
+        attr_reader :status
+        attr_reader :out
+        attr_reader :err
+        attr_reader :env
+
+        def initialize(args:, status:, out:, err:, env:, pwd:, files:, initial_files:)
+          @args = args
+          @status = status
+          @out = out
+          @err = err
+          @env = env
+          @files = files
+
+          added_files = (@files.to_set - initial_files.to_set).to_a
+
+          super(<<~END)
+            Commmand exited with status #{status.exitstatus}.
+
+            COMMAND:
+            #{Shellwords.join(args)}
+
+            ENV:
+            #{env.map { |k, v| "#{k}=#{v}" }.join("\n")}
+
+            PWD:
+            #{pwd}
+
+            FILES:
+            #{files.sort.join("\n")}
+
+            ADDED FILES:
+            #{added_files.sort.join("\n")}
+
+            OUT:
+            #{out.strip}
+
+            ERR:
+            #{err.strip}
+          END
         end
       end
     end
@@ -2554,6 +2594,7 @@ module Wake
       reporter.reporters = [MinitestReporter.new(Console.new(options[:io]))]
     end
   elsif __FILE__ == $0
+    STDOUT.sync = true
     exit Wake.run
   end
 end
