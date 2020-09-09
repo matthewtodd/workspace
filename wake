@@ -7,6 +7,7 @@ require "io/console"
 require "json"
 require "net/http"
 require "open3"
+require "optparse"
 require "pathname"
 require "psych"
 require "rbconfig"
@@ -185,7 +186,12 @@ module Wake
     # TODO move any relevant behavior here
   end
 
-  def self.run
+  def self.run(*args)
+    options = { jobs: 1 }
+    parser = OptionParser.new
+    parser.on("-j", "--jobs=NUM", Integer)
+    parser.order(args, into: options)
+
     console = Console.new(STDOUT)
 
     registry = Registry.new
@@ -557,10 +563,10 @@ module Wake
     actions = Actions.new(console, RealFilesystem.new(Dir.pwd))
     providers = ProviderRegistry.new
 
-    build_plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
+    plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
 
-    workers = Array.new(1) do
-      Thread.new(build_plan) do |plan|
+    workers = Array.new(options.fetch(:jobs)) do
+      Thread.new do
         plan.each do |label|
           context = Context.new(actions, providers, label)
           target = targets.fetch(label)
@@ -2626,6 +2632,6 @@ module Wake
     end
   elsif __FILE__ == $0
     STDOUT.sync = true
-    exit Wake.run
+    exit Wake.run(*ARGV)
   end
 end
