@@ -33,4 +33,5 @@ kt_jvm_lib(
   plugins: [
     "//lib/kotlin:serialization_compiler_plugin",
   ],
+  debug: true,
 )

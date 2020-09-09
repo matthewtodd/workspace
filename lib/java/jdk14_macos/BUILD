@@ -34,6 +34,15 @@ extract(
 )
 
 extract(
+  name: "bin_jdb",
+  archive: ":dist",
+  format: :tar_gz,
+  paths: ["bin/jdb"],
+  permissions: 0755,
+  strip_components: 3,
+)
+
+extract(
   name: "lib",
   archive: ":dist",
   format: :tar_gz,
