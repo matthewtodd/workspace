@@ -2397,7 +2397,7 @@ module Wake
   end
 
   class PlanTest < Test
-    def test_each
+    def test_each_dependency_ordering
       #   a     b
       #  / \    |
       # c   d   e
@@ -2435,6 +2435,37 @@ module Wake
       plan = Plan.new([:a, :b]) { |node| [] }
       plan.each { |node| record << node }
       assert_equal [:a, :b], record
+    end
+
+    def test_each_parallel_processing
+      record = Queue.new
+      plan = Plan.new([:a, :b, :c, :d, :e, :f, :g, :h, :i, :j, :k]) { |node| [] }
+      threads = Array.new(3) { |i| Thread.new { plan.each { |node| record << [node, i]; Thread.pass } } }
+      threads.each(&:join)
+      record_array = []
+      record_array << record.pop until record.empty?
+      assert_equal [:a, :b, :c, :d, :e, :f, :g, :h, :i, :j, :k], record_array.map(&:first)
+      assert_equal [0, 1, 2], record_array.map(&:last).sort.uniq, "Every thread should be part of the processing"
+    end
+
+    def test_each_parallel_processing_with_dependency_ordering
+      edges = {
+        a: [:c, :d],
+        b: [:e],
+        c: [],
+        d: [:f, :g],
+        e: [:g, :h],
+        f: [],
+        g: [:i, :j],
+        h: [],
+        i: [],
+        j: [],
+      }
+      record = Queue.new
+      plan = Plan.new([:a, :b]) { |node| edges[node] }
+      threads = Array.new(3) { Thread.new { plan.each { |node| record << node; Thread.pass } } }
+      threads.each(&:join)
+      assert_equal 10, record.length
     end
   end
 
