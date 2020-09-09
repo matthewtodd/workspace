@@ -1218,31 +1218,40 @@ module Wake
       @test_results = []
       @show_test_summary = false
       @buffer = StringIO.new
+      @mutex = Mutex.new
     end
 
     def report_progress(label, percentage)
-      if percentage == 100
-        @progress.delete(label)
-      else
-        @progress[label] = percentage
-      end
+      @mutex.synchronize do
+        if percentage == 100
+          @progress.delete(label)
+        else
+          @progress[label] = percentage
+        end
 
-      redraw
+        redraw
+      end
     end
 
     def report_action_timing(label, time:, outputs:)
-      @action_timing[label][outputs] = time
-      redraw
+      @mutex.synchronize do
+        @action_timing[label][outputs] = time
+        redraw
+      end
     end
 
     def report_test_result(result)
-      @test_results << result
-      redraw
+      @mutex.synchronize do
+        @test_results << result
+        redraw
+      end
     end
 
     def report_test_summary
-      @show_test_summary = true
-      redraw
+      @mutex.synchronize do
+        @show_test_summary = true
+        redraw
+      end
     end
 
     private
