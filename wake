@@ -1261,24 +1261,33 @@ module Wake
 
       format = "%s |%s%s| %2d%%"
 
-      @progress.each do |label, percentage|
-        total_cols = @cols - (format % [label, "", "", percentage]).length
-        bar_cols = (percentage * total_cols / 100.0).floor
-        space_cols = total_cols - bar_cols
-        buffer.puts "%s |%s%s| %d%%" % [label, "=" * bar_cols, " " * space_cols, percentage]
+      if @progress.any?
+        @progress.each do |label, percentage|
+          total_cols = @cols - (format % [label, "", "", percentage]).length
+          bar_cols = (percentage * total_cols / 100.0).floor
+          space_cols = total_cols - bar_cols
+          buffer.puts format % [label, "=" * bar_cols, " " * space_cols, percentage]
+        end
+        buffer.puts
       end
 
-      @action_timing.each do |label, info|
-        info.each do |outputs, time|
-          buffer.puts "#{time} #{outputs.inspect}"
+      if false && @action_timing.any?
+        @action_timing.each do |label, info|
+          info.each do |outputs, time|
+            buffer.puts "#{time} #{outputs.inspect}"
+          end
         end
+        buffer.puts
       end
 
       if @test_results.any?
+        buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
+
         @test_results.each do |result|
-          buffer.print "\e[%sm%s\e[0m" % [result.ansi_color_code, result.result_code]
+          buffer.print(result.result_code)
         end
 
+        buffer.puts "\e[0m"
         buffer.puts
 
         # TODO can we get the redrawing fast / efficient enough that we can see
@@ -1289,14 +1298,15 @@ module Wake
         # pushing terminal updates only every, say, 100ms?
         if @show_test_summary
           @test_results.reject(&:passed?).each_with_index do |result, i|
-            buffer.puts "\n%3d) \e[%sm%s\e[0m:\n%s" % [i + 1, result.ansi_color_code, result.result_label, result]
+            buffer.puts "\e[%sm%3d) %s:\n%s\e[0m" % [result.ansi_color_code, i + 1, result.result_label, result]
+            buffer.puts
           end
         end
       end
 
       if @buffer.length > 0
-        row = @buffer.string.split("\n").size
-        @io.write("\e[#{row}F") # go up to beginning of first output row
+        rows = (@buffer.string + "foo").lines.count
+        @io.write("\e[#{rows - 1}F") # go up to beginning of first output row
         @io.write("\e[J") # clear from cursor to end of string
       end
 
@@ -2361,6 +2371,8 @@ module Wake
       )
     end
 
+    include Comparable
+
     attr_reader :ansi_color_code
     attr_reader :result_code
     attr_reader :result_label
@@ -2379,28 +2391,32 @@ module Wake
       location = "#{@class_name}##{@name}"
 
       if @skipped.any?
+        @rank = 1
         @result_label = "Skipped"
-        @ansi_color_code = "7;95" # solarized purple is bright magenta, 95
+        @ansi_color_code = "95" # solarized purple is bright magenta, 95
         @to_s = "#{location}:\n#{@skipped.first.message}"
       elsif @failures.any?
+        @rank = 2
         @result_label = "Failed"
-        @ansi_color_code = "7;31"
+        @ansi_color_code = "31"
         @to_s = <<~END
           #{location}:
           #{@failures.first.message}
               #{@failures.first.location}
         END
       elsif @errors.any?
+        @rank = 3
         @result_label = "Error"
-        @ansi_color_code = "7;33"
+        @ansi_color_code = "33"
         @to_s = <<~END
           #{location}:
           #{@errors.first.type}: #{@errors.first.message}
               #{@errors.first.backtrace.join("\n    ")}
         END
       else
+        @rank = 0
         @result_label = "Passed"
-        @ansi_color_code = "7;32"
+        @ansi_color_code = "32"
         @to_s = location
       end
     end
@@ -2415,6 +2431,14 @@ module Wake
 
     def to_s
       @to_s
+    end
+
+    def <=>(other)
+      sort_key <=> other.sort_key
+    end
+
+    def sort_key
+      [@rank, @class_name, @name]
     end
   end
 

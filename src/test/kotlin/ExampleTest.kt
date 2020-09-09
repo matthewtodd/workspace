@@ -16,7 +16,7 @@ class ExampleTest {
   // Also make Wake.run unconditionally return 0.
 
   // @Test fun failed() {
-  //   assertEquals(true, false, "This is supposed to fail")
+  //   assertTrue(false, "This is supposed to fail")
   // }
 
   // @Test fun error() {
