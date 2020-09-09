@@ -22,170 +22,6 @@ require "uri"
 require "zlib"
 
 module Wake
-  class FileGroupInfo < Struct.new(:paths)
-    def only
-      raise "More than one file! #{paths.inspect}" unless paths.length == 1
-      paths[0]
-    end
-  end
-
-  class FileInfo < Struct.new(:path)
-    # TODO any behavior?
-  end
-
-  class JavaCompilerInfo < Struct.new(:javac, :jar, :libs, keyword_init: true)
-    def files
-      [javac, jar, *libs]
-    end
-
-    def compile(srcs:, deps:, context:)
-      source_paths = srcs.map { |path| context.expand_path(path) }
-      dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
-      output = context.expand_path("lib%{name}.jar")
-
-      context.run(inputs: [javac, jar, *libs, *source_paths, *dependency_paths], parameters: [], outputs: [output]) do |fs|
-        fs.mktmpdir do |tmp|
-          fs.exec!(javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
-          fs.exec!(jar, "cf", output, "-C", tmp, ".")
-        end
-      end
-
-      [JavaInfo.new(
-        jar: output,
-        deps: deps.map { |dep| dep.fetch(JavaInfo) },
-        neverlink: false,
-      )]
-    end
-  end
-
-  class JavaInfo < Struct.new(:jar, :deps, :neverlink, keyword_init: true)
-    def transitive_runtime_dependencies
-      neverlink ? [] : [jar, *deps.map { |dep| dep.transitive_runtime_dependencies }]
-    end
-  end
-
-  class JavaRuntimeInfo < Struct.new(:java, :libs, keyword_init: true)
-    def files
-      [java, *libs]
-    end
-  end
-
-  class NodeRuntimeInfo < Struct.new(:node, keyword_init: true)
-  end
-
-  # https://kotlinlang.org/docs/reference/compiler-reference.html
-  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
-    def compile_js(srcs:, deps:, plugins:, context:)
-      source_paths = srcs.map { |path| context.expand_path(path) }
-      dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
-      dependency_paths = dependencies.map(&:jar)
-      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
-      output_js = context.expand_path("lib%{name}.js")
-      output_jar = context.expand_path("lib%{name}.jar")
-      parameters = [
-        "-api-version", "1.4",
-        "-language-version", "1.4",
-        "-meta-info",
-        "-module-kind", "umd",
-        "-target", "v6",
-        "-Werror",
-        "-Xopt-in=kotlin.RequiresOptIn",
-        *plugin_paths.map { |path| "-Xplugin=#{path}" },
-      ]
-
-      # Make the js file.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_js]) do |fs|
-        fs.exec!(
-          java_runtime.java,
-          "-cp", preloader,
-          "org.jetbrains.kotlin.preloading.Preloader",
-          "-cp", compiler,
-          "org.jetbrains.kotlin.cli.js.K2JSCompiler",
-          "-libraries", dependency_paths.join(":"),
-          "-output", output_js,
-          parameters,
-          source_paths
-        )
-      end
-
-      # Make the library.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_jar]) do |fs|
-        fs.mktmpdir do |tmp|
-          fs.exec!(
-            java_runtime.java,
-            "-cp", preloader,
-            "org.jetbrains.kotlin.preloading.Preloader",
-            "-cp", compiler,
-            "org.jetbrains.kotlin.cli.js.K2JSCompiler",
-            "-libraries", dependency_paths.join(":"),
-            "-output", File.join(tmp, output_js),
-            parameters,
-            source_paths
-          )
-
-          fs.exec!(java_compiler.jar, "cf", output_jar, "-C", tmp, ".")
-        end
-      end
-
-      [KotlinJsInfo.new(
-        jar: output_jar,
-        js: output_js,
-        deps: [stdlib_js, *dependencies],
-      )]
-    end
-
-    def compile_jvm(srcs:, deps:, plugins:, context:)
-      source_paths = srcs.map { |path| context.expand_path(path) }
-      dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
-      dependency_paths = dependencies.map { |java_info| java_info.jar }
-      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
-      output = context.expand_path("lib%{name}.jar")
-      parameters = [
-        "-api-version", "1.4",
-        "-language-version", "1.4",
-        "-jvm-target", "14",
-        "-Werror",
-        "-Xopt-in=kotlin.RequiresOptIn",
-        "-Xuse-ir",
-        *plugin_paths.map { |path| "-Xplugin=#{path}" },
-      ]
-
-      context.run(inputs: [*java_runtime.files, preloader, compiler, *plugin_paths, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
-        fs.exec!(
-          java_runtime.java,
-          "-cp", preloader,
-          "org.jetbrains.kotlin.preloading.Preloader",
-          "-cp", compiler,
-          "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
-          "-cp", dependency_paths.join(":"),
-          "-d", output,
-          parameters,
-          source_paths
-        )
-      end
-
-      [JavaInfo.new(
-        jar: output,
-        deps: dependencies,
-        neverlink: false,
-      )]
-    end
-  end
-
-  class KotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)
-    def transitive_runtime_dependencies
-      [js, *deps.map(&:transitive_runtime_dependencies)]
-    end
-
-    def require_path
-      File.basename(js).chomp(".js")
-    end
-  end
-
-  class TestExecutableInfo < Struct.new(:executable, :runfiles, :arguments, :env, keyword_init: true)
-    # TODO move any relevant behavior here
-  end
-
   def self.run(*args)
     options = { jobs: 1 }
     parser = OptionParser.new
@@ -196,6 +32,71 @@ module Wake
 
     registry = Registry.new
 
+    define_rules(registry, console: console)
+
+    Pathname.glob("**/BUILD") do |build|
+      registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
+    end
+
+    targets = registry.resolve(platform: Platform.new(host_os: RbConfig::CONFIG.fetch("host_os")))
+    actions = Actions.new(console, RealFilesystem.new(Dir.pwd))
+    providers = ProviderRegistry.new
+
+    plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
+
+    workers = Array.new(options.fetch(:jobs)) do
+      Thread.new do
+        plan.each do |label|
+          context = Context.new(actions, providers, label)
+          target = targets.fetch(label)
+          target.invoke(context)
+        end
+      end
+    end
+
+    workers.each(&:join)
+
+    broken_tests = []
+    tests = providers.of(TestExecutableInfo)
+    test_plan = Plan.new(tests.keys) { |label| [] } # no dependencies
+    test_plan.each do |label|
+      test = tests.fetch(label)
+      out = File.join(label.package, "#{label.name}-out.txt")
+      process_test_output = lambda do |io|
+        until io.eof?
+          test_case = TestCase.json_create(JSON.parse(io.readline.chomp))
+          console.report_test_result(test_case)
+          broken_tests << test_case if test_case.broken?
+        end
+      end
+
+      action_did_run = false
+
+      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: [*test.arguments, *test.env.flatten], outputs: [out]) do |fs|
+        action_did_run = true
+        rd, wr = IO.pipe
+        reader = Thread.new(rd, &process_test_output)
+        fs.open(out, "wb") do |io|
+          fs.exec!(test.executable, *test.arguments, out: CompositeIO.new(io, wr), env: test.env)
+        end
+        wr.close
+        reader.join
+      end
+
+      if !action_did_run
+        # TODO var/tmp is duplication with Actions
+        File.open(File.join("var/tmp", out), "rb", &process_test_output)
+      end
+    end
+
+    console.report_test_summary
+
+    actions.expire(before: Time.now - (60 * 60 * 24))
+
+    broken_tests.count
+  end
+
+  def self.define_rules(registry, console:)
     registry.new_target(
       label: Label.parse("//tools:console"),
       # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
@@ -554,67 +455,6 @@ module Wake
         end
       },
     )
-
-    Pathname.glob("**/BUILD") do |build|
-      registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
-    end
-
-    targets = registry.resolve(platform: Platform.new(host_os: RbConfig::CONFIG.fetch("host_os")))
-    actions = Actions.new(console, RealFilesystem.new(Dir.pwd))
-    providers = ProviderRegistry.new
-
-    plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
-
-    workers = Array.new(options.fetch(:jobs)) do
-      Thread.new do
-        plan.each do |label|
-          context = Context.new(actions, providers, label)
-          target = targets.fetch(label)
-          target.invoke(context)
-        end
-      end
-    end
-
-    workers.each(&:join)
-
-    broken_tests = []
-    tests = providers.of(TestExecutableInfo)
-    test_plan = Plan.new(tests.keys) { |label| [] } # no dependencies
-    test_plan.each do |label|
-      test = tests.fetch(label)
-      out = File.join(label.package, "#{label.name}-out.txt")
-      process_test_output = lambda do |io|
-        until io.eof?
-          test_case = TestCase.json_create(JSON.parse(io.readline.chomp))
-          console.report_test_result(test_case)
-          broken_tests << test_case if test_case.broken?
-        end
-      end
-
-      action_did_run = false
-
-      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: [*test.arguments, *test.env.flatten], outputs: [out]) do |fs|
-        action_did_run = true
-        rd, wr = IO.pipe
-        reader = Thread.new(rd, &process_test_output)
-        fs.open(out, "wb") do |io|
-          fs.exec!(test.executable, *test.arguments, out: CompositeIO.new(io, wr), env: test.env)
-        end
-        wr.close
-        reader.join
-      end
-
-      if !action_did_run
-        # TODO var/tmp is duplication with Actions
-        File.open(File.join("var/tmp", out), "rb", &process_test_output)
-      end
-    end
-
-    console.report_test_summary
-
-    actions.expire(before: Time.now - (60 * 60 * 24))
-
-    broken_tests.count
   end
 
   if Kernel.const_defined? :Minitest
@@ -2624,6 +2464,170 @@ module Wake
         system_err: "",
       )
     end
+  end
+
+  class FileGroupInfo < Struct.new(:paths)
+    def only
+      raise "More than one file! #{paths.inspect}" unless paths.length == 1
+      paths[0]
+    end
+  end
+
+  class FileInfo < Struct.new(:path)
+    # TODO any behavior?
+  end
+
+  class JavaCompilerInfo < Struct.new(:javac, :jar, :libs, keyword_init: true)
+    def files
+      [javac, jar, *libs]
+    end
+
+    def compile(srcs:, deps:, context:)
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
+      output = context.expand_path("lib%{name}.jar")
+
+      context.run(inputs: [javac, jar, *libs, *source_paths, *dependency_paths], parameters: [], outputs: [output]) do |fs|
+        fs.mktmpdir do |tmp|
+          fs.exec!(javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
+          fs.exec!(jar, "cf", output, "-C", tmp, ".")
+        end
+      end
+
+      [JavaInfo.new(
+        jar: output,
+        deps: deps.map { |dep| dep.fetch(JavaInfo) },
+        neverlink: false,
+      )]
+    end
+  end
+
+  class JavaInfo < Struct.new(:jar, :deps, :neverlink, keyword_init: true)
+    def transitive_runtime_dependencies
+      neverlink ? [] : [jar, *deps.map { |dep| dep.transitive_runtime_dependencies }]
+    end
+  end
+
+  class JavaRuntimeInfo < Struct.new(:java, :libs, keyword_init: true)
+    def files
+      [java, *libs]
+    end
+  end
+
+  class NodeRuntimeInfo < Struct.new(:node, keyword_init: true)
+  end
+
+  # https://kotlinlang.org/docs/reference/compiler-reference.html
+  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
+    def compile_js(srcs:, deps:, plugins:, context:)
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
+      dependency_paths = dependencies.map(&:jar)
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
+      output_js = context.expand_path("lib%{name}.js")
+      output_jar = context.expand_path("lib%{name}.jar")
+      parameters = [
+        "-api-version", "1.4",
+        "-language-version", "1.4",
+        "-meta-info",
+        "-module-kind", "umd",
+        "-target", "v6",
+        "-Werror",
+        "-Xopt-in=kotlin.RequiresOptIn",
+        *plugin_paths.map { |path| "-Xplugin=#{path}" },
+      ]
+
+      # Make the js file.
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_js]) do |fs|
+        fs.exec!(
+          java_runtime.java,
+          "-cp", preloader,
+          "org.jetbrains.kotlin.preloading.Preloader",
+          "-cp", compiler,
+          "org.jetbrains.kotlin.cli.js.K2JSCompiler",
+          "-libraries", dependency_paths.join(":"),
+          "-output", output_js,
+          parameters,
+          source_paths
+        )
+      end
+
+      # Make the library.
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output_jar]) do |fs|
+        fs.mktmpdir do |tmp|
+          fs.exec!(
+            java_runtime.java,
+            "-cp", preloader,
+            "org.jetbrains.kotlin.preloading.Preloader",
+            "-cp", compiler,
+            "org.jetbrains.kotlin.cli.js.K2JSCompiler",
+            "-libraries", dependency_paths.join(":"),
+            "-output", File.join(tmp, output_js),
+            parameters,
+            source_paths
+          )
+
+          fs.exec!(java_compiler.jar, "cf", output_jar, "-C", tmp, ".")
+        end
+      end
+
+      [KotlinJsInfo.new(
+        jar: output_jar,
+        js: output_js,
+        deps: [stdlib_js, *dependencies],
+      )]
+    end
+
+    def compile_jvm(srcs:, deps:, plugins:, context:)
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
+      dependency_paths = dependencies.map { |java_info| java_info.jar }
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
+      output = context.expand_path("lib%{name}.jar")
+      parameters = [
+        "-api-version", "1.4",
+        "-language-version", "1.4",
+        "-jvm-target", "14",
+        "-Werror",
+        "-Xopt-in=kotlin.RequiresOptIn",
+        "-Xuse-ir",
+        *plugin_paths.map { |path| "-Xplugin=#{path}" },
+      ]
+
+      context.run(inputs: [*java_runtime.files, preloader, compiler, *plugin_paths, *runtime, *source_paths, *dependency_paths], parameters: parameters, outputs: [output]) do |fs|
+        fs.exec!(
+          java_runtime.java,
+          "-cp", preloader,
+          "org.jetbrains.kotlin.preloading.Preloader",
+          "-cp", compiler,
+          "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
+          "-cp", dependency_paths.join(":"),
+          "-d", output,
+          parameters,
+          source_paths
+        )
+      end
+
+      [JavaInfo.new(
+        jar: output,
+        deps: dependencies,
+        neverlink: false,
+      )]
+    end
+  end
+
+  class KotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)
+    def transitive_runtime_dependencies
+      [js, *deps.map(&:transitive_runtime_dependencies)]
+    end
+
+    def require_path
+      File.basename(js).chomp(".js")
+    end
+  end
+
+  class TestExecutableInfo < Struct.new(:executable, :runfiles, :arguments, :env, keyword_init: true)
+    # TODO move any relevant behavior here
   end
 
   if Kernel.const_defined?(:Minitest)
