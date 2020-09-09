@@ -5,7 +5,7 @@ kt_js_test(
   srcs: ["TestResultTest.kt"],
   deps: [
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:jar",
-    "//src/main/kotlin/wake/test:wake-test",
+    "//src/main/kotlin/wake/test:js",
   ],
 )
 

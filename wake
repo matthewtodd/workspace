@@ -220,34 +220,6 @@ module Wake
     )
 
     registry.new_rule(
-      :java_scratch,
-      attributes: {
-        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
-        main_class: Attribute.new(String),
-      },
-      implementation: ->(context, java_runtime:, deps:, main_class:) {
-        java_runtime = java_runtime.fetch(JavaRuntimeInfo)
-        deps = deps.map { |dep| dep.fetch(JavaInfo).transitive_runtime_dependencies }.flatten.sort.uniq
-        output = context.expand_path("%{name}.txt")
-
-        context.run(inputs: [*java_runtime.files, *deps], parameters: [main_class], outputs: [output]) do |fs|
-          fs.open(output, "wb") do |io|
-            fs.exec!(
-              java_runtime.java,
-              java_runtime.arguments,
-              "-cp", deps.join(":"),
-              main_class,
-              out: io,
-            )
-          end
-        end
-
-        []
-      },
-    )
-
-    registry.new_rule(
       :kotlin_compiler,
       attributes: {
         java_compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
@@ -324,7 +296,7 @@ module Wake
         deps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
         kotlin_test_js: Attribute.new(Label, default: "//lib/kotlin:test_js", providers: [KotlinJsInfo]),
         node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:wake-test", providers: [KotlinJsInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:js", providers: [KotlinJsInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, kotlin_test_js:, node_runtime:, test_runner:) {
         compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
@@ -337,7 +309,7 @@ module Wake
         contents = <<~END
           'use strict';
           var kotlin_test = require("kotlin-test");
-          var wake_test = require("libwake-test").org.matthewtodd.wake.test;
+          var wake_test = require("wake-test-js").org.matthewtodd.wake.test;
           kotlin_test.setAdapter(new wake_test.WakeTest());
           require("#{test_module.require_path}");
         END
@@ -2288,16 +2260,16 @@ module Wake
       assert_equal [:a, :b], record
     end
 
-    def test_each_parallel_processing
+    def skip_test_each_parallel_processing
+      skip "Seems like these can be flaky."
       record = Queue.new
       plan = Plan.new([:a, :b, :c, :d, :e, :f, :g, :h, :i, :j, :k]) { |node| [] }
       threads = Array.new(3) { |i| Thread.new { plan.each { |node| record << [node, i]; Thread.pass } } }
       threads.each(&:join)
       record_array = []
       record_array << record.pop until record.empty?
-      # Seems like these can be flaky.
-      # assert_equal [:a, :b, :c, :d, :e, :f, :g, :h, :i, :j, :k], record_array.map(&:first)
-      # assert_equal [0, 1, 2], record_array.map(&:last).sort.uniq, "Every thread should be part of the processing"
+      assert_equal [:a, :b, :c, :d, :e, :f, :g, :h, :i, :j, :k], record_array.map(&:first)
+      assert_equal [0, 1, 2], record_array.map(&:last).sort.uniq, "Every thread should be part of the processing"
     end
 
     def test_each_parallel_processing_with_dependency_ordering
@@ -2318,6 +2290,25 @@ module Wake
       threads = Array.new(3) { Thread.new { plan.each { |node| record << node; Thread.pass } } }
       threads.each(&:join)
       assert_equal 10, record.length
+    end
+
+    def test_each_avoiding_deadlock
+      edges = {
+        a: [:c, :d],
+        b: [:e],
+        c: [],
+        d: [:f, :g],
+        e: [:g, :h],
+        f: [],
+        g: [:i, :j],
+        h: [],
+        i: [],
+        j: [],
+      }
+      record = Queue.new
+      plan = Plan.new([:a, :b]) { |node| edges[node] }
+      threads = Array.new(3) { Thread.new { plan.each { |node| record << node; Thread.pass } } }
+      threads.each(&:join)
     end
   end
 
@@ -2544,8 +2535,15 @@ module Wake
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
       dependency_paths = dependencies.map(&:jar)
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
-      output_js = context.expand_path("lib%{name}.js")
-      output_jar = context.expand_path("lib%{name}.jar")
+
+      output_filename = context.expand_path("%{name}").
+        gsub("src/main/kotlin/", "").
+        gsub("src/test/kotlin/", "").
+        gsub("/", "-")
+
+      output_js = context.expand_path("#{output_filename}.js")
+      output_jar = context.expand_path("#{output_filename}.jar")
+
       parameters = [
         "-api-version", "1.4",
         "-language-version", "1.4",
@@ -2557,24 +2555,7 @@ module Wake
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
-      # Make the js file.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_runtime.arguments, *parameters], outputs: [output_js]) do |fs|
-        fs.exec!(
-          java_runtime.java,
-          java_runtime.arguments,
-          "-cp", preloader,
-          "org.jetbrains.kotlin.preloading.Preloader",
-          "-cp", compiler,
-          "org.jetbrains.kotlin.cli.js.K2JSCompiler",
-          "-libraries", dependency_paths.join(":"),
-          "-output", output_js,
-          parameters,
-          source_paths
-        )
-      end
-
-      # Make the library.
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_runtime.arguments, *parameters], outputs: [output_jar]) do |fs|
+      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
@@ -2584,12 +2565,13 @@ module Wake
             "-cp", compiler,
             "org.jetbrains.kotlin.cli.js.K2JSCompiler",
             "-libraries", dependency_paths.join(":"),
-            "-output", File.join(tmp, output_js),
+            "-output", File.join(tmp, File.basename(output_js)),
             parameters,
             source_paths
           )
 
           fs.exec!(java_compiler.jar, "cf", output_jar, "-C", tmp, ".")
+          fs.exec!("cp", File.join(tmp, File.basename(output_js)), output_js)
         end
       end
 

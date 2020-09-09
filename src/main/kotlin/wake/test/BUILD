@@ -1,7 +1,7 @@
 # vim: ft=ruby
 
 kt_js_lib(
-  name: "wake-test",
+  name: "js",
   srcs: [
     "JavascriptTestRunner.kt",
     "TestResult.kt",
