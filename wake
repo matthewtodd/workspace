@@ -30,6 +30,7 @@ module Wake
     parser.order(args, into: options)
 
     console = Console.new(STDOUT)
+    $stdout = console
 
     registry = Registry.new
 
@@ -50,7 +51,9 @@ module Wake
         plan.each do |label|
           context = Context.new(actions, providers, label)
           target = targets.fetch(label)
+          # console.report_target_invocation(label)
           target.invoke(context)
+          # console.report_target_completion(label)
         end
       end
     end
@@ -89,8 +92,6 @@ module Wake
         File.open(File.join("var/tmp", out), "rb", &process_test_output)
       end
     end
-
-    console.report_test_summary
 
     actions.expire(before: Time.now - (60 * 60 * 24))
 
@@ -482,10 +483,7 @@ module Wake
             end
           end
 
-          t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           block.call(@fs.sandbox(dir))
-          time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-          @console.report_action_timing(label, time: time, outputs: outputs)
 
           missing = outputs.reject { |path| @fs.exists?("#{dir}/#{path}") }
           raise "Action for #{label} failed to produce outputs #{missing}." if missing.any?
@@ -1213,12 +1211,44 @@ module Wake
     def initialize(io)
       @io = io
       @cols = io.tty? ? io.winsize[1] : 80
+      @targets = []
       @progress = {}
-      @action_timing = Hash.new { |h, k| h[k] = {} }
       @test_results = []
-      @show_test_summary = false
+      @arbitrary_output = []
       @buffer = StringIO.new
       @mutex = Mutex.new
+    end
+
+    def write(*args)
+      @mutex.synchronize do
+        @arbitrary_output << args
+        redraw
+      end
+    end
+
+    def puts(*args)
+      write(*args.
+        map(&:to_s).
+        map(&:chomp).
+        map { |a| a.concat("\n") })
+    end
+
+    def flush
+      # no-op for now; all ops redraw
+    end
+
+    def report_target_invocation(label)
+      @mutex.synchronize do
+        @targets << label
+        redraw
+      end
+    end
+
+    def report_target_completion(label)
+      @mutex.synchronize do
+        @targets.delete(label)
+        redraw
+      end
     end
 
     def report_progress(label, percentage)
@@ -1233,23 +1263,9 @@ module Wake
       end
     end
 
-    def report_action_timing(label, time:, outputs:)
-      @mutex.synchronize do
-        @action_timing[label][outputs] = time
-        redraw
-      end
-    end
-
     def report_test_result(result)
       @mutex.synchronize do
         @test_results << result
-        redraw
-      end
-    end
-
-    def report_test_summary
-      @mutex.synchronize do
-        @show_test_summary = true
         redraw
       end
     end
@@ -1259,9 +1275,15 @@ module Wake
     def redraw
       buffer = StringIO.new
 
-      format = "%s |%s%s| %2d%%"
+      if @targets.any?
+        @targets.each do |label|
+          buffer.puts(label)
+        end
+        buffer.puts
+      end
 
       if @progress.any?
+        format = "%s |%s%s| %2d%%"
         @progress.each do |label, percentage|
           total_cols = @cols - (format % [label, "", "", percentage]).length
           bar_cols = (percentage * total_cols / 100.0).floor
@@ -1271,42 +1293,32 @@ module Wake
         buffer.puts
       end
 
-      if false && @action_timing.any?
-        @action_timing.each do |label, info|
-          info.each do |outputs, time|
-            buffer.puts "#{time} #{outputs.inspect}"
-          end
-        end
-        buffer.puts
-      end
-
       if @test_results.any?
         buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
-
-        @test_results.each do |result|
-          buffer.print(result.result_code)
-        end
-
+        buffer.print " " * @test_results.count
         buffer.puts "\e[0m"
         buffer.puts
 
-        # TODO can we get the redrawing fast / efficient enough that we can see
-        # failure detail before all tests have finished? Or, hopefully, the
-        # tests are fast enough that we don't need it!
-        # Strategies could include (1) figuring out the diff with the terminal
-        # as shown and issuing only the necessary update commands, or (2)
-        # pushing terminal updates only every, say, 100ms?
-        if @show_test_summary
-          @test_results.reject(&:passed?).each_with_index do |result, i|
-            buffer.puts "\e[%sm%3d) %s:\n%s\e[0m" % [result.ansi_color_code, i + 1, result.result_label, result]
-            buffer.puts
-          end
+        @test_results.reject(&:passed?).each_with_index do |result, i|
+          buffer.puts "\e[%sm%3d) %s:\n%s\e[0m" % [result.ansi_color_code, i + 1, result.result_label, result]
+          buffer.puts
         end
       end
 
+      if @arbitrary_output.any?
+        @arbitrary_output.each do |args|
+          buffer.puts(*args)
+        end
+
+        buffer.puts
+      end
+
       if @buffer.length > 0
-        rows = (@buffer.string + "foo").lines.count
-        @io.write("\e[#{rows - 1}F") # go up to beginning of first output row
+        rows = @buffer.string.
+          gsub(/\e\[.*?m/, ""). # strip non-printing ANSI escape codes
+          gsub(/(.{#{@cols}})(.)/, "\\1\n\\2"). # wrap long lines; careful! rows of exactly @cols columns shouldn't wrap
+          count("\n")
+        @io.write("\e[#{rows}F") # go up to beginning of first output row
         @io.write("\e[J") # clear from cursor to end of string
       end
 
@@ -2399,7 +2411,7 @@ module Wake
         @rank = 2
         @result_label = "Failed"
         @ansi_color_code = "31"
-        @to_s = <<~END
+        @to_s = <<~END.chomp
           #{location}:
           #{@failures.first.message}
               #{@failures.first.location}
@@ -2408,7 +2420,7 @@ module Wake
         @rank = 3
         @result_label = "Error"
         @ansi_color_code = "33"
-        @to_s = <<~END
+        @to_s = <<~END.chomp
           #{location}:
           #{@errors.first.type}: #{@errors.first.message}
               #{@errors.first.backtrace.join("\n    ")}
@@ -2466,7 +2478,6 @@ module Wake
     end
 
     def report
-      @console.report_test_summary
     end
 
     def passed?
@@ -2679,7 +2690,8 @@ module Wake
   if Kernel.const_defined?(:Minitest)
     Minitest.extensions << :wake
     def Minitest.plugin_wake_init(options)
-      reporter.reporters = [MinitestReporter.new(Console.new(options[:io]))]
+      $stdout = console = Console.new(options[:io])
+      reporter.reporters = [MinitestReporter.new(console)]
     end
   elsif __FILE__ == $0
     STDOUT.sync = true
