@@ -5,8 +5,8 @@
 # https://kotlinlang.org/docs/reference/compiler-reference.html
 http_file(
   name: "dist",
-  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.0/kotlin-compiler-1.4.0.zip",
-  sha256: "590391d13b3c65ba52cba470f56efd5b14e2b1f5b9459f63aa12eb38ef52f161",
+  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.10/kotlin-compiler-1.4.10.zip",
+  sha256: nil,
 )
 
 extract(
