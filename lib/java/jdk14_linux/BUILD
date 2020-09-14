@@ -97,10 +97,15 @@ extract(
   strip_components: 1,
 )
 
+java_archiver(
+  name: "archiver",
+  jar: ":bin_jar",
+  libs: ":lib",
+)
+
 java_compiler(
   name: "compiler",
   javac: ":bin_javac",
-  jar: ":bin_jar",
   libs: ":lib",
 )
 

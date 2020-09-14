@@ -163,16 +163,27 @@ module Wake
     )
 
     registry.new_rule(
-      :java_compiler,
+      :java_archiver,
       attributes: {
-        javac: Attribute.new(Label, providers: [FileInfo]),
         jar: Attribute.new(Label, providers: [FileInfo]),
         libs: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, javac:, jar:, libs:) {
+      implementation: ->(context, jar:, libs:) {
+        [JavaArchiverInfo.new(
+          jar: jar.fetch(FileInfo).path,
+          libs: libs.fetch(FileGroupInfo).paths,
+        )]
+      },
+    )
+    registry.new_rule(
+      :java_compiler,
+      attributes: {
+        javac: Attribute.new(Label, providers: [FileInfo]),
+        libs: Attribute.new(Label, providers: [FileGroupInfo]),
+      },
+      implementation: ->(context, javac:, libs:) {
         [JavaCompilerInfo.new(
           javac: javac.fetch(FileInfo).path,
-          jar: jar.fetch(FileInfo).path,
           libs: libs.fetch(FileGroupInfo).paths,
         )]
       },
@@ -223,7 +234,7 @@ module Wake
     registry.new_rule(
       :kotlin_compiler,
       attributes: {
-        java_compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
+        java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         preloader: Attribute.new(Label, providers: [FileInfo]),
         compiler: Attribute.new(Label, providers: [FileInfo]),
@@ -231,16 +242,28 @@ module Wake
         stdlib_js: Attribute.new(Label, providers: [KotlinJsInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, java_compiler:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:) {
-        [KotlinCompilerInfo.new(
-          java_compiler: java_compiler.fetch(JavaCompilerInfo),
-          java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-          preloader: preloader.fetch(FileInfo).path,
-          compiler: compiler.fetch(FileInfo).path,
-          stdlib: stdlib.fetch(JavaInfo),
-          stdlib_js: stdlib_js.fetch(KotlinJsInfo),
-          runtime: runtime.fetch(FileGroupInfo).paths,
-        )]
+      implementation: ->(context, java_archiver:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:) {
+        [
+          KotlinJsCompilerInfo.new(
+            java_archiver: java_archiver.fetch(JavaArchiverInfo),
+            java_runtime: java_runtime.fetch(JavaRuntimeInfo),
+            preloader: preloader.fetch(FileInfo).path,
+            compiler: compiler.fetch(FileInfo).path,
+            stdlib: stdlib.fetch(JavaInfo),
+            stdlib_js: stdlib_js.fetch(KotlinJsInfo),
+            runtime: runtime.fetch(FileGroupInfo).paths,
+          ),
+          KotlinJvmCompilerInfo.new(
+            java_runtime: java_runtime.fetch(JavaRuntimeInfo),
+            preloader: preloader.fetch(FileInfo).path,
+            compiler: compiler.fetch(FileInfo).path,
+            stdlib: stdlib.fetch(JavaInfo),
+            runtime: runtime.fetch(FileGroupInfo).paths,
+          ),
+          KotlinNativeCompilerInfo.new(
+            java_runtime: java_runtime.fetch(JavaRuntimeInfo),
+          ),
+        ]
       },
     )
 
@@ -278,21 +301,21 @@ module Wake
     registry.new_rule(
       :kt_js_lib,
       attributes: {
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:) {
-        compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
-        compiler.compile_js(srcs: srcs, deps: deps, plugins: plugins, context: context)
+        compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
+        compiler.compile(srcs: srcs, deps: deps, plugins: plugins, context: context)
       },
     )
 
     registry.new_rule(
       :kt_js_test,
       attributes: {
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
         kotlin_test_js: Attribute.new(Label, default: "//lib/kotlin:test_js", providers: [KotlinJsInfo]),
@@ -300,8 +323,8 @@ module Wake
         test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:js", providers: [KotlinJsInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, kotlin_test_js:, node_runtime:, test_runner:) {
-        compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
-        test_module = compiler.compile_js(srcs: srcs, deps: [kotlin_test_js, *deps], plugins: [], context: context).find(-> { raise }) { |provider| KotlinJsInfo === provider }
+        compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
+        test_module = compiler.compile(srcs: srcs, deps: [kotlin_test_js, *deps], plugins: [], context: context).find(-> { raise }) { |provider| KotlinJsInfo === provider }
 
         node = node_runtime.fetch(NodeRuntimeInfo)
         modules = [test_runner.fetch(KotlinJsInfo), test_module].map(&:transitive_runtime_dependencies).flatten.sort.uniq
@@ -331,22 +354,22 @@ module Wake
     registry.new_rule(
       :kt_jvm_lib,
       attributes: {
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
         debug: Attribute.new(TrueClass, default: false),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:, debug:) {
-        compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
-        compiler.compile_jvm(srcs: srcs, deps: deps, plugins: plugins, debug: debug && debugging_enabled, context: context)
+        compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
+        compiler.compile(srcs: srcs, deps: deps, plugins: plugins, debug: debug && debugging_enabled, context: context)
       },
     )
 
     registry.new_rule(
       :kt_jvm_test,
       attributes: {
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinCompilerInfo]),
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
         standard_deps: Attribute.new(Label, list: true, default: ["//lib/kotlin:test", "//lib/kotlin:test_junit5", "//lib/maven/org_junit_jupiter/junit_jupiter_api:jar"], providers: [JavaInfo]),
@@ -354,8 +377,8 @@ module Wake
         test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:junit", providers: [JavaInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, standard_deps:, java_runtime:, test_runner:) {
-        compiler = kotlin_compiler.fetch(KotlinCompilerInfo)
-        test_library = compiler.compile_jvm(srcs: srcs, deps: [*deps, *standard_deps], plugins: [], context: context).find(-> { raise }) { |provider| JavaInfo === provider }
+        compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
+        test_library = compiler.compile(srcs: srcs, deps: [*deps, *standard_deps], plugins: [], context: context).find(-> { raise }) { |provider| JavaInfo === provider }
         jre = java_runtime.fetch(JavaRuntimeInfo)
         classpath = [test_runner.fetch(JavaInfo), test_library].map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
@@ -1209,9 +1232,10 @@ module Wake
 
   class Console
     def initialize(io)
-      cols = io.tty? ? io.winsize[1] : 80
       @events = Queue.new
       @renderings = Queue.new
+
+      cols = io.tty? ? io.winsize[1] : 80
 
       @renderer = Thread.new(cols) do |cols|
         targets = []
@@ -1233,15 +1257,12 @@ module Wake
             test_results << event.last
           end
 
-          view = View.new(
-            cols: cols,
+          @renderings << View.new(
             targets: targets,
             progress: progress,
             test_results: test_results,
             arbitrary_output: arbitrary_output,
-          )
-
-          @renderings << view.format
+          ).format(cols: cols)
         end
       end
 
@@ -1299,69 +1320,55 @@ module Wake
     private
 
     class View
-      def initialize(cols:, targets: [], progress: {}, test_results: [], arbitrary_output: [])
-        @cols = cols
+      def initialize(targets: [], progress: {}, test_results: [], arbitrary_output: [])
         @targets = targets.dup.freeze
         @progress = progress.select { |label, progress| progress < 100 }.dup.freeze
         @test_results = test_results.dup.freeze
         @arbitrary_output = arbitrary_output.dup.freeze
       end
 
-      def empty?
-        @targets.empty? && @progress.empty? && @test_results.empty? && @arbitrary_output.empty?
-      end
+      def format(cols:)
+        buffer = StringIO.new
 
-      def row_count
-        format.
-          gsub(/\e\[.*?m/, ""). # strip non-printing ANSI escape codes
-          gsub(/(.{#{@cols}})(.)/, "\\1\n\\2"). # wrap long lines; careful! rows of exactly cols columns shouldn't wrap
-          count("\n")
-      end
-
-      def format
-        @format ||= begin
-            buffer = StringIO.new
-
-            if @targets.any?
-              @targets.each do |label|
-                buffer.puts(label)
-              end
-              buffer.puts
-            end
-
-            if @progress.any?
-              format = "%s |%s%s| %2d%%"
-              @progress.each do |label, percentage|
-                total_cols = @cols - (format % [label, "", "", percentage]).length
-                bar_cols = (percentage * total_cols / 100.0).floor
-                space_cols = total_cols - bar_cols
-                buffer.puts format % [label, "=" * bar_cols, " " * space_cols, percentage]
-              end
-              buffer.puts
-            end
-
-            if @test_results.any?
-              buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
-              buffer.print " " * @test_results.count
-              buffer.puts "\e[0m"
-              buffer.puts
-
-              @test_results.reject(&:passed?).each_with_index do |result, i|
-                buffer.puts "\e[%sm%3d) %s:\n%s\e[0m" % [result.ansi_color_code, i + 1, result.result_label, result]
-                buffer.puts
-              end
-            end
-
-            if @arbitrary_output.any?
-              @arbitrary_output.each do |args|
-                buffer.puts(*args)
-              end
-
-              buffer.puts
-            end
-
-            buffer.string
+        if @targets.any?
+          @targets.each do |label|
+            buffer.puts(label)
           end
+          buffer.puts
+        end
+
+        if @progress.any?
+          format = "%s |%s%s| %2d%%"
+          @progress.each do |label, percentage|
+            total_cols = cols - (format % [label, "", "", percentage]).length
+            bar_cols = (percentage * total_cols / 100.0).floor
+            space_cols = total_cols - bar_cols
+            buffer.puts format % [label, "=" * bar_cols, " " * space_cols, percentage]
+          end
+          buffer.puts
+        end
+
+        if @test_results.any?
+          buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
+          buffer.print " " * @test_results.count
+          buffer.puts "\e[0m"
+          buffer.puts
+
+          @test_results.reject(&:passed?).each_with_index do |result, i|
+            buffer.puts "\e[%sm%3d) %s:\n%s\e[0m" % [result.ansi_color_code, i + 1, result.result_label, result]
+            buffer.puts
+          end
+        end
+
+        if @arbitrary_output.any?
+          @arbitrary_output.each do |args|
+            buffer.puts(*args)
+          end
+
+          buffer.puts
+        end
+
+        buffer.string
       end
     end
   end
@@ -2556,9 +2563,15 @@ module Wake
     # TODO any behavior?
   end
 
-  class JavaCompilerInfo < Struct.new(:javac, :jar, :libs, keyword_init: true)
+  class JavaArchiverInfo < Struct.new(:jar, :libs, keyword_init: true)
     def files
-      [javac, jar, *libs]
+      [jar, *libs]
+    end
+  end
+
+  class JavaCompilerInfo < Struct.new(:javac, :libs, keyword_init: true)
+    def files
+      [javac, *libs]
     end
 
     def compile(srcs:, deps:, context:)
@@ -2612,8 +2625,8 @@ module Wake
   end
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
-  class KotlinCompilerInfo < Struct.new(:java_compiler, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
-    def compile_js(srcs:, deps:, plugins:, context:)
+  class KotlinJsCompilerInfo < Struct.new(:java_archiver, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
+    def compile(srcs:, deps:, plugins:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
       dependency_paths = dependencies.map(&:jar)
@@ -2638,7 +2651,7 @@ module Wake
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
-      context.run(inputs: [*java_compiler.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
+      context.run(inputs: [*java_archiver.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
@@ -2653,7 +2666,7 @@ module Wake
             source_paths
           )
 
-          fs.exec!(java_compiler.jar, "cf", output_jar, "-C", tmp, ".")
+          fs.exec!(java_archiver.jar, "cf", output_jar, "-C", tmp, ".")
           fs.exec!("cp", File.join(tmp, File.basename(output_js)), output_js)
         end
       end
@@ -2664,9 +2677,11 @@ module Wake
         deps: [stdlib_js, *dependencies],
       )]
     end
+  end
 
+  class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :preloader, :compiler, :stdlib, :runtime, keyword_init: true)
     # To debug: ./var/tmp/lib/java/jdk14_macos/bin/jdb -attach localhost:9253
-    def compile_jvm(srcs:, deps:, plugins:, debug: false, context:)
+    def compile(srcs:, deps:, plugins:, debug: false, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
       dependency_paths = dependencies.map { |java_info| java_info.jar }
@@ -2710,6 +2725,9 @@ module Wake
         neverlink: false,
       )]
     end
+  end
+
+  class KotlinNativeCompilerInfo < Struct.new(:java_runtime, keyword_init: true)
   end
 
   class KotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)
