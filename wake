@@ -51,9 +51,9 @@ module Wake
         plan.each do |label|
           context = Context.new(actions, providers, label)
           target = targets.fetch(label)
-          # console.report_target_invocation(label)
+          console.report_target_invocation(label)
           target.invoke(context)
-          # console.report_target_completion(label)
+          console.report_target_completion(label)
         end
       end
     end
@@ -1209,21 +1209,64 @@ module Wake
 
   class Console
     def initialize(io)
-      @io = io
-      @cols = io.tty? ? io.winsize[1] : 80
-      @targets = []
-      @progress = {}
-      @test_results = []
-      @arbitrary_output = []
-      @buffer = StringIO.new
-      @mutex = Mutex.new
+      cols = io.tty? ? io.winsize[1] : 80
+      @events = Queue.new
+      @renderings = Queue.new
+
+      @renderer = Thread.new(cols) do |cols|
+        targets = []
+        progress = {}
+        test_results = []
+        arbitrary_output = []
+
+        while event = @events.pop
+          case event.first
+          when :arbitrary_output
+            arbitrary_output << event[1..-1]
+          when :progress
+            progress[event[1]] = event[2]
+          when :target_invocation
+            targets << event.last
+          when :target_completion
+            targets.delete event.last
+          when :test_result
+            test_results << event.last
+          end
+
+          view = View.new(
+            cols: cols,
+            targets: targets,
+            progress: progress,
+            test_results: test_results,
+            arbitrary_output: arbitrary_output,
+          )
+
+          @renderings << view.format
+        end
+      end
+
+      @blatter = Thread.new(io, cols) do |io, cols|
+        previous = ""
+
+        while buffer = @renderings.pop
+          unless previous.empty?
+            row_count = previous.
+              gsub(/\e\[.*?m/, ""). # strip non-printing ANSI escape codes
+              gsub(/(.{#{cols}})(.)/, "\\1\n\\2"). # wrap long lines; careful! rows of exactly cols columns shouldn't wrap
+              count("\n")
+            io.write("\e[#{row_count}F")
+            io.write("\e[J")
+          end
+
+          io.write(buffer)
+          io.flush
+          previous = buffer
+        end
+      end
     end
 
     def write(*args)
-      @mutex.synchronize do
-        @arbitrary_output << args
-        redraw
-      end
+      @events << [:arbitrary_output, *args]
     end
 
     def puts(*args)
@@ -1238,92 +1281,88 @@ module Wake
     end
 
     def report_target_invocation(label)
-      @mutex.synchronize do
-        @targets << label
-        redraw
-      end
+      @events << [:target_invocation, label]
     end
 
     def report_target_completion(label)
-      @mutex.synchronize do
-        @targets.delete(label)
-        redraw
-      end
+      @events << [:target_completion, label]
     end
 
     def report_progress(label, percentage)
-      @mutex.synchronize do
-        if percentage == 100
-          @progress.delete(label)
-        else
-          @progress[label] = percentage
-        end
-
-        redraw
-      end
+      @events << [:progress, label, percentage]
     end
 
     def report_test_result(result)
-      @mutex.synchronize do
-        @test_results << result
-        redraw
-      end
+      @events << [:test_result, result]
     end
 
     private
 
-    def redraw
-      buffer = StringIO.new
-
-      if @targets.any?
-        @targets.each do |label|
-          buffer.puts(label)
-        end
-        buffer.puts
+    class View
+      def initialize(cols:, targets: [], progress: {}, test_results: [], arbitrary_output: [])
+        @cols = cols
+        @targets = targets.dup.freeze
+        @progress = progress.select { |label, progress| progress < 100 }.dup.freeze
+        @test_results = test_results.dup.freeze
+        @arbitrary_output = arbitrary_output.dup.freeze
       end
 
-      if @progress.any?
-        format = "%s |%s%s| %2d%%"
-        @progress.each do |label, percentage|
-          total_cols = @cols - (format % [label, "", "", percentage]).length
-          bar_cols = (percentage * total_cols / 100.0).floor
-          space_cols = total_cols - bar_cols
-          buffer.puts format % [label, "=" * bar_cols, " " * space_cols, percentage]
-        end
-        buffer.puts
+      def empty?
+        @targets.empty? && @progress.empty? && @test_results.empty? && @arbitrary_output.empty?
       end
 
-      if @test_results.any?
-        buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
-        buffer.print " " * @test_results.count
-        buffer.puts "\e[0m"
-        buffer.puts
-
-        @test_results.reject(&:passed?).each_with_index do |result, i|
-          buffer.puts "\e[%sm%3d) %s:\n%s\e[0m" % [result.ansi_color_code, i + 1, result.result_label, result]
-          buffer.puts
-        end
-      end
-
-      if @arbitrary_output.any?
-        @arbitrary_output.each do |args|
-          buffer.puts(*args)
-        end
-
-        buffer.puts
-      end
-
-      if @buffer.length > 0
-        rows = @buffer.string.
+      def row_count
+        format.
           gsub(/\e\[.*?m/, ""). # strip non-printing ANSI escape codes
-          gsub(/(.{#{@cols}})(.)/, "\\1\n\\2"). # wrap long lines; careful! rows of exactly @cols columns shouldn't wrap
+          gsub(/(.{#{@cols}})(.)/, "\\1\n\\2"). # wrap long lines; careful! rows of exactly cols columns shouldn't wrap
           count("\n")
-        @io.write("\e[#{rows}F") # go up to beginning of first output row
-        @io.write("\e[J") # clear from cursor to end of string
       end
 
-      @buffer.string = buffer.string
-      @io.write(@buffer.string)
+      def format
+        @format ||= begin
+            buffer = StringIO.new
+
+            if @targets.any?
+              @targets.each do |label|
+                buffer.puts(label)
+              end
+              buffer.puts
+            end
+
+            if @progress.any?
+              format = "%s |%s%s| %2d%%"
+              @progress.each do |label, percentage|
+                total_cols = @cols - (format % [label, "", "", percentage]).length
+                bar_cols = (percentage * total_cols / 100.0).floor
+                space_cols = total_cols - bar_cols
+                buffer.puts format % [label, "=" * bar_cols, " " * space_cols, percentage]
+              end
+              buffer.puts
+            end
+
+            if @test_results.any?
+              buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
+              buffer.print " " * @test_results.count
+              buffer.puts "\e[0m"
+              buffer.puts
+
+              @test_results.reject(&:passed?).each_with_index do |result, i|
+                buffer.puts "\e[%sm%3d) %s:\n%s\e[0m" % [result.ansi_color_code, i + 1, result.result_label, result]
+                buffer.puts
+              end
+            end
+
+            if @arbitrary_output.any?
+              @arbitrary_output.each do |args|
+                buffer.puts(*args)
+              end
+
+              buffer.puts
+            end
+
+            buffer.string
+          end
+      end
     end
   end
 
