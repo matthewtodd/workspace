@@ -143,13 +143,18 @@ module Wake
         paths: Attribute.new(String, list: true),
         permissions: Attribute.new(Integer, default: 0644),
         strip_components: Attribute.new(PathCleaner, default: 0),
+        suffix: Attribute.new(String, default: ""),
       },
-      implementation: ->(context, archive:, format:, paths:, permissions:, strip_components:) {
-        context.run(inputs: [archive.fetch(FileInfo).path], parameters: [format, paths, permissions, strip_components], outputs: paths.map { |path| context.expand_path(path) }) do |fs|
+      implementation: ->(context, archive:, format:, paths:, permissions:, strip_components:, suffix:) {
+        context.run(
+          inputs: [archive.fetch(FileInfo).path],
+          parameters: [format, paths, permissions, strip_components],
+          outputs: paths.map { |path| context.expand_path(path).concat(suffix) },
+        ) do |fs|
           fs.open(archive.fetch(FileInfo).path, "rb") do |archive_io|
             format.extract(archive_io, strip_components: strip_components) do |entry_path, entry_io|
               if paths.include?(entry_path)
-                fs.open(context.expand_path(entry_path), "wb", permissions: permissions) do |output_io|
+                fs.open(context.expand_path(entry_path).concat(suffix), "wb", permissions: permissions) do |output_io|
                   IO.copy_stream(entry_io, output_io)
                 end
               end
@@ -157,7 +162,7 @@ module Wake
           end
         end
 
-        file_group_info = FileGroupInfo.new(paths.map { |path| context.expand_path(path) })
+        file_group_info = FileGroupInfo.new(paths.map { |path| context.expand_path(path).concat(suffix) })
         result = [file_group_info]
         result << FileInfo.new(file_group_info.only) if paths.length == 1
         result
@@ -243,8 +248,9 @@ module Wake
         stdlib: Attribute.new(Label, providers: [JavaInfo]),
         stdlib_js: Attribute.new(Label, providers: [KotlinJsInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
+        native: Attribute.new(Label, providers: [KotlinNativeCompilerInfo]),
       },
-      implementation: ->(context, java_archiver:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:) {
+      implementation: ->(context, java_archiver:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:, native:) {
         [
           KotlinJsCompilerInfo.new(
             java_archiver: java_archiver.fetch(JavaArchiverInfo),
@@ -262,10 +268,46 @@ module Wake
             stdlib: stdlib.fetch(JavaInfo),
             runtime: runtime.fetch(FileGroupInfo).paths,
           ),
-          KotlinNativeCompilerInfo.new(
-            java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-          ),
+          native.fetch(KotlinNativeCompilerInfo),
         ]
+      },
+    )
+
+    registry.new_rule(
+      :kotlin_native_compiler,
+      attributes: {
+        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
+        classpath: Attribute.new(Label, providers: [FileGroupInfo]),
+        properties: Attribute.new(Label, providers: [FileInfo]),
+      },
+      implementation: ->(context, java_runtime:, classpath:, properties:) {
+        properties_orig = properties.fetch(FileInfo).path
+        properties = context.expand_path("konan/konan.properties")
+
+        context.run(
+          inputs: [properties_orig],
+          parameters: [],
+          outputs: [properties],
+        ) do |fs|
+          fs.open(properties, "wb") do |dest|
+            fs.open(properties_orig, "rb") do |src|
+              src.each do |line|
+                # TODO generalize this if we ever need to change more
+                if line =~ /^airplaneMode *=/
+                  dest.puts("airplaneMode = true")
+                else
+                  dest.write(line)
+                end
+              end
+            end
+          end
+        end
+
+        [KotlinNativeCompilerInfo.new(
+          java_runtime: java_runtime.fetch(JavaRuntimeInfo),
+          classpath: classpath.fetch(FileGroupInfo).paths,
+          files: [properties],
+        )]
       },
     )
 
@@ -395,6 +437,18 @@ module Wake
           ],
           env: {},
         )]
+      },
+    )
+
+    registry.new_rule(
+      :kt_native_macos_test,
+      attributes: {
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinNativeCompilerInfo]),
+        srcs: Attribute.new(String, list: true),
+      },
+      implementation: ->(context, kotlin_compiler:, srcs:) {
+        compiler = kotlin_compiler.fetch(KotlinNativeCompilerInfo)
+        compiler.compile(srcs: srcs, context: context)
       },
     )
 
@@ -2775,7 +2829,45 @@ module Wake
     end
   end
 
-  class KotlinNativeCompilerInfo < Struct.new(:java_runtime, keyword_init: true)
+  class KotlinNativeCompilerInfo < Struct.new(:java_runtime, :classpath, :files, keyword_init: true)
+    def compile(context:, srcs:)
+      # source_paths = srcs.map { |path| context.expand_path(path) }
+      # executable = context.expand_path("%{name}.kexe")
+
+      # java_parameters = [
+      #   "-Dkonan.home=%{pwd}/#{konan_home}",
+      # ]
+
+      # kotlinc_parameters = [
+      #   "-o", executable.chomp(".kexe"),
+      #   "-Werror",
+      # ]
+
+      # context.run(
+      #   inputs: [*java_runtime.files, *classpath, *files, *source_paths],
+      #   parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters],
+      #   outputs: [executable],
+      # ) do |fs|
+      #     fs.exec!(
+      #       java_runtime.java,
+      #       java_runtime.arguments,
+      #       java_parameters,
+      #       "-cp",
+      #       classpath.join(":"),
+      #       "org.jetbrains.kotlin.cli.utilities.MainKt",
+      #       "konanc",
+      #       kotlinc_parameters,
+      #       source_paths,
+      #     )
+      #   end
+    end
+
+    private
+
+    def konan_home
+      files.detect { |path| File.basename(path) == "konan.properties" }.
+        chomp("/konan/konan.properties")
+    end
   end
 
   class KotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)

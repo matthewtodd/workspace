@@ -3,6 +3,8 @@
 # https://kotlinlang.org/releases.html
 # https://github.com/JetBrains/kotlin/releases/latest
 # https://kotlinlang.org/docs/reference/compiler-reference.html
+toolchain_type(name: "native", providers: [KotlinNativeCompilerInfo])
+
 http_file(
   name: "dist",
   url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.10/kotlin-compiler-1.4.10.zip",
@@ -92,6 +94,7 @@ kotlin_compiler(
   stdlib: ":stdlib",
   stdlib_js: ":stdlib_js",
   runtime: ":runtime",
+  native: ":native",
 )
 
 java_import(
@@ -125,4 +128,18 @@ java_import(
   name: "test_junit5",
   jar: ":lib_kotlin_test_junit5",
   neverlink: true,
+)
+
+toolchain(
+  name: "native_linux_compiler",
+  os: :linux,
+  toolchain: "//lib/kotlin/native_linux:compiler",
+  toolchain_type: "//lib/kotlin:native",
+)
+
+toolchain(
+  name: "native_macos_compiler",
+  os: :macos,
+  toolchain: "//lib/kotlin/native_macos:compiler",
+  toolchain_type: "//lib/kotlin:native",
 )
