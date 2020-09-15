@@ -93,6 +93,8 @@ module Wake
       end
     end
 
+    console.join
+
     actions.expire(before: Time.now - (60 * 60 * 24))
 
     broken_tests.count
@@ -1237,7 +1239,15 @@ module Wake
 
       cols = io.tty? ? io.winsize[1] : 80
 
+      @ticker = Thread.new do
+        while true
+          @events << [:tick, Process.clock_gettime(Process::CLOCK_MONOTONIC)]
+          sleep 0.1
+        end
+      end
+
       @renderer = Thread.new(cols) do |cols|
+        time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         targets = []
         progress = {}
         test_results = []
@@ -1250,14 +1260,17 @@ module Wake
           when :progress
             progress[event[1]] = event[2]
           when :target_invocation
-            targets << event.last
+            targets << { label: event.last, started_at: time }
           when :target_completion
-            targets.delete event.last
+            targets.delete_if { |target| target.fetch(:label) == event.last }
           when :test_result
             test_results << event.last
+          when :tick
+            time = event.last
           end
 
           @renderings << View.new(
+            time: time,
             targets: targets,
             progress: progress,
             test_results: test_results,
@@ -1284,6 +1297,14 @@ module Wake
           previous = buffer
         end
       end
+    end
+
+    def join
+      @ticker.exit
+      @events.close
+      @renderer.join
+      @renderings.close
+      @blatter.join
     end
 
     def write(*args)
@@ -1320,7 +1341,8 @@ module Wake
     private
 
     class View
-      def initialize(targets: [], progress: {}, test_results: [], arbitrary_output: [])
+      def initialize(time:, targets:, progress:, test_results:, arbitrary_output:)
+        @time = time.freeze
         @targets = targets.dup.freeze
         @progress = progress.select { |label, progress| progress < 100 }.dup.freeze
         @test_results = test_results.dup.freeze
@@ -1331,8 +1353,10 @@ module Wake
         buffer = StringIO.new
 
         if @targets.any?
-          @targets.each do |label|
-            buffer.puts(label)
+          @targets.each do |target|
+            label = target.fetch(:label)
+            running_time = @time - target.fetch(:started_at)
+            buffer.puts "%s %ds" % [label, running_time]
           end
           buffer.puts
         end
@@ -2567,6 +2591,21 @@ module Wake
     def files
       [jar, *libs]
     end
+
+    def arguments
+      # So, it seems like, when we have multiple jvms running, there's some leakage of knowledge about where ${JAVA_HOME}/lib is.
+      [
+        "-J-Djava.home=%{pwd}/#{java_home}",
+        "-J-Djava.library.path=%{pwd}/#{java_home}/lib",
+        "-J-Dsun.boot.library.path=%{pwd}/#{java_home}/lib",
+      ]
+    end
+
+    private
+
+    def java_home
+      jar.chomp("/bin/jar")
+    end
   end
 
   class JavaCompilerInfo < Struct.new(:javac, :libs, keyword_init: true)
@@ -2651,7 +2690,7 @@ module Wake
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
-      context.run(inputs: [*java_archiver.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
+      context.run(inputs: [*java_archiver.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_archiver.arguments, *java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
@@ -2666,7 +2705,16 @@ module Wake
             source_paths
           )
 
-          fs.exec!(java_archiver.jar, "cf", output_jar, "-C", tmp, ".")
+          fs.exec!(
+            java_archiver.jar,
+            java_archiver.arguments,
+            "cf",
+            output_jar,
+            "-C",
+            tmp,
+            "."
+          )
+
           fs.exec!("cp", File.join(tmp, File.basename(output_js)), output_js)
         end
       end
@@ -2749,6 +2797,7 @@ module Wake
     def Minitest.plugin_wake_init(options)
       $stdout = console = Console.new(options[:io])
       reporter.reporters = [MinitestReporter.new(console)]
+      at_exit { console.join }
     end
   elsif __FILE__ == $0
     STDOUT.sync = true
