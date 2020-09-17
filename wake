@@ -103,6 +103,7 @@ module Wake
   def self.define_rules(registry, console:, debugging_enabled:)
     registry.new_target(
       label: Label.parse("//tools:console"),
+      os: :any,
       # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
       rule: lambda { |context, dummy:| [console] },
       attributes: AttributeSchema.new({ dummy: Attribute.new(String) }).parse({ dummy: "42" }),
@@ -110,6 +111,7 @@ module Wake
 
     registry.new_target(
       label: Label.parse("//tools:http"),
+      os: :any,
       rule: lambda { |context, console:| [HttpDownloader.new(console.fetch(Console))] },
       attributes: AttributeSchema.new({
         console: Attribute.new(Label, default: "//tools:console", providers: [Console]),
@@ -1080,6 +1082,12 @@ module Wake
       @host_os = host_os
     end
 
+    def compatible_with?(os:)
+      os == :any || os == host_os
+    end
+
+    private
+
     def host_os
       case @host_os
       when /darwin/
@@ -1091,12 +1099,28 @@ module Wake
   end
 
   class PlatformTest < Test
+    def test_host_os_darwin_any
+      assert Platform.new(host_os: "darwin19").compatible_with?(os: :any)
+    end
+
+    def test_host_os_darwin_linux
+      assert !Platform.new(host_os: "darwin19").compatible_with?(os: :linux)
+    end
+
     def test_host_os_darwin_macos
-      assert_equal :macos, Platform.new(host_os: "darwin19").host_os
+      assert Platform.new(host_os: "darwin19").compatible_with?(os: :macos)
+    end
+
+    def test_host_os_linux_any
+      assert Platform.new(host_os: "i686-linux").compatible_with?(os: :any)
     end
 
     def test_host_os_linux_linux
-      assert_equal :linux, Platform.new(host_os: "i686-linux").host_os
+      assert Platform.new(host_os: "i686-linux").compatible_with?(os: :linux)
+    end
+
+    def test_host_os_linux_macos
+      assert !Platform.new(host_os: "i686-linux").compatible_with?(os: :macos)
     end
   end
 
@@ -1116,14 +1140,15 @@ module Wake
       schema = AttributeSchema.new(attributes)
 
       @dsl.class_eval(<<~END)
-        def #{rule_name}(#{schema.dsl_method_parameters(:name)})
-          __#{rule_name}(#{schema.dsl_method_forwarding_parameters(:name)})
+        def #{rule_name}(#{schema.dsl_method_parameters(:name, os: :any)})
+          __#{rule_name}(#{schema.dsl_method_forwarding_parameters(:name, :os)})
         end
       END
 
-      @dsl.define_method("__#{rule_name}") do |name:, **attributes|
+      @dsl.define_method("__#{rule_name}") do |name:, os:, **attributes|
         @registry.new_target(
           label: Label.new(package: @package, name: name),
+          os: os,
           rule: implementation,
           attributes: schema.parse(attributes, package: @package),
         )
@@ -1132,8 +1157,8 @@ module Wake
       @dsl.class_eval("private :__#{rule_name}")
     end
 
-    def new_target(label:, rule:, attributes:)
-      @targets[label] = Target.new(rule: rule, attributes: attributes)
+    def new_target(label:, os: :any, rule:, attributes:)
+      @targets[label] = Target.new(os: os, rule: rule, attributes: attributes)
     end
 
     def new_toolchain_type(package:, name:, providers:)
@@ -1172,16 +1197,16 @@ module Wake
       macro.call(MacroContext.new(registry: self, package: package), **attributes)
     end
 
-    # TODO reshape Platform to be easy to stub with something from the stdlib.
     def resolve(platform:)
-      result = @targets.dup
+      result = @targets.select { |label, target| target.compatible_with?(platform) }
 
       # TODO lazily include toolchains as we will repository targets!
       # So, don't bother with //lib/java:compiler unless one of my targets depends on it.
-      @toolchains.select { |toolchain| toolchain.supports?(platform) }.each do |toolchain|
+      @toolchains.select { |toolchain| toolchain.compatible_with?(platform) }.each do |toolchain|
         providers = @toolchain_types.fetch(toolchain.toolchain_type)
 
         result[toolchain.toolchain_type] = Target.new(
+          os: toolchain.os,
           attributes: AttributeSchema.new(
             actual: Attribute.new(Label, providers: providers),
           ).parse({
@@ -1225,8 +1250,8 @@ module Wake
     end
 
     class Toolchain < Struct.new(:os, :toolchain, :toolchain_type, keyword_init: true)
-      def supports?(platform)
-        os == platform.host_os
+      def compatible_with?(platform)
+        platform.compatible_with?(os: os)
       end
     end
   end
@@ -1570,9 +1595,14 @@ module Wake
   end
 
   class Target
-    def initialize(rule:, attributes:)
+    def initialize(os:, rule:, attributes:)
+      @os = os
       @rule = rule
       @attributes = attributes
+    end
+
+    def compatible_with?(platform)
+      platform.compatible_with?(os: @os)
     end
 
     def dependencies
@@ -1587,6 +1617,7 @@ module Wake
   class TargetTest < Test
     def test_dependencies
       target = Target.new(
+        os: :any,
         rule: ->(context, **attributes) { },
         attributes: AttributeSchema.new(
           thing: Attribute.new(Label),
@@ -1621,14 +1652,15 @@ module Wake
       @fields.map { |name, type| type.dependencies(values.fetch(name)) }.reduce(Set.new, &:merge).freeze
     end
 
-    def dsl_method_parameters(prefix = nil)
-      extra = prefix ? ["#{prefix}:"] : []
-      extra.concat(@fields.map { |name, type| type.as_method_parameter(name) }).join(", ")
+    def dsl_method_parameters(*required, **optional)
+      result = required.map { |name| "#{name}:" }
+      result.concat(optional.map { |name, value| "#{name}: #{value.inspect}" })
+      result.concat(@fields.map { |name, type| type.as_method_parameter(name) }).join(", ")
     end
 
-    def dsl_method_forwarding_parameters(prefix = nil)
-      extra = prefix ? ["#{prefix}: #{prefix}"] : []
-      extra.concat(@fields.keys.map { |name| "#{name}: #{name}" }).join(", ")
+    def dsl_method_forwarding_parameters(*names)
+      result = names.map { |name| "#{name}: #{name}" }
+      result.concat(@fields.keys.map { |name| "#{name}: #{name}" }).join(", ")
     end
 
     def parse(raw, **options)
@@ -1647,23 +1679,34 @@ module Wake
   end
 
   class AttributeSchemaTest < Test
-    def test_dsl_method_parameters
-      schema = AttributeSchema.new(
+    def setup
+      @schema = AttributeSchema.new(
         deps: Attribute.new(Label, list: true),
         compiler: Attribute.new(Label, default: "//lib:compiler"),
         strip_components: Attribute.new(PathCleaner, default: 0),
         build: Attribute.new(Proc, default: ->() { }),
         neverlink: Attribute.new(TrueClass, default: false),
       )
-      assert_equal "name:, deps:, compiler: \"//lib:compiler\", strip_components: 0, build: ->() { }, neverlink: false", schema.dsl_method_parameters(:name)
+    end
+
+    def test_dsl_method_parameters
+      assert_equal "deps:, compiler: \"//lib:compiler\", strip_components: 0, build: ->() { }, neverlink: false",
+        @schema.dsl_method_parameters
+    end
+
+    def test_dsl_method_parameters_with_further_required_and_optional_parameters
+      assert_equal "name:, os: :any, deps:, compiler: \"//lib:compiler\", strip_components: 0, build: ->() { }, neverlink: false",
+        @schema.dsl_method_parameters(:name, os: :any)
     end
 
     def test_dsl_method_forwarding_parameters
-      schema = AttributeSchema.new(
-        deps: Attribute.new(Label),
-        compiler: Attribute.new(Label),
-      )
-      assert_equal "name: name, deps: deps, compiler: compiler", schema.dsl_method_forwarding_parameters(:name)
+      assert_equal "deps: deps, compiler: compiler, strip_components: strip_components, build: build, neverlink: neverlink",
+        @schema.dsl_method_forwarding_parameters
+    end
+
+    def test_dsl_method_forwarding_parameters_with_further_required_and_optional_parameters
+      assert_equal "name: name, os: os, deps: deps, compiler: compiler, strip_components: strip_components, build: build, neverlink: neverlink",
+        @schema.dsl_method_forwarding_parameters(:name, :os)
     end
   end
 

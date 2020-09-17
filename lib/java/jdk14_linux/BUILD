@@ -4,6 +4,7 @@ http_file(
   name: "dist",
   url: "https://download.java.net/java/GA/jdk14.0.2/205943a0976c4ed48cb16f1043c5c647/12/GPL/openjdk-14.0.2_linux-x64_bin.tar.gz",
   sha256: "91310200f072045dc6cef2c8c23e7e6387b37c46e9de49623ce0fa461a24623d",
+  os: :linux,
 )
 
 extract(
@@ -13,6 +14,7 @@ extract(
   paths: ["bin/jar"],
   permissions: 0755,
   strip_components: 1,
+  os: :linux,
 )
 
 extract(
@@ -22,6 +24,7 @@ extract(
   paths: ["bin/java"],
   permissions: 0755,
   strip_components: 1,
+  os: :linux,
 )
 
 extract(
@@ -31,6 +34,7 @@ extract(
   paths: ["bin/javac"],
   permissions: 0755,
   strip_components: 1,
+  os: :linux,
 )
 
 extract(
@@ -95,22 +99,26 @@ extract(
     "lib/tzdb.dat",
   ],
   strip_components: 1,
+  os: :linux,
 )
 
 java_archiver(
   name: "archiver",
   jar: ":bin_jar",
   libs: ":lib",
+  os: :linux,
 )
 
 java_compiler(
   name: "compiler",
   javac: ":bin_javac",
   libs: ":lib",
+  os: :linux,
 )
 
 java_runtime(
   name: "runtime",
   java: ":bin_java",
   libs: ":lib",
+  os: :linux,
 )

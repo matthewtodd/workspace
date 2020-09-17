@@ -5,6 +5,7 @@ http_file(
   name: "dist",
   url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.10/kotlin-native-linux-1.4.10.tar.gz",
   sha256: nil,
+  os: :linux,
 )
 
 extract(
@@ -16,6 +17,7 @@ extract(
     "konan/lib/trove4j.jar",
   ],
   strip_components: 1,
+  os: :linux,
 )
 
 extract(
@@ -25,10 +27,12 @@ extract(
   paths: ["konan/konan.properties"],
   strip_components: 1,
   suffix: ".orig",
+  os: :linux,
 )
 
 kotlin_native_compiler(
   name: "compiler",
   classpath: ":konan_lib",
   properties: ":konan_konan_properties",
+  os: :linux,
 )

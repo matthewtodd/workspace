@@ -5,6 +5,7 @@ http_file(
   name: "dist",
   url: "https://nodejs.org/dist/v12.18.3/node-v12.18.3-linux-x64.tar.gz",
   sha256: "8cdacecc43c35bcfa5474c793b9e7a01835e4171264f7b13f3e57093371872e9",
+  os: :linux,
 )
 
 extract(
@@ -14,9 +15,11 @@ extract(
   paths: ["bin/node"],
   permissions: 0755,
   strip_components: 1,
+  os: :linux,
 )
 
 node_runtime(
   name: "runtime",
   node: ":bin_node",
+  os: :linux,
 )

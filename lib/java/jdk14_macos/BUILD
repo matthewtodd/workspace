@@ -4,6 +4,7 @@ http_file(
   name: "dist",
   url: "https://download.java.net/java/GA/jdk14.0.2/205943a0976c4ed48cb16f1043c5c647/12/GPL/openjdk-14.0.2_osx-x64_bin.tar.gz",
   sha256: "386a96eeef63bf94b450809d69ceaa1c9e32a97230e0a120c1b41786b743ae84",
+  os: :macos,
 )
 
 extract(
@@ -13,6 +14,7 @@ extract(
   paths: ["bin/jar"],
   permissions: 0755,
   strip_components: 3,
+  os: :macos,
 )
 
 extract(
@@ -22,6 +24,7 @@ extract(
   paths: ["bin/java"],
   permissions: 0755,
   strip_components: 3,
+  os: :macos,
 )
 
 extract(
@@ -31,6 +34,7 @@ extract(
   paths: ["bin/javac"],
   permissions: 0755,
   strip_components: 3,
+  os: :macos,
 )
 
 extract(
@@ -40,6 +44,7 @@ extract(
   paths: ["bin/jdb"],
   permissions: 0755,
   strip_components: 3,
+  os: :macos,
 )
 
 extract(
@@ -109,22 +114,26 @@ extract(
     "lib/tzdb.dat",
   ],
   strip_components: 3,
+  os: :macos,
 )
 
 java_archiver(
   name: "archiver",
   jar: ":bin_jar",
   libs: ":lib",
+  os: :macos,
 )
 
 java_compiler(
   name: "compiler",
   javac: ":bin_javac",
   libs: ":lib",
+  os: :macos,
 )
 
 java_runtime(
   name: "runtime",
   java: ":bin_java",
   libs: ":lib",
+  os: :macos,
 )
