@@ -141,23 +141,34 @@ module Wake
       :extract,
       attributes: {
         archive: Attribute.new(Label, providers: [FileInfo]),
-        format: Attribute.new(Extractor),
+        format: Attribute.new(Symbol),
         paths: Attribute.new(String, list: true),
         permissions: Attribute.new(Integer, default: 0644),
         strip_components: Attribute.new(PathCleaner, default: 0),
         suffix: Attribute.new(String, default: ""),
       },
       implementation: ->(context, archive:, format:, paths:, permissions:, strip_components:, suffix:) {
+        extractor = case format
+          when :tar_gz
+            TarGzip
+          when :zip
+            Zip
+          else
+            raise "Unsupported Extractor #{format}"
+          end
+
         context.run(
           inputs: [archive.fetch(FileInfo).path],
           parameters: [format, paths, permissions, strip_components],
           outputs: paths.map { |path| context.expand_path(path).concat(suffix) },
         ) do |fs|
           fs.open(archive.fetch(FileInfo).path, "rb") do |archive_io|
-            format.extract(archive_io, strip_components: strip_components) do |entry_path, entry_io|
-              if paths.include?(entry_path)
-                fs.open(context.expand_path(entry_path).concat(suffix), "wb", permissions: permissions) do |output_io|
-                  IO.copy_stream(entry_io, output_io)
+            extractor.foreach(archive_io) do |entry_path, entry_io|
+              if entry_path = strip_components.stripped_path(entry_path)
+                if paths.include?(entry_path)
+                  fs.open(context.expand_path(entry_path).concat(suffix), "wb", permissions: permissions) do |output_io|
+                    IO.copy_stream(entry_io, output_io)
+                  end
                 end
               end
             end
@@ -320,13 +331,9 @@ module Wake
         js_path: Attribute.new(String),
       },
       implementation: ->(context, jar:, js_path:) {
-        format = Extractor.parse(:zip)
-
-        context.run(inputs: [jar.fetch(FileInfo).path], parameters: [format, js_path], outputs: [context.expand_path(js_path)]) do |fs|
+        context.run(inputs: [jar.fetch(FileInfo).path], parameters: [js_path], outputs: [context.expand_path(js_path)]) do |fs|
           fs.open(jar.fetch(FileInfo).path, "rb") do |archive_io|
-            # TODO can we nest strip_components inside the block instead? Would be nice to make it optional.
-            # TODO and, while we're at it, couldn't we nest tar inside gzip in the same way? None of this @delegate stuff.
-            format.extract(archive_io, strip_components: PathCleaner.parse(0)) do |entry_path, entry_io|
+            Zip.foreach(archive_io) do |entry_path, entry_io|
               if js_path == entry_path
                 fs.open(context.expand_path(entry_path), "wb") do |output_io|
                   IO.copy_stream(entry_io, output_io)
@@ -1820,48 +1827,9 @@ module Wake
     end
   end
 
-  class Extractor
-    def self.parse(key)
-      Extractor.new(key)
-    end
-
-    def initialize(format)
-      @format = format
-    end
-
-    def extract(io, strip_components:, &collector)
-      extractor(strip_components).call(nil, io) do |entry_path, entry_io|
-        collector.call(entry_path, entry_io)
-      end
-    end
-
-    def to_s
-      "Extractor(#{@format})"
-    end
-
-    private
-
-    def extractor(strip_components)
-      case @format
-      when :tar_gz
-        Gzip.new(Tar.new(strip_components))
-      when :zip
-        Zip.new(strip_components)
-      else
-        raise "Unsupported Extractor #{@format}"
-      end
-    end
-  end
-
   class Gzip
-    def initialize(delegate)
-      @delegate = delegate
-    end
-
-    def call(name, io, &collector)
-      Zlib::GzipReader.wrap(io) do |gz|
-        @delegate.call(name, gz, &collector)
-      end
+    def self.open(io, &block)
+      Zlib::GzipReader.wrap(io, &block)
     end
   end
 
@@ -1875,26 +1843,21 @@ module Wake
         end
       end
 
-      entries = {}
-      gzip = Gzip.new(PathCleaner.new(strip_components: 0))
-      gzip.call("file.txt", StringIO.new(contents)) { |path, io|
-        entries[path] = io.read
-      }
+      inflated = nil
 
-      assert_equal ["file.txt"], entries.keys
-      assert_equal "Hello!", entries["file.txt"]
+      Gzip.open(StringIO.new(contents)) do |io|
+        inflated = io.read
+      end
+
+      assert_equal "Hello!", inflated
     end
   end
 
   class Tar
-    def initialize(delegate)
-      @delegate = delegate
-    end
-
-    def call(_, io, &collector)
+    def self.foreach(io, &block)
       Gem::Package::TarReader.new(io) do |tar|
         tar.each do |entry|
-          @delegate.call(entry.full_name, entry, &collector) if entry.file?
+          block.call(Pathname.new(entry.full_name).cleanpath.to_path, entry) if entry.file?
         end
       end
     end
@@ -1913,8 +1876,7 @@ module Wake
       end
 
       entries = {}
-      tar = Tar.new(PathCleaner.new(strip_components: 0))
-      tar.call(nil, StringIO.new(contents)) { |path, io| entries[path] = io.read }
+      Tar.foreach(StringIO.new(contents)) { |path, io| entries[path] = io.read }
       assert_equal ["file.txt"], entries.keys
       assert_equal "Hello!", entries["file.txt"]
     end
@@ -1929,20 +1891,23 @@ module Wake
       end
 
       entries = {}
-      tar = Tar.new(PathCleaner.new(strip_components: 0))
-      tar.call(nil, StringIO.new(contents)) { |path, io| entries[path] = io.read }
+      Tar.foreach(StringIO.new(contents)) { |path, io| entries[path] = io.read }
       assert_equal [], entries.keys
     end
   end
 
-  class Zip
-    def initialize(delegate)
-      @delegate = delegate
+  class TarGzip
+    def self.foreach(io, &block)
+      Gzip.open(io) do |inflated_io|
+        Tar.foreach(inflated_io, &block)
+      end
     end
+  end
 
-    def call(name, io, &collector)
+  class Zip
+    def self.foreach(io, &block)
       Reader.new(io).each do |name, io|
-        @delegate.call(name, io, &collector)
+        block.call(Pathname.new(name).cleanpath.to_path, io)
       end
     end
 
@@ -2102,8 +2067,7 @@ module Wake
       decoded = Base64.decode64(encoded)
 
       entries = {}
-      zip = Zip.new(PathCleaner.new(strip_components: 0))
-      zip.call(nil, StringIO.new(decoded)) { |path, io| entries[path] = io.read }
+      Zip.foreach(StringIO.new(decoded)) { |path, io| entries[path] = io.read }
       assert_equal ["path/to/file.txt"], entries.keys
       assert_equal "Hello!\n", entries["path/to/file.txt"]
     end
@@ -2267,13 +2231,12 @@ module Wake
       @strip_components = strip_components
     end
 
-    def call(name, io, &collector)
+    def stripped_path(name)
       path = Pathname.new(name).cleanpath.to_path
       components = path.split("/")
       components.shift(@strip_components)
       result = components.join("/")
-      return if result.empty?
-      collector.call(result, io)
+      result unless result.empty?
     end
 
     def to_s
@@ -2283,24 +2246,15 @@ module Wake
 
   class PathCleanerTest < Test
     def test_cleans_paths
-      result = nil
-      PathCleaner.new(strip_components: 0).
-        call("./path/to/file.txt", nil) { |name| result = name }
-      assert_equal "path/to/file.txt", result
+      assert_equal "path/to/file.txt", PathCleaner.new(strip_components: 0).stripped_path("./path/to/file.txt")
     end
 
     def test_strips_components
-      result = nil
-      PathCleaner.new(strip_components: 2).
-        call("./path/to/my/file.txt", nil) { |name| result = name }
-      assert_equal "my/file.txt", result
+      assert_equal "my/file.txt", PathCleaner.new(strip_components: 2).stripped_path("./path/to/my/file.txt")
     end
 
     def test_skips_stripped_components
-      result = nil
-      PathCleaner.new(strip_components: 2).
-        call("./bar.txt", nil) { |name| result = name }
-      assert_nil result
+      assert_nil PathCleaner.new(strip_components: 2).stripped_path("./bar.txt")
     end
   end
 
