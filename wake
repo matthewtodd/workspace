@@ -291,8 +291,9 @@ module Wake
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         classpath: Attribute.new(Label, providers: [FileGroupInfo]),
         properties: Attribute.new(Label, providers: [FileInfo]),
+        files: Attribute.new(Label, list: true, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, java_runtime:, classpath:, properties:) {
+      implementation: ->(context, java_runtime:, classpath:, properties:, files:) {
         properties_orig = properties.fetch(FileInfo).path
         properties = context.expand_path("konan/konan.properties")
 
@@ -318,7 +319,7 @@ module Wake
         [KotlinNativeCompilerInfo.new(
           java_runtime: java_runtime.fetch(JavaRuntimeInfo),
           classpath: classpath.fetch(FileGroupInfo).paths,
-          files: [properties],
+          files: [properties, *files.map { |f| f.fetch(FileGroupInfo).paths }.flatten],
         )]
       },
     )
