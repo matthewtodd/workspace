@@ -2,8 +2,8 @@
 
 http_file(
   name: "dist",
-  url: "https://download.java.net/java/GA/jdk14.0.2/205943a0976c4ed48cb16f1043c5c647/12/GPL/openjdk-14.0.2_linux-x64_bin.tar.gz",
-  sha256: "91310200f072045dc6cef2c8c23e7e6387b37c46e9de49623ce0fa461a24623d",
+  url: "https://download.java.net/java/GA/jdk15/779bf45e88a44cbd9ea6621d33e33db1/36/GPL/openjdk-15_linux-x64_bin.tar.gz",
+  sha256: "bb67cadee687d7b486583d03c9850342afea4593be4f436044d785fba9508fb7",
   os: :linux,
 )
 
