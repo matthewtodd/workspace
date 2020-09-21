@@ -2834,35 +2834,37 @@ module Wake
 
   class KotlinNativeCompilerInfo < Struct.new(:java_runtime, :classpath, :files, keyword_init: true)
     def compile(context:, srcs:)
-      # source_paths = srcs.map { |path| context.expand_path(path) }
-      # executable = context.expand_path("%{name}.kexe")
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      executable = context.expand_path("%{name}.kexe")
 
-      # java_parameters = [
-      #   "-Dkonan.home=%{pwd}/#{konan_home}",
-      # ]
+      java_parameters = [
+        "-Dkonan.home=%{pwd}/#{konan_home}",
+      # "-agentlib:jdwp=transport=dt_socket,server=y,address=9253",
+      ]
 
-      # kotlinc_parameters = [
-      #   "-o", executable.chomp(".kexe"),
-      #   "-Werror",
-      # ]
+      kotlinc_parameters = [
+        "-o", executable.chomp(".kexe"),
+        "-tr", # TODO not all targets will be tests to run!
+        "-Werror",
+      ]
 
-      # context.run(
-      #   inputs: [*java_runtime.files, *classpath, *files, *source_paths],
-      #   parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters],
-      #   outputs: [executable],
-      # ) do |fs|
-      #     fs.exec!(
-      #       java_runtime.java,
-      #       java_runtime.arguments,
-      #       java_parameters,
-      #       "-cp",
-      #       classpath.join(":"),
-      #       "org.jetbrains.kotlin.cli.utilities.MainKt",
-      #       "konanc",
-      #       kotlinc_parameters,
-      #       source_paths,
-      #     )
-      #   end
+      context.run(
+        inputs: [*java_runtime.files, *classpath, *files, *source_paths],
+        parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters],
+        outputs: [executable],
+      ) do |fs|
+        fs.exec!(
+          java_runtime.java,
+          java_runtime.arguments,
+          java_parameters,
+          "-cp",
+          classpath.join(":"),
+          "org.jetbrains.kotlin.cli.utilities.MainKt",
+          "konanc",
+          kotlinc_parameters,
+          source_paths,
+        )
+      end
     end
 
     private

@@ -13,4 +13,5 @@ kt_jvm_test(
 kt_native_macos_test(
   name: "ExampleTestNativeMacos",
   srcs: ["ExampleTest.kt"],
+  os: :macos,
 )
