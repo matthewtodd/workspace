@@ -12,7 +12,6 @@ extract(
   archive: ":dist",
   format: :tar_gz,
   paths: ["bin/jar"],
-  permissions: 0755,
   strip_components: 3,
   os: :macos,
 )
@@ -22,7 +21,6 @@ extract(
   archive: ":dist",
   format: :tar_gz,
   paths: ["bin/java"],
-  permissions: 0755,
   strip_components: 3,
   os: :macos,
 )
@@ -32,7 +30,6 @@ extract(
   archive: ":dist",
   format: :tar_gz,
   paths: ["bin/javac"],
-  permissions: 0755,
   strip_components: 3,
   os: :macos,
 )
@@ -42,7 +39,6 @@ extract(
   archive: ":dist",
   format: :tar_gz,
   paths: ["bin/jdb"],
-  permissions: 0755,
   strip_components: 3,
   os: :macos,
 )

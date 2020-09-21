@@ -143,11 +143,10 @@ module Wake
         archive: Attribute.new(Label, providers: [FileInfo]),
         format: Attribute.new(Symbol),
         paths: Attribute.new(String, list: true),
-        permissions: Attribute.new(Integer, default: 0644),
         strip_components: Attribute.new(PathCleaner, default: 0),
         suffix: Attribute.new(String, default: ""),
       },
-      implementation: ->(context, archive:, format:, paths:, permissions:, strip_components:, suffix:) {
+      implementation: ->(context, archive:, format:, paths:, strip_components:, suffix:) {
         extractor = case format
           when :tar_gz
             TarGzip
@@ -159,14 +158,14 @@ module Wake
 
         context.run(
           inputs: [archive.fetch(FileInfo).path],
-          parameters: [format, paths, permissions, strip_components],
+          parameters: [format, paths, strip_components],
           outputs: paths.map { |path| context.expand_path(path).concat(suffix) },
         ) do |fs|
           fs.open(archive.fetch(FileInfo).path, "rb") do |archive_io|
-            extractor.foreach(archive_io) do |entry_path, entry_io|
+            extractor.foreach(archive_io) do |entry_path, entry_io, entry_mode|
               if entry_path = strip_components.stripped_path(entry_path)
                 if paths.include?(entry_path)
-                  fs.open(context.expand_path(entry_path).concat(suffix), "wb", permissions: permissions) do |output_io|
+                  fs.open(context.expand_path(entry_path).concat(suffix), "wb", permissions: entry_mode & 01555) do |output_io|
                     IO.copy_stream(entry_io, output_io)
                   end
                 end
@@ -333,9 +332,9 @@ module Wake
       implementation: ->(context, jar:, js_path:) {
         context.run(inputs: [jar.fetch(FileInfo).path], parameters: [js_path], outputs: [context.expand_path(js_path)]) do |fs|
           fs.open(jar.fetch(FileInfo).path, "rb") do |archive_io|
-            Zip.foreach(archive_io) do |entry_path, entry_io|
+            Zip.foreach(archive_io) do |entry_path, entry_io, entry_mode|
               if js_path == entry_path
-                fs.open(context.expand_path(entry_path), "wb") do |output_io|
+                fs.open(context.expand_path(entry_path), "wb", permissions: entry_mode & 01555) do |output_io|
                   IO.copy_stream(entry_io, output_io)
                 end
               end
@@ -1857,7 +1856,7 @@ module Wake
     def self.foreach(io, &block)
       Gem::Package::TarReader.new(io) do |tar|
         tar.each do |entry|
-          block.call(Pathname.new(entry.full_name).cleanpath.to_path, entry) if entry.file?
+          block.call(Pathname.new(entry.full_name).cleanpath.to_path, entry, entry.header.mode) if entry.file?
         end
       end
     end
@@ -1876,9 +1875,10 @@ module Wake
       end
 
       entries = {}
-      Tar.foreach(StringIO.new(contents)) { |path, io| entries[path] = io.read }
+      Tar.foreach(StringIO.new(contents)) { |path, io, mode| entries[path] = { content: io.read, mode: mode } }
       assert_equal ["file.txt"], entries.keys
-      assert_equal "Hello!", entries["file.txt"]
+      assert_equal "Hello!", entries["file.txt"][:content]
+      assert_equal 0644, entries["file.txt"][:mode]
     end
 
     def test_skips_directories
@@ -1906,8 +1906,8 @@ module Wake
 
   class Zip
     def self.foreach(io, &block)
-      Reader.new(io).each do |name, io|
-        block.call(Pathname.new(name).cleanpath.to_path, io)
+      Reader.new(io).each do |name, io, mode|
+        block.call(Pathname.new(name).cleanpath.to_path, io, mode)
       end
     end
 
@@ -1950,7 +1950,7 @@ module Wake
           local.extra_field = @io.read(local.extra_field_length)
           local.freeze
 
-          block.call local.file_name, local.decompress(@io)
+          block.call local.file_name, local.decompress(@io), header.mode
         end
       end
 
@@ -2010,6 +2010,10 @@ module Wake
           # 4 means directory, 10 means symlink
           external_file_attributes >> 28 == 8
         end
+
+        def mode
+          (external_file_attributes >> 16) & 07777
+        end
       end
 
       class LocalFileHeader < Struct.new(
@@ -2067,9 +2071,10 @@ module Wake
       decoded = Base64.decode64(encoded)
 
       entries = {}
-      Zip.foreach(StringIO.new(decoded)) { |path, io| entries[path] = io.read }
+      Zip.foreach(StringIO.new(decoded)) { |path, io, mode| entries[path] = { content: io.read, mode: mode } }
       assert_equal ["path/to/file.txt"], entries.keys
-      assert_equal "Hello!\n", entries["path/to/file.txt"]
+      assert_equal "Hello!\n", entries["path/to/file.txt"][:content]
+      assert_equal 0644, entries["path/to/file.txt"][:mode]
     end
   end
 

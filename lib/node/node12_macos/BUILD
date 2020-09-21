@@ -13,7 +13,6 @@ extract(
   archive: ":dist",
   format: :tar_gz,
   paths: ["bin/node"],
-  permissions: 0755,
   strip_components: 1,
   os: :macos,
 )
