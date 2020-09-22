@@ -138,6 +138,26 @@ module Wake
     )
 
     registry.new_rule(
+      :file,
+      attributes: {
+        path: Attribute.new(String),
+        content: Attribute.new(String),
+      },
+      implementation: ->(context, path:, content:) {
+        full_path = context.expand_path(path)
+
+        context.run(inputs: [], parameters: [content], outputs: [full_path]) do |fs|
+          fs.open(full_path, "wb") { |io| io.write(content) }
+        end
+
+        [
+          FileInfo.new(path: full_path),
+          FileGroupInfo.new([full_path]),
+        ]
+      },
+    )
+
+    registry.new_rule(
       :extract,
       attributes: {
         archive: Attribute.new(Label, providers: [FileInfo]),
@@ -2839,7 +2859,6 @@ module Wake
 
       java_parameters = [
         "-Dkonan.home=%{pwd}/#{konan_home}",
-      # "-agentlib:jdwp=transport=dt_socket,server=y,address=9253",
       ]
 
       kotlinc_parameters = [
@@ -2848,9 +2867,13 @@ module Wake
         "-Werror",
       ]
 
+      env = {
+        "KONAN_DATA_DIR" => konan_data_dir,
+      }
+
       context.run(
         inputs: [*java_runtime.files, *classpath, *files, *source_paths],
-        parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters],
+        parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters, *env],
         outputs: [executable],
       ) do |fs|
         fs.exec!(
@@ -2863,11 +2886,16 @@ module Wake
           "konanc",
           kotlinc_parameters,
           source_paths,
+          env: env,
         )
       end
     end
 
     private
+
+    def konan_data_dir
+      File.join(konan_home, "data")
+    end
 
     def konan_home
       files.detect { |path| File.basename(path) == "konan.properties" }.

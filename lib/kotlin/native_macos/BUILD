@@ -375,6 +375,10 @@ kotlin_native_compiler(
   classpath: ":konan_lib",
   properties: ":konan_konan_properties",
   files: [
+    "//lib/kotlin/native_macos/data/dependencies:manifest",
+    "//lib/kotlin/native_macos/data/dependencies:libffi",
+    "//lib/kotlin/native_macos/data/dependencies:lldb",
+    "//lib/kotlin/native_macos/data/dependencies:clang",
     ":klib_common_stdlib",
     ":konan_nativelib",
     ":konan_targets",
