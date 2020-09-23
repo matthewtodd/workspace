@@ -12,6 +12,8 @@ class TestResultTest {
       class_name = "org.example.Foo",
       name = "bar",
       time = 0.042,
+      system_out = "",
+      system_err = "",
     )
 
     assertEquals(obj, Json.decodeFromString(Json.encodeToString(obj)))

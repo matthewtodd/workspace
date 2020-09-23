@@ -62,6 +62,8 @@ class WakeListener : TestExecutionListener {
             name = source.getMethodName(),
             time = 0.0,
             skipped = listOf(TestSkip(reason)),
+            system_out = "",
+            system_err = "",
           )
         )
       )

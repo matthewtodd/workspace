@@ -60,6 +60,8 @@ class WakeTest : FrameworkAdapter {
             skipped = recorder.skipped,
             failures = recorder.failures,
             errors = recorder.errors,
+            system_out = "",
+            system_err = "",
           )
         )
       )

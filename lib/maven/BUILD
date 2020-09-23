@@ -11,6 +11,16 @@ maven_kt_js_jar(
   sha256: nil,
 )
 
+maven_klib(
+  artifact: "org.jetbrains.kotlinx:kotlinx-serialization-core-macosx64:1.0.0-RC2",
+  sha256: nil,
+)
+
+maven_klib(
+  artifact: "org.jetbrains.kotlinx:kotlinx-serialization-json-macosx64:1.0.0-RC2",
+  sha256: nil,
+)
+
 maven_jar(
   artifact: "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.0.0-RC",
   sha256: nil,

@@ -35,3 +35,19 @@ kt_jvm_lib(
   ],
   debug: true,
 )
+
+kt_native_macos_lib(
+  name: "native",
+  srcs: [
+    "NativeTestRunner.kt",
+    "TestResult.kt",
+  ],
+  deps: [
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_macosx64:klib",
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_macosx64:klib",
+  ],
+  plugins: [
+    "//lib/kotlin:serialization_compiler_plugin",
+  ],
+  os: :macos,
+)
