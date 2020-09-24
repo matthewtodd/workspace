@@ -98,7 +98,6 @@ module Wake
     actions.expire(before: Time.now - (60 * 60 * 24))
 
     broken_tests.count
-    0
   end
 
   def self.define_rules(registry, console:, debugging_enabled:)

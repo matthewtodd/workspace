@@ -1,6 +1,5 @@
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -16,15 +15,15 @@ class ExampleTest {
   // Uncomment these tests when working on test output formatting.
   // Also make Wake.run unconditionally return 0.
 
-  @Test fun failed() {
-    assertTrue(false, "This is supposed to fail")
-  }
+  // @Test fun failed() {
+  //   assertTrue(false, "This is supposed to fail")
+  // }
 
-  @Test fun error() {
-    throw Exception("Boom!")
-  }
+  // @Test fun error() {
+  //   throw Exception("Boom!")
+  // }
 
-  @Test
-  @Ignore
-  fun skipped() = Unit
+  // @Test
+  // @Ignore
+  // fun skipped() = Unit
 }

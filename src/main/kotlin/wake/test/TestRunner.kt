@@ -29,7 +29,7 @@ class TestRunner() {
   }
 }
 
-class TestResultBuilder(private val suiteName: String, private val name: String) {
+internal class TestResultBuilder(private val suiteName: String, private val name: String) {
   private val skipped: MutableList<TestSkip> = mutableListOf()
   private val failures: MutableList<TestFailure> = mutableListOf()
   private val errors: MutableList<TestError> = mutableListOf()
