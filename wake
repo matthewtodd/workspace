@@ -559,24 +559,26 @@ module Wake
     )
 
     registry.new_macro(
-      :maven_jar,
+      :maven_jars,
       attributes: {
         repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
-        artifact: Attribute.new(MavenCoordinates),
-        sha256: Attribute.new(Verifier),
+        artifacts: Attribute.new(MavenCoordinates, list: true),
       },
-      implementation: ->(context, repository:, artifact:, sha256:) {
-        context.package(artifact.package_path) do
-          http_file(
-            name: artifact.filename,
-            url: artifact.url(repository),
-            sha256: sha256,
-          )
+      implementation: ->(context, repository:, artifacts:) {
+        # Here we want to resolve dependencies!
+        artifacts.each do |artifact|
+          context.package(artifact.package_path) do
+            http_file(
+              name: artifact.filename,
+              url: artifact.url(repository),
+              sha256: nil,
+            )
 
-          java_import(
-            name: "jar",
-            jar: artifact.filename,
-          )
+            java_import(
+              name: "jar",
+              jar: artifact.filename,
+            )
+          end
         end
       },
     )
