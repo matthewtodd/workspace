@@ -1563,9 +1563,14 @@ module Wake
         end
 
         if @test_results.any?
-          buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
-          buffer.print " " * @test_results.count
-          buffer.puts "\e[0m"
+          # BIG BAR
+          # buffer.print("\e[7;%sm" % [@test_results.max.ansi_color_code])
+          # buffer.print " " * @test_results.count
+          # buffer.puts "\e[0m"
+          # buffer.puts
+
+          # LITTLE DOTS
+          buffer.puts @test_results.map { |result| "\e[%sm%s\e[0m" % [result.ansi_color_code, result.result_code] }.join
           buffer.puts
 
           @test_results.reject(&:passed?).each_with_index do |result, i|
@@ -2633,18 +2638,19 @@ module Wake
       @failures = kwargs.fetch(:failures)
       @system_out = kwargs.fetch(:system_out)
       @system_err = kwargs.fetch(:system_err)
-      @result_code = " " # Use a space with reversed video to get a big, colorful bar!
 
       location = "#{@class_name}##{@name}"
 
       if @skipped.any?
         @rank = 1
         @result_label = "Skipped"
-        @ansi_color_code = "95" # solarized purple is bright magenta, 95
+        @result_code = "S"
+        @ansi_color_code = "0"
         @to_s = "#{location}:\n#{@skipped.first.message}"
       elsif @failures.any?
         @rank = 2
         @result_label = "Failed"
+        @result_code = "F"
         @ansi_color_code = "31"
         @to_s = <<~END.chomp
           #{location}:
@@ -2654,6 +2660,7 @@ module Wake
       elsif @errors.any?
         @rank = 3
         @result_label = "Error"
+        @result_code = "E"
         @ansi_color_code = "33"
         @to_s = <<~END.chomp
           #{location}:
@@ -2663,6 +2670,7 @@ module Wake
       else
         @rank = 0
         @result_label = "Passed"
+        @result_code = "."
         @ansi_color_code = "32"
         @to_s = location
       end
