@@ -1,113 +1,43 @@
 package org.matthewtodd.wake.test
 
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import kotlin.js.js
 import kotlin.test.FrameworkAdapter
-import kotlin.time.ExperimentalTime
-import kotlin.time.measureTime
 
 class WakeTest : FrameworkAdapter {
   private val runner = TestRunner()
+  private val suiteNames: MutableList<String> = mutableListOf()
 
   override fun suite(name: String, ignored: Boolean, suiteFn: () -> Unit) {
-    runner.suite(name, suiteFn)
+    if (name.isNotBlank()) {
+      suiteNames.add(name)
+    }
+    suiteFn()
+    if (name.isNotBlank()) {
+      suiteNames.removeAt(suiteNames.count() - 1)
+    }
   }
 
   override fun test(name: String, ignored: Boolean, testFn: () -> Any?) {
-    runner.test(name) {
-      if (ignored) {
-        skip()
-      } else {
-        try {
-          testFn()
-        } catch (e: AssertionError) {
-          failure(e)
-        } catch (e: Throwable) {
-          error(e)
-        }
-      }
-    }
+    runner.test(suiteNames.joinToString("."), name, ignored, testFn)
   }
+}
 
-  class TestRunner() {
-    private val suiteNames: MutableList<String> = mutableListOf()
+actual fun errorType(e: Throwable): String {
+  return stack(e).lineSequence().take(1).joinToString().splitToSequence(":").take(1).joinToString()
+}
 
-    fun suite(name: String, suiteFn: () -> Unit) {
-      if (name.isNotBlank()) {
-        suiteNames.add(name)
-      }
-      suiteFn()
-      if (name.isNotBlank()) {
-        suiteNames.removeAt(suiteNames.count() - 1)
-      }
-    }
+actual fun errorBacktrace(e: Throwable): List<String> {
+  return stack(e).lineSequence().drop(1).dropWhile(::shouldFilter).map(String::trim).toList() // TODO further massage / filter backtrace
+}
 
-    @OptIn(ExperimentalTime::class)
-    fun test(name: String, run: ResultRecorder.() -> Unit) {
-      val recorder = ResultRecorder()
+fun shouldFilter(@Suppress("UNUSED_PARAMETER") line: String): Boolean {
+  return listOf(
+    "Object.captureStack",
+    "/kotlin.js",
+    "/kotlin-test.js",
+  ).any(line::contains)
+}
 
-      val time = measureTime {
-        recorder.run()
-      }
-
-      println(
-        Json.encodeToString(
-          TestResult(
-            class_name = suiteNames.joinToString("."),
-            name = name,
-            time = time.inSeconds,
-            skipped = recorder.skipped,
-            failures = recorder.failures,
-            errors = recorder.errors,
-            system_out = "",
-            system_err = "",
-          )
-        )
-      )
-    }
-  }
-
-  class ResultRecorder() {
-    val skipped: MutableList<TestSkip> = mutableListOf()
-    val failures: MutableList<TestFailure> = mutableListOf()
-    val errors: MutableList<TestError> = mutableListOf()
-
-    fun skip() {
-      skipped.add(
-        TestSkip("@Ignored.")
-      )
-    }
-
-    fun failure(e: AssertionError) {
-      failures.add(
-        TestFailure(
-          message = e.message!!,
-          location = stack(e).lineSequence().drop(1).dropWhile(::shouldFilter).take(1).map(String::trim).joinToString(), // TODO further massage location
-        )
-      )
-    }
-
-    fun error(e: Throwable) {
-      errors.add(
-        TestError(
-          type = stack(e).lineSequence().take(1).joinToString().splitToSequence(":").take(1).joinToString(),
-          message = e.message!!,
-          backtrace = stack(e).lineSequence().drop(1).dropWhile(::shouldFilter).map(String::trim).toList(), // TODO further massage / filter backtrace
-        )
-      )
-    }
-
-    fun shouldFilter(@Suppress("UNUSED_PARAMETER") line: String): Boolean {
-      return listOf(
-        "Object.captureStack",
-        "/kotlin.js",
-        "/kotlin-test.js",
-      ).any(line::contains)
-    }
-
-    fun stack(@Suppress("UNUSED_PARAMETER") e: Throwable): String {
-      return js("e.stack")
-    }
-  }
+fun stack(@Suppress("UNUSED_PARAMETER") e: Throwable): String {
+  return js("e.stack")
 }

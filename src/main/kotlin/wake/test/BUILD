@@ -5,6 +5,7 @@ kt_js_lib(
   srcs: [
     "JavascriptTestRunner.kt",
     "TestResult.kt",
+    "TestRunner.kt",
   ],
   deps: [
     "//lib/kotlin:test_js",
@@ -41,6 +42,7 @@ kt_native_macos_lib(
   srcs: [
     "NativeTestRunner.kt",
     "TestResult.kt",
+    "TestRunner.kt",
   ],
   deps: [
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_macosx64:klib",

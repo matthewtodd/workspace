@@ -1,90 +1,33 @@
 package org.matthewtodd.wake.test
 
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlin.native.internal.test.TestCase
 import kotlin.native.internal.test.TestSuite
-import kotlin.time.ExperimentalTime
-import kotlin.time.measureTime
 
-class TestRunner(val suites: List<TestSuite>) {
+class NativeTestRunner(val suites: List<TestSuite>) {
+  private val runner = TestRunner()
+
   fun run() {
-    suites.forEach { it.run(this) }
-  }
-
-  @OptIn(ExperimentalTime::class)
-  fun test(testCase: TestCase, run: ResultRecorder.() -> Unit) {
-    val recorder = ResultRecorder()
-
-    val time = measureTime {
-      recorder.run()
-    }
-
-    println(
-      Json.encodeToString(
-        TestResult(
-          class_name = testCase.suite.name,
-          name = testCase.name,
-          time = time.inSeconds,
-          skipped = recorder.skipped,
-          failures = recorder.failures,
-          errors = recorder.errors,
-          system_out = "",
-          system_err = "",
-        )
+    suites.flatMap { it.testCases.values }.forEach {
+      runner.test(
+        it.suite.name,
+        it.name,
+        it.ignored,
+        it::run
       )
-    )
-  }
-}
-private fun TestSuite.run(runner: TestRunner) {
-  doBeforeClass()
-
-  testCases.values.forEach {
-    runner.test(it) {
-      if (it.ignored) {
-        skip()
-      } else {
-        try {
-          it.run()
-        } catch (e: AssertionError) {
-          failure(e)
-        } catch (e: Throwable) {
-          error(e)
-        }
-      }
     }
   }
-
-  doAfterClass()
 }
 
-class ResultRecorder() {
-  val skipped: MutableList<TestSkip> = mutableListOf()
-  val failures: MutableList<TestFailure> = mutableListOf()
-  val errors: MutableList<TestError> = mutableListOf()
+actual fun errorType(e: Throwable) = e.toString().split(":").first()
 
-  fun skip() {
-    skipped.add(
-      TestSkip("@Ignored.")
-    )
-  }
+actual fun errorBacktrace(e: Throwable) = e.getStackTrace().asSequence().dropWhile(::shouldFilter).toList()
 
-  fun failure(e: AssertionError) {
-    failures.add(
-      TestFailure(
-        message = e.message!!,
-        location = "",
-      )
-    )
-  }
-
-  fun error(e: Throwable) {
-    errors.add(
-      TestError(
-        type = "",
-        message = e.message!!,
-        backtrace = emptyList(),
-      )
-    )
-  }
+fun shouldFilter(@Suppress("UNUSED_PARAMETER") line: String): Boolean {
+  return listOf(
+    "Error#<init>",
+    "Exception#<init>",
+    "Throwable#<init>",
+    "kotlin.test#assert",
+    "kotlin.test.Asserter",
+    "kotlin.test.DefaultAsserter",
+  ).any(line::contains)
 }

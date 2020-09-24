@@ -98,6 +98,7 @@ module Wake
     actions.expire(before: Time.now - (60 * 60 * 24))
 
     broken_tests.count
+    0
   end
 
   def self.define_rules(registry, console:, debugging_enabled:)
@@ -509,7 +510,7 @@ module Wake
         launcher_contents = <<~END
           package kotlin.native.internal.test
 
-          import org.matthewtodd.wake.test.TestRunner
+          import org.matthewtodd.wake.test.NativeTestRunner
 
           @ThreadLocal
           private object GeneratedSuites {
@@ -522,7 +523,7 @@ module Wake
           }
 
           fun wake() {
-            TestRunner(GeneratedSuites.suites).run()
+            NativeTestRunner(GeneratedSuites.suites).run()
           }
         END
 
@@ -2859,6 +2860,7 @@ module Wake
         "-module-kind", "umd",
         "-target", "v6",
         "-Werror",
+        "-Xmulti-platform",
         "-Xopt-in=kotlin.RequiresOptIn",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
@@ -2915,6 +2917,7 @@ module Wake
         "-language-version", "1.4",
         "-jvm-target", "14",
         "-Werror",
+        "-Xmulti-platform",
         "-Xopt-in=kotlin.RequiresOptIn",
         "-Xuse-ir",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
@@ -2967,6 +2970,7 @@ module Wake
         "-o", output.chomp(".klib"),
         "-produce", "library",
         "-Werror",
+        "-Xmulti-platform",
         "-Xopt-in=kotlin.RequiresOptIn",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
@@ -3017,6 +3021,7 @@ module Wake
         "-o", output.chomp(".kexe"),
         "-tr",
         "-Werror",
+        "-Xmulti-platform",
         "-Xopt-in=kotlin.RequiresOptIn",
       ]
 
