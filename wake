@@ -21,6 +21,12 @@ require "tmpdir"
 require "uri"
 require "zlib"
 
+# We run the build with parallel workers, in threads.
+# When any given thread raises, we want to stop the build immediately.
+# We kill report_on_exception so we don't see the trace twice.
+Thread.abort_on_exception = true
+Thread.report_on_exception = false
+
 module Wake
   def self.run(*args)
     options = { debug: false, jobs: 1 }
