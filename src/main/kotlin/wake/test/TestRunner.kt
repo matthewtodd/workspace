@@ -5,13 +5,15 @@ import kotlinx.serialization.json.Json
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-expect fun errorType(e: Throwable): String
-expect fun errorBacktrace(e: Throwable): List<String>
+interface BacktraceInterpreter {
+  fun errorType(e: Throwable): String
+  fun errorBacktrace(e: Throwable): List<String>
+}
 
-class TestRunner() {
+class TestRunner(private val backtraceInterpreter: BacktraceInterpreter) {
   @OptIn(ExperimentalTime::class)
   fun test(suiteName: String, name: String, ignored: Boolean, testFn: () -> Any?) {
-    val result = TestResultBuilder(suiteName, name).run {
+    val result = TestResultBuilder(suiteName, name, backtraceInterpreter).run {
       if (ignored) {
         skip()
       } else {
@@ -29,7 +31,7 @@ class TestRunner() {
   }
 }
 
-internal class TestResultBuilder(private val suiteName: String, private val name: String) {
+internal class TestResultBuilder(private val suiteName: String, private val name: String, private val backtraceInterpreter: BacktraceInterpreter) {
   private val skipped: MutableList<TestSkip> = mutableListOf()
   private val failures: MutableList<TestFailure> = mutableListOf()
   private val errors: MutableList<TestError> = mutableListOf()
@@ -60,7 +62,7 @@ internal class TestResultBuilder(private val suiteName: String, private val name
     failures.add(
       TestFailure(
         message = e.message!!,
-        location = errorBacktrace(e).first(),
+        location = backtraceInterpreter.errorBacktrace(e).first(),
       )
     )
   }
@@ -68,9 +70,9 @@ internal class TestResultBuilder(private val suiteName: String, private val name
   fun error(e: Throwable) {
     errors.add(
       TestError(
-        type = errorType(e),
+        type = backtraceInterpreter.errorType(e),
         message = e.message!!,
-        backtrace = errorBacktrace(e),
+        backtrace = backtraceInterpreter.errorBacktrace(e),
       )
     )
   }

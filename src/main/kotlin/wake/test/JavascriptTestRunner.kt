@@ -4,7 +4,7 @@ import kotlin.js.js
 import kotlin.test.FrameworkAdapter
 
 class WakeTest : FrameworkAdapter {
-  private val runner = TestRunner()
+  private val runner = TestRunner(JavascriptBacktraceInterpreter())
   private val suiteNames: MutableList<String> = mutableListOf()
 
   override fun suite(name: String, ignored: Boolean, suiteFn: () -> Unit) {
@@ -22,22 +22,24 @@ class WakeTest : FrameworkAdapter {
   }
 }
 
-actual fun errorType(e: Throwable): String {
-  return stack(e).lineSequence().take(1).joinToString().splitToSequence(":").take(1).joinToString()
-}
+class JavascriptBacktraceInterpreter : BacktraceInterpreter {
+  override fun errorType(e: Throwable): String {
+    return stack(e).lineSequence().take(1).joinToString().splitToSequence(":").take(1).joinToString()
+  }
 
-actual fun errorBacktrace(e: Throwable): List<String> {
-  return stack(e).lineSequence().drop(1).dropWhile(::shouldFilter).map(String::trim).toList() // TODO further massage / filter backtrace
-}
+  override fun errorBacktrace(e: Throwable): List<String> {
+    return stack(e).lineSequence().drop(1).dropWhile(::shouldFilter).map(String::trim).toList() // TODO further massage / filter backtrace
+  }
 
-fun shouldFilter(@Suppress("UNUSED_PARAMETER") line: String): Boolean {
-  return listOf(
-    "Object.captureStack",
-    "/kotlin.js",
-    "/kotlin-test.js",
-  ).any(line::contains)
-}
+  private fun shouldFilter(line: String): Boolean {
+    return listOf(
+      "Object.captureStack",
+      "/kotlin.js",
+      "/kotlin-test.js",
+    ).any(line::contains)
+  }
 
-fun stack(@Suppress("UNUSED_PARAMETER") e: Throwable): String {
-  return js("e.stack")
+  private fun stack(@Suppress("UNUSED_PARAMETER") e: Throwable): String {
+    return js("e.stack")
+  }
 }
