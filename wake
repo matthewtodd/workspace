@@ -2626,8 +2626,6 @@ module Wake
         skipped: object.fetch("skipped", []).map(&Skipped.method(:json_create)),
         errors: object.fetch("errors", []).map(&Error.method(:json_create)),
         failures: object.fetch("failures", []).map(&Failure.method(:json_create)),
-        system_out: object.fetch("system_out"),
-        system_err: object.fetch("system_err"),
       )
     end
 
@@ -2644,8 +2642,6 @@ module Wake
       @skipped = kwargs.fetch(:skipped)
       @errors = kwargs.fetch(:errors)
       @failures = kwargs.fetch(:failures)
-      @system_out = kwargs.fetch(:system_out)
-      @system_err = kwargs.fetch(:system_err)
 
       location = "#{@class_name}##{@name}"
 
@@ -2751,8 +2747,6 @@ module Wake
         failures: result.failures.
           select { |f| Minitest::Assertion === f }.
           collect { |f| TestCase::Failure.new(f.error.message, Minitest.filter_backtrace(f.error.backtrace).first) },
-        system_out: "",
-        system_err: "",
       )
     end
   end

@@ -47,8 +47,6 @@ internal class TestResultBuilder(private val suiteName: String, private val name
       skipped = skipped,
       failures = failures,
       errors = errors,
-      system_out = "",
-      system_err = "",
     )
   }
 

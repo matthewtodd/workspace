@@ -62,8 +62,6 @@ class WakeListener : TestExecutionListener {
             name = source.getMethodName(),
             time = 0.0,
             skipped = listOf(TestSkip(reason)),
-            system_out = "",
-            system_err = "",
           )
         )
       )
@@ -85,8 +83,6 @@ class WakeListener : TestExecutionListener {
         class_name = source.getClassName(),
         name = source.getMethodName(),
         time = startTimes.get(testIdentifier)!!.elapsedNow().inSeconds,
-        system_out = "", // TODO StreamInterceptingTestExecutionListener
-        system_err = "", // TODO StreamInterceptingTestExecutionListener
       )
 
       val result = when (testExecutionResult.getStatus()!!) {

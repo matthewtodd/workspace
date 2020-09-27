@@ -10,8 +10,6 @@ data class TestResult(
   val errors: List<TestError> = emptyList(),
   val failures: List<TestFailure> = emptyList(),
   val skipped: List<TestSkip> = emptyList(),
-  val system_out: String,
-  val system_err: String,
 )
 
 @Serializable
