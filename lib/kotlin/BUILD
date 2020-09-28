@@ -11,6 +11,20 @@ http_file(
   sha256: nil,
 )
 
+# The kt_*_foo rules won't use these executables; they'll instead build up the
+# java command themselves. But it's nice to have them on hand for manually
+# poking around, looking at command-line options, etc.
+extract(
+  name: "bin",
+  archive: ":dist",
+  format: :zip,
+  paths: [
+    "bin/kotlinc",
+    "bin/kotlinc-js",
+  ],
+  strip_components: 1,
+)
+
 extract(
   name: "lib_kotlin_compiler",
   archive: ":dist",
