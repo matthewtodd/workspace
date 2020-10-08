@@ -117,6 +117,11 @@ java_import(
 )
 
 java_import(
+  name: "plugin",
+  jar: ":lib_kotlin_compiler",
+)
+
+java_import(
   name: "stdlib",
   jar: ":lib_kotlin_stdlib",
 )

@@ -1,5 +1,20 @@
 # vim: ft=ruby
 
+kt_jvm_lib(
+  name: "plugin_raw",
+  srcs: ["CompilerPlugin.kt"],
+  deps: ["//lib/kotlin:plugin"],
+)
+
+# Not sure this is what I want, but it at least keeps me from modifying the kt_jvm_lib rule while I'm exploring.
+java_lib_with_resources(
+  name: "plugin",
+  jar: ":plugin_raw",
+  services: {
+    "org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar" => "org.matthewtodd.wake.test.WakeTestComponentRegistrar",
+  },
+)
+
 kt_js_lib(
   name: "js",
   srcs: [

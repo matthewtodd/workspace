@@ -263,6 +263,43 @@ module Wake
     )
 
     registry.new_rule(
+      :java_lib_with_resources,
+      attributes: {
+        archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
+        jar: Attribute.new(Label, providers: [JavaInfo]),
+        services: Attribute.new(Hash, default: {}),
+      },
+      implementation: ->(context, archiver:, jar:, services:) {
+        archiver = archiver.fetch(JavaArchiverInfo)
+        java_info = jar.fetch(JavaInfo)
+        raw = java_info.jar
+
+        output = context.expand_path("lib%{name}.jar")
+
+        context.run(
+          inputs: [*archiver.files, raw],
+          parameters: [*services],
+          outputs: [output],
+        ) do |fs|
+          # TODO more efficient copy?
+          fs.open(raw, "rb") { |raw| fs.open(output, "wb") { |cooked| IO.copy_stream(raw, cooked) } }
+
+          services.each do |interface, provider|
+            fs.open("META-INF/services/#{interface}", "wb") { |io| io.puts(provider) }
+          end
+
+          fs.exec!(archiver.jar, "uf", output, "META-INF")
+        end
+
+        [JavaInfo.new(
+          jar: output,
+          deps: java_info.deps,
+          neverlink: java_info.neverlink,
+        )]
+      },
+    )
+
+    registry.new_rule(
       :java_runtime,
       attributes: {
         java: Attribute.new(Label, providers: [FileInfo]),
