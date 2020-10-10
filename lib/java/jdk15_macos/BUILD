@@ -216,15 +216,6 @@ extract(
 )
 
 extract(
-  name: "bin_javac",
-  archive: ":dist",
-  format: :tar_gz,
-  paths: ["bin/javac"],
-  strip_components: 3,
-  os: :macos,
-)
-
-extract(
   name: "bin_jdb",
   archive: ":dist",
   format: :tar_gz,
@@ -319,13 +310,6 @@ extract(
 java_archiver(
   name: "archiver",
   jar: ":bin_jar",
-  libs: ":lib",
-  os: :macos,
-)
-
-java_compiler(
-  name: "compiler",
-  javac: ":bin_javac",
   libs: ":lib",
   os: :macos,
 )

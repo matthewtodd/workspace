@@ -220,19 +220,6 @@ module Wake
         )]
       },
     )
-    registry.new_rule(
-      :java_compiler,
-      attributes: {
-        javac: Attribute.new(Label, providers: [FileInfo]),
-        libs: Attribute.new(Label, providers: [FileGroupInfo]),
-      },
-      implementation: ->(context, javac:, libs:) {
-        [JavaCompilerInfo.new(
-          javac: javac.fetch(FileInfo).path,
-          libs: libs.fetch(FileGroupInfo).paths,
-        )]
-      },
-    )
 
     registry.new_rule(
       :java_import,
@@ -246,19 +233,6 @@ module Wake
           deps: [],
           neverlink: neverlink,
         )]
-      },
-    )
-
-    registry.new_rule(
-      :java_lib,
-      attributes: {
-        compiler: Attribute.new(Label, default: "//lib/java:compiler", providers: [JavaCompilerInfo]),
-        srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
-      },
-      implementation: ->(context, deps:, compiler:, srcs:) {
-        jdk = compiler.fetch(JavaCompilerInfo)
-        jdk.compile(srcs: srcs, deps: deps, context: context)
       },
     )
 
@@ -2817,31 +2791,6 @@ module Wake
 
     def java_home
       jar.chomp("/bin/jar")
-    end
-  end
-
-  class JavaCompilerInfo < Struct.new(:javac, :libs, keyword_init: true)
-    def files
-      [javac, *libs]
-    end
-
-    def compile(srcs:, deps:, context:)
-      source_paths = srcs.map { |path| context.expand_path(path) }
-      dependency_paths = deps.map { |dep| dep.fetch(JavaInfo).jar }
-      output = context.expand_path("lib%{name}.jar")
-
-      context.run(inputs: [javac, jar, *libs, *source_paths, *dependency_paths], parameters: [], outputs: [output]) do |fs|
-        fs.mktmpdir do |tmp|
-          fs.exec!(javac, "-d", tmp, "-cp", *dependency_paths.join(":"), *source_paths) # TODO source version, target version?
-          fs.exec!(jar, "cf", output, "-C", tmp, ".")
-        end
-      end
-
-      [JavaInfo.new(
-        jar: output,
-        deps: deps.map { |dep| dep.fetch(JavaInfo) },
-        neverlink: false,
-      )]
     end
   end
 

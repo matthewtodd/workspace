@@ -208,15 +208,6 @@ extract(
 )
 
 extract(
-  name: "bin_javac",
-  archive: ":dist",
-  format: :tar_gz,
-  paths: ["bin/javac"],
-  strip_components: 1,
-  os: :linux,
-)
-
-extract(
   name: "lib",
   archive: ":dist",
   format: :tar_gz,
@@ -298,13 +289,6 @@ extract(
 java_archiver(
   name: "archiver",
   jar: ":bin_jar",
-  libs: ":lib",
-  os: :linux,
-)
-
-java_compiler(
-  name: "compiler",
-  javac: ":bin_javac",
   libs: ":lib",
   os: :linux,
 )
