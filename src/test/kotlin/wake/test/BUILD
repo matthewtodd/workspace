@@ -5,6 +5,7 @@ kt_js_test(
   srcs: ["TestResultTest.kt"],
   deps: [
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:jar",
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_js:jar",
     "//src/main/kotlin/wake/test:js",
   ],
 )
@@ -14,6 +15,7 @@ kt_jvm_test(
   srcs: ["TestResultTest.kt"],
   deps: [
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_jvm:jar",
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_jvm:jar",
     "//src/main/kotlin/wake/test:junit",
   ],
 )

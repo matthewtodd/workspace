@@ -25,6 +25,7 @@ kt_js_lib(
   deps: [
     "//lib/kotlin:test_js",
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:jar",
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_js:jar",
   ],
   plugins: [
     "//lib/kotlin:serialization_compiler_plugin",
@@ -40,6 +41,7 @@ kt_jvm_lib(
   deps: [
     "//lib/maven/org_apiguardian/apiguardian_api:jar", # NO
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_jvm:jar",
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_jvm:jar",
     "//lib/maven/org_junit_jupiter/junit_jupiter_engine:jar",
     "//lib/maven/org_junit_platform/junit_platform_commons:jar", # NO?
     "//lib/maven/org_junit_platform/junit_platform_engine:jar",
