@@ -20,14 +20,6 @@ extract(
 )
 
 extract(
-  name: "lib_kotlin_preloader",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlin-preloader.jar"],
-  strip_components: 1,
-)
-
-extract(
   name: "lib_kotlin_stdlib",
   archive: ":dist",
   format: :zip,
@@ -89,7 +81,6 @@ extract(
 
 kotlin_compiler(
   name: "compiler",
-  preloader: ":lib_kotlin_preloader",
   compiler: ":lib_kotlin_compiler",
   stdlib: ":stdlib",
   stdlib_js: ":stdlib_js",

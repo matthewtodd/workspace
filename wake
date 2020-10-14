@@ -292,19 +292,17 @@ module Wake
       attributes: {
         java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        preloader: Attribute.new(Label, providers: [FileInfo]),
         compiler: Attribute.new(Label, providers: [FileInfo]),
         stdlib: Attribute.new(Label, providers: [JavaInfo]),
         stdlib_js: Attribute.new(Label, providers: [KotlinJsInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
         native: Attribute.new(Label, providers: [KotlinNativeCompilerInfo]),
       },
-      implementation: ->(context, java_archiver:, java_runtime:, preloader:, compiler:, stdlib:, stdlib_js:, runtime:, native:) {
+      implementation: ->(context, java_archiver:, java_runtime:, compiler:, stdlib:, stdlib_js:, runtime:, native:) {
         [
           KotlinJsCompilerInfo.new(
             java_archiver: java_archiver.fetch(JavaArchiverInfo),
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-            preloader: preloader.fetch(FileInfo).path,
             compiler: compiler.fetch(FileInfo).path,
             stdlib: stdlib.fetch(JavaInfo),
             stdlib_js: stdlib_js.fetch(KotlinJsInfo),
@@ -312,7 +310,6 @@ module Wake
           ),
           KotlinJvmCompilerInfo.new(
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-            preloader: preloader.fetch(FileInfo).path,
             compiler: compiler.fetch(FileInfo).path,
             stdlib: stdlib.fetch(JavaInfo),
             runtime: runtime.fetch(FileGroupInfo).paths,
@@ -2824,7 +2821,7 @@ module Wake
   end
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
-  class KotlinJsCompilerInfo < Struct.new(:java_archiver, :java_runtime, :preloader, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
+  class KotlinJsCompilerInfo < Struct.new(:java_archiver, :java_runtime, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
     def compile(srcs:, deps:, plugins:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
@@ -2851,13 +2848,11 @@ module Wake
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
-      context.run(inputs: [*java_archiver.files, *java_runtime.files, preloader, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_archiver.arguments, *java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
+      context.run(inputs: [*java_archiver.files, *java_runtime.files, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_archiver.arguments, *java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
             java_runtime.arguments,
-            "-cp", preloader,
-            "org.jetbrains.kotlin.preloading.Preloader",
             "-cp", compiler,
             "org.jetbrains.kotlin.cli.js.K2JSCompiler",
             "-libraries", dependency_paths.join(":"),
@@ -2888,7 +2883,7 @@ module Wake
     end
   end
 
-  class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :preloader, :compiler, :stdlib, :runtime, keyword_init: true)
+  class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :compiler, :stdlib, :runtime, keyword_init: true)
     # To debug: ./var/tmp/lib/java/jdk14_macos/bin/jdb -attach localhost:9253
     def compile(srcs:, deps:, plugins:, debug: false, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
@@ -2910,7 +2905,7 @@ module Wake
       ]
 
       context.run(
-        inputs: [*java_runtime.files, preloader, compiler, *plugin_paths, *runtime, *source_paths, *dependency_paths],
+        inputs: [*java_runtime.files, compiler, *plugin_paths, *runtime, *source_paths, *dependency_paths],
         parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters],
         outputs: [output],
       ) do |fs|
@@ -2918,8 +2913,6 @@ module Wake
           java_runtime.java,
           java_runtime.arguments,
           java_parameters,
-          "-cp", preloader,
-          "org.jetbrains.kotlin.preloading.Preloader",
           "-cp", compiler,
           "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
           "-cp", dependency_paths.join(":"),
