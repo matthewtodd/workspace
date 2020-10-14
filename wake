@@ -292,9 +292,9 @@ module Wake
       attributes: {
         java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        compiler: Attribute.new(Label, providers: [FileInfo]),
-        stdlib: Attribute.new(Label, providers: [JavaInfo]),
-        stdlib_js: Attribute.new(Label, providers: [KotlinJsInfo]),
+        compiler: Attribute.new(Label, default: "//lib/kotlin:lib_kotlin_compiler", providers: [FileInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/kotlin:stdlib", providers: [JavaInfo]),
+        stdlib_js: Attribute.new(Label, default: "//lib/kotlin:stdlib_js", providers: [KotlinJsInfo]),
         runtime: Attribute.new(Label, providers: [FileGroupInfo]),
         native: Attribute.new(Label, providers: [KotlinNativeCompilerInfo]),
       },

@@ -59,14 +59,6 @@ extract(
 )
 
 extract(
-  name: "lib_kotlinx_serialization_compiler_plugin",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlinx-serialization-compiler-plugin.jar"],
-  strip_components: 1,
-)
-
-extract(
   name: "runtime",
   archive: ":dist",
   format: :zip,
@@ -81,21 +73,8 @@ extract(
 
 kotlin_compiler(
   name: "compiler",
-  compiler: ":lib_kotlin_compiler",
-  stdlib: ":stdlib",
-  stdlib_js: ":stdlib_js",
   runtime: ":runtime",
   native: ":native",
-)
-
-java_import(
-  name: "serialization_compiler_plugin",
-  jar: ":lib_kotlinx_serialization_compiler_plugin",
-)
-
-java_import(
-  name: "plugin",
-  jar: ":lib_kotlin_compiler",
 )
 
 java_import(

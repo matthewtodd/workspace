@@ -3,7 +3,7 @@
 kt_jvm_lib(
   name: "plugin_raw",
   srcs: ["CompilerPlugin.kt"],
-  deps: ["//lib/kotlin:plugin"],
+  deps: ["//lib/maven/org_jetbrains_kotlin/kotlin_compiler:jar"],
 )
 
 # Not sure this is what I want, but it at least keeps me from modifying the kt_jvm_lib rule while I'm exploring.
@@ -28,7 +28,7 @@ kt_js_lib(
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_js:jar",
   ],
   plugins: [
-    "//lib/kotlin:serialization_compiler_plugin",
+    "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
   ],
 )
 
@@ -49,7 +49,7 @@ kt_jvm_lib(
     "//lib/maven/org_opentest4j/opentest4j:jar", # NO
   ],
   plugins: [
-    "//lib/kotlin:serialization_compiler_plugin",
+    "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
   ],
   debug: true,
 )
@@ -66,7 +66,7 @@ kt_native_macos_lib(
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_macosx64:klib",
   ],
   plugins: [
-    "//lib/kotlin:serialization_compiler_plugin",
+    "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
   ],
   os: :macos,
 )
