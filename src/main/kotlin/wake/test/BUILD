@@ -51,7 +51,6 @@ kt_jvm_lib(
   plugins: [
     "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
   ],
-  debug: true,
 )
 
 kt_native_macos_lib(

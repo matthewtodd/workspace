@@ -29,9 +29,8 @@ Thread.report_on_exception = false
 
 module Wake
   def self.run(*args)
-    options = { debug: false, jobs: 1 }
+    options = { jobs: 1 }
     parser = OptionParser.new
-    parser.on("-d", "--debug")
     parser.on("-j", "--jobs=NUM", Integer)
     parser.order(args, into: options)
 
@@ -40,7 +39,7 @@ module Wake
 
     registry = Registry.new
 
-    define_rules(registry, console: console, debugging_enabled: options.fetch(:debug))
+    define_rules(registry, console: console)
 
     Pathname.glob("**/BUILD") do |build|
       registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
@@ -106,7 +105,7 @@ module Wake
     broken_tests.count
   end
 
-  def self.define_rules(registry, console:, debugging_enabled:)
+  def self.define_rules(registry, console:)
     registry.new_target(
       label: Label.parse("//tools:console"),
       os: :any,
@@ -440,11 +439,10 @@ module Wake
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", providers: [JavaInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
-        debug: Attribute.new(TrueClass, default: false),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:, debug:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:) {
         compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
-        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, debug: debug && debugging_enabled, context: context)
+        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context)
       },
     )
 
@@ -2882,7 +2880,7 @@ module Wake
   end
 
   class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :classpath, keyword_init: true)
-    def compile(srcs:, deps:, plugins:, debug: false, context:)
+    def compile(srcs:, deps:, plugins:, context:)
       classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
       source_paths = srcs.map { |path| context.expand_path(path) }
