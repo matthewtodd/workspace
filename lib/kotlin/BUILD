@@ -5,7 +5,14 @@ toolchain_type(name: "native", providers: [KotlinNativeCompilerInfo])
 
 kotlin_compiler(
   name: "compiler",
-  # TODO reintroduce attributes here; don't use defaults
+  classpath: [
+    "//lib/maven/org_jetbrains/annotations:jar",
+    "//lib/maven/org_jetbrains_intellij_deps/trove4j:jar",
+    "//lib/maven/org_jetbrains_kotlin/kotlin_compiler:jar",
+    "//lib/maven/org_jetbrains_kotlin/kotlin_reflect:jar",
+    "//lib/maven/org_jetbrains_kotlin/kotlin_script_runtime:jar",
+    "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar",
+  ],
   native: ":native",
 )
 

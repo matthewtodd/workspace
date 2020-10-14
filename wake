@@ -292,19 +292,7 @@ module Wake
       attributes: {
         deprecated_java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        classpath: Attribute.new(
-          Label,
-          list: true,
-          default: [
-            "//lib/maven/org_jetbrains/annotations:jar",
-            "//lib/maven/org_jetbrains_intellij_deps/trove4j:jar",
-            "//lib/maven/org_jetbrains_kotlin/kotlin_compiler:jar",
-            "//lib/maven/org_jetbrains_kotlin/kotlin_reflect:jar",
-            "//lib/maven/org_jetbrains_kotlin/kotlin_script_runtime:jar",
-            "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar",
-          ],
-          providers: [JavaInfo],
-        ),
+        classpath: Attribute.new(Label, list: true, providers: [JavaInfo]),
         native: Attribute.new(Label, providers: [KotlinNativeCompilerInfo]),
       },
       implementation: ->(context, deprecated_java_archiver:, java_runtime:, classpath:, native:) {
@@ -312,11 +300,11 @@ module Wake
           KotlinJsCompilerInfo.new(
             deprecated_java_archiver: deprecated_java_archiver.fetch(JavaArchiverInfo),
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-            classpath: classpath.map { |dep| dep.fetch(JavaInfo).jar },
+            classpath: classpath.map { |dep| dep.fetch(JavaInfo) },
           ),
           KotlinJvmCompilerInfo.new(
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-            classpath: classpath.map { |dep| dep.fetch(JavaInfo).jar },
+            classpath: classpath.map { |dep| dep.fetch(JavaInfo) },
           ),
           native.fetch(KotlinNativeCompilerInfo),
         ]
@@ -2830,6 +2818,8 @@ module Wake
   # https://kotlinlang.org/docs/reference/compiler-reference.html
   class KotlinJsCompilerInfo < Struct.new(:deprecated_java_archiver, :java_runtime, :classpath, keyword_init: true)
     def compile(srcs:, deps:, plugins:, context:)
+      classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
+
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
       dependency_paths = dependencies.map(&:jar)
@@ -2892,8 +2882,9 @@ module Wake
   end
 
   class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :classpath, keyword_init: true)
-    # To debug: ./var/tmp/lib/java/jdk14_macos/bin/jdb -attach localhost:9253
     def compile(srcs:, deps:, plugins:, debug: false, context:)
+      classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
+
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(JavaInfo) }
       dependency_paths = dependencies.map { |java_info| java_info.jar }
