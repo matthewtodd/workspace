@@ -290,29 +290,33 @@ module Wake
     registry.new_rule(
       :kotlin_compiler,
       attributes: {
-        java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
+        deprecated_java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
-        compiler: Attribute.new(Label, default: "//lib/kotlin:lib_kotlin_compiler", providers: [FileInfo]),
-        stdlib: Attribute.new(Label, default: "//lib/kotlin:stdlib", providers: [JavaInfo]),
-        stdlib_js: Attribute.new(Label, default: "//lib/kotlin:stdlib_js", providers: [KotlinJsInfo]),
-        runtime: Attribute.new(Label, providers: [FileGroupInfo]),
+        classpath: Attribute.new(
+          Label,
+          list: true,
+          default: [
+            "//lib/maven/org_jetbrains/annotations:jar",
+            "//lib/maven/org_jetbrains_intellij_deps/trove4j:jar",
+            "//lib/maven/org_jetbrains_kotlin/kotlin_compiler:jar",
+            "//lib/maven/org_jetbrains_kotlin/kotlin_reflect:jar",
+            "//lib/maven/org_jetbrains_kotlin/kotlin_script_runtime:jar",
+            "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar",
+          ],
+          providers: [JavaInfo],
+        ),
         native: Attribute.new(Label, providers: [KotlinNativeCompilerInfo]),
       },
-      implementation: ->(context, java_archiver:, java_runtime:, compiler:, stdlib:, stdlib_js:, runtime:, native:) {
+      implementation: ->(context, deprecated_java_archiver:, java_runtime:, classpath:, native:) {
         [
           KotlinJsCompilerInfo.new(
-            java_archiver: java_archiver.fetch(JavaArchiverInfo),
+            deprecated_java_archiver: deprecated_java_archiver.fetch(JavaArchiverInfo),
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-            compiler: compiler.fetch(FileInfo).path,
-            stdlib: stdlib.fetch(JavaInfo),
-            stdlib_js: stdlib_js.fetch(KotlinJsInfo),
-            runtime: runtime.fetch(FileGroupInfo).paths,
+            classpath: classpath.map { |dep| dep.fetch(JavaInfo).jar },
           ),
           KotlinJvmCompilerInfo.new(
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
-            compiler: compiler.fetch(FileInfo).path,
-            stdlib: stdlib.fetch(JavaInfo),
-            runtime: runtime.fetch(FileGroupInfo).paths,
+            classpath: classpath.map { |dep| dep.fetch(JavaInfo).jar },
           ),
           native.fetch(KotlinNativeCompilerInfo),
         ]
@@ -391,11 +395,12 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:) {
         compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
-        compiler.compile(srcs: srcs, deps: deps, plugins: plugins, context: context)
+        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context)
       },
     )
 
@@ -405,13 +410,14 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
-        kotlin_test_js: Attribute.new(Label, default: "//lib/kotlin:test_js", providers: [KotlinJsInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo]),
+        kotlin_test_js: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar", providers: [KotlinJsInfo]),
         node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
         test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:js", providers: [KotlinJsInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, kotlin_test_js:, node_runtime:, test_runner:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, kotlin_test_js:, node_runtime:, test_runner:) {
         compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
-        test_module = compiler.compile(srcs: srcs, deps: [kotlin_test_js, *deps], plugins: [], context: context).find(-> { raise }) { |provider| KotlinJsInfo === provider }
+        test_module = compiler.compile(srcs: srcs, deps: [stdlib, kotlin_test_js, *deps], plugins: [], context: context).find(-> { raise }) { |provider| KotlinJsInfo === provider }
 
         node = node_runtime.fetch(NodeRuntimeInfo)
         modules = [test_runner.fetch(KotlinJsInfo), test_module].map(&:transitive_runtime_dependencies).flatten.sort.uniq
@@ -444,12 +450,13 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", providers: [JavaInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
         debug: Attribute.new(TrueClass, default: false),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:, debug:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:, debug:) {
         compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
-        compiler.compile(srcs: srcs, deps: deps, plugins: plugins, debug: debug && debugging_enabled, context: context)
+        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, debug: debug && debugging_enabled, context: context)
       },
     )
 
@@ -459,7 +466,7 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
-        standard_deps: Attribute.new(Label, list: true, default: ["//lib/kotlin:test", "//lib/kotlin:test_junit5", "//lib/maven/org_junit_jupiter/junit_jupiter_api:jar"], providers: [JavaInfo]),
+        standard_deps: Attribute.new(Label, list: true, default: ["//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", "//lib/maven/org_jetbrains_kotlin/kotlin_test:jar", "//lib/kotlin:test_junit5", "//lib/maven/org_junit_jupiter/junit_jupiter_api:jar"], providers: [JavaInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:junit", providers: [JavaInfo]),
       },
@@ -2821,7 +2828,7 @@ module Wake
   end
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
-  class KotlinJsCompilerInfo < Struct.new(:java_archiver, :java_runtime, :compiler, :stdlib, :stdlib_js, :runtime, keyword_init: true)
+  class KotlinJsCompilerInfo < Struct.new(:deprecated_java_archiver, :java_runtime, :classpath, keyword_init: true)
     def compile(srcs:, deps:, plugins:, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
@@ -2841,6 +2848,7 @@ module Wake
         "-language-version", "1.4",
         "-meta-info",
         "-module-kind", "umd",
+        "-no-stdlib",
         "-target", "v6",
         "-Werror",
         "-Xmulti-platform",
@@ -2848,12 +2856,12 @@ module Wake
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
-      context.run(inputs: [*java_archiver.files, *java_runtime.files, compiler, *plugin_paths, stdlib.jar, stdlib_js.jar, *runtime, *source_paths, *dependency_paths], parameters: [*java_archiver.arguments, *java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
+      context.run(inputs: [*deprecated_java_archiver.files, *java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths], parameters: [*deprecated_java_archiver.arguments, *java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
         fs.mktmpdir do |tmp|
           fs.exec!(
             java_runtime.java,
             java_runtime.arguments,
-            "-cp", compiler,
+            "-cp", classpath.join(":"),
             "org.jetbrains.kotlin.cli.js.K2JSCompiler",
             "-libraries", dependency_paths.join(":"),
             "-output", File.join(tmp, File.basename(output_js)),
@@ -2862,8 +2870,8 @@ module Wake
           )
 
           fs.exec!(
-            java_archiver.jar,
-            java_archiver.arguments,
+            deprecated_java_archiver.jar,
+            deprecated_java_archiver.arguments,
             "cf",
             output_jar,
             "-C",
@@ -2878,47 +2886,47 @@ module Wake
       [KotlinJsInfo.new(
         jar: output_jar,
         js: output_js,
-        deps: [stdlib_js, *dependencies],
+        deps: dependencies,
       )]
     end
   end
 
-  class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :compiler, :stdlib, :runtime, keyword_init: true)
+  class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :classpath, keyword_init: true)
     # To debug: ./var/tmp/lib/java/jdk14_macos/bin/jdb -attach localhost:9253
     def compile(srcs:, deps:, plugins:, debug: false, context:)
       source_paths = srcs.map { |path| context.expand_path(path) }
-      dependencies = deps.map { |dep| dep.fetch(JavaInfo) }.append(stdlib)
+      dependencies = deps.map { |dep| dep.fetch(JavaInfo) }
       dependency_paths = dependencies.map { |java_info| java_info.jar }
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
       output = context.expand_path("lib%{name}.jar")
-      java_parameters = []
-      java_parameters << "-agentlib:jdwp=transport=dt_socket,server=y,address=9253" if debug
+
       kotlinc_parameters = [
         "-api-version", "1.4",
+        "-cp", dependency_paths.join(":"),
+        "-d", output,
         "-language-version", "1.4",
         "-jvm-target", "14",
+        "-no-reflect",
+        "-no-stdlib",
         "-Werror",
         "-Xmulti-platform",
         "-Xopt-in=kotlin.RequiresOptIn",
         "-Xuse-ir",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
+        source_paths,
       ]
 
       context.run(
-        inputs: [*java_runtime.files, compiler, *plugin_paths, *runtime, *source_paths, *dependency_paths],
-        parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters],
+        inputs: [*java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths],
+        parameters: [*java_runtime.arguments, *kotlinc_parameters],
         outputs: [output],
       ) do |fs|
         fs.exec!(
           java_runtime.java,
           java_runtime.arguments,
-          java_parameters,
-          "-cp", compiler,
+          "-cp", classpath.join(":"),
           "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
-          "-cp", dependency_paths.join(":"),
-          "-d", output,
           kotlinc_parameters,
-          source_paths,
         )
       end
 

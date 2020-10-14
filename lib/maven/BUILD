@@ -8,10 +8,7 @@ maven_jars(
     "org.jetbrains.kotlin:kotlin-reflect:1.4.10",
     "org.jetbrains.kotlin:kotlin-script-runtime:1.4.10",
     "org.jetbrains.kotlin:kotlin-serialization-unshaded:1.4.10",
-    "org.jetbrains.kotlin:kotlin-stdlib-common:1.4.10",
-    "org.jetbrains.kotlin:kotlin-stdlib-js:1.4.10",
     "org.jetbrains.kotlin:kotlin-stdlib:1.4.10",
-    "org.jetbrains.kotlin:kotlin-test-js:1.4.10",
     "org.jetbrains.kotlin:kotlin-test-junit5:1.4.10",
     "org.jetbrains.kotlin:kotlin-test:1.4.10",
     "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.0.0",
@@ -33,6 +30,20 @@ maven_klibs(
     "org.jetbrains.kotlinx:kotlinx-serialization-json-js:1.0.0",
     "org.jetbrains.kotlinx:kotlinx-serialization-json-macosx64:1.0.0",
   ],
+)
+
+# TODO deprecated
+maven_kt_js_jar(
+  artifact: "org.jetbrains.kotlin:kotlin-stdlib-js:1.4.10",
+  js_path: "kotlin.js",
+  sha256: nil,
+)
+
+# TODO deprecated
+maven_kt_js_jar(
+  artifact: "org.jetbrains.kotlin:kotlin-test-js:1.4.10",
+  js_path: "kotlin-test.js",
+  sha256: nil,
 )
 
 # TODO deprecated

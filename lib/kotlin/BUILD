@@ -1,108 +1,12 @@
 # vim: ft=ruby
 
 # https://kotlinlang.org/releases.html
-# https://github.com/JetBrains/kotlin/releases/latest
-# https://kotlinlang.org/docs/reference/compiler-reference.html
 toolchain_type(name: "native", providers: [KotlinNativeCompilerInfo])
-
-http_file(
-  name: "dist",
-  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.10/kotlin-compiler-1.4.10.zip",
-  sha256: nil,
-)
-
-extract(
-  name: "lib_kotlin_compiler",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlin-compiler.jar"],
-  strip_components: 1,
-)
-
-extract(
-  name: "lib_kotlin_stdlib",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlin-stdlib.jar"],
-  strip_components: 1,
-)
-extract(
-  name: "lib_kotlin_stdlib_js",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlin-stdlib-js.jar"],
-  strip_components: 1,
-)
-
-extract(
-  name: "lib_kotlin_test",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlin-test.jar"],
-  strip_components: 1,
-)
-
-extract(
-  name: "lib_kotlin_test_js",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlin-test-js.jar"],
-  strip_components: 1,
-)
-
-extract(
-  name: "lib_kotlin_test_junit5",
-  archive: ":dist",
-  format: :zip,
-  paths: ["lib/kotlin-test-junit5.jar"],
-  strip_components: 1,
-)
-
-extract(
-  name: "runtime",
-  archive: ":dist",
-  format: :zip,
-  paths: [
-    "lib/annotations-13.0.jar",
-    "lib/kotlin-reflect.jar",
-    "lib/kotlin-script-runtime.jar",
-    "lib/trove4j.jar",
-  ],
-  strip_components: 1,
-)
 
 kotlin_compiler(
   name: "compiler",
-  runtime: ":runtime",
+  # TODO reintroduce attributes here; don't use defaults
   native: ":native",
-)
-
-java_import(
-  name: "stdlib",
-  jar: ":lib_kotlin_stdlib",
-)
-
-kt_js_import(
-  name: "stdlib_js",
-  jar: ":lib_kotlin_stdlib_js",
-  js_path: "kotlin.js",
-)
-
-java_import(
-  name: "test",
-  jar: ":lib_kotlin_test",
-)
-
-kt_js_import(
-  name: "test_js",
-  jar: ":lib_kotlin_test_js",
-  js_path: "kotlin-test.js",
-)
-
-java_import(
-  name: "test_junit5",
-  jar: ":lib_kotlin_test_junit5",
-  neverlink: true,
 )
 
 toolchain(
@@ -117,4 +21,27 @@ toolchain(
   os: :macos,
   toolchain: "//lib/kotlin/native_macos:compiler",
   toolchain_type: "//lib/kotlin:native",
+)
+
+# TODO deprecated
+http_file(
+  name: "dist",
+  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.10/kotlin-compiler-1.4.10.zip",
+  sha256: nil,
+)
+
+# TODO deprecated
+extract(
+  name: "lib_kotlin_test_junit5",
+  archive: ":dist",
+  format: :zip,
+  paths: ["lib/kotlin-test-junit5.jar"],
+  strip_components: 1,
+)
+
+# TODO deprecated
+java_import(
+  name: "test_junit5",
+  jar: ":lib_kotlin_test_junit5",
+  neverlink: true,
 )
