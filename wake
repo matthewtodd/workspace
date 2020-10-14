@@ -487,12 +487,12 @@ module Wake
     )
 
     registry.new_rule(
-      :kt_native_import,
+      :kotlin_import,
       attributes: {
         klib: Attribute.new(Label, providers: [FileInfo]),
       },
       implementation: ->(context, klib:) {
-        [KotlinNativeInfo.new(
+        [KotlinInfo.new(
           klib: klib.fetch(FileInfo).path,
           deps: [],
         )]
@@ -504,7 +504,7 @@ module Wake
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinNativeCompilerInfo]),
         srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, providers: [KotlinNativeInfo]),
+        deps: Attribute.new(Label, list: true, providers: [KotlinInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:) {
@@ -518,8 +518,8 @@ module Wake
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinNativeCompilerInfo]),
         srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, default: [], providers: [KotlinNativeInfo]),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:native", providers: [KotlinNativeInfo]),
+        deps: Attribute.new(Label, list: true, default: [], providers: [KotlinInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:native", providers: [KotlinInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, test_runner:) {
         launcher_path = context.expand_path("%{name}Launcher.kt")
@@ -551,7 +551,7 @@ module Wake
         compiler.compile_test_binary(
           entry_point: "kotlin.native.internal.test.wake",
           srcs: [launcher_path, *srcs.map { |path| context.expand_path(path) }],
-          deps: [test_runner, *deps].map { |dep| dep.fetch(KotlinNativeInfo).transitive_runtime_dependencies }.flatten.sort.uniq,
+          deps: [test_runner, *deps].map { |dep| dep.fetch(KotlinInfo).transitive_runtime_dependencies }.flatten.sort.uniq,
           context: context,
         )
       },
@@ -595,6 +595,30 @@ module Wake
     )
 
     registry.new_macro(
+      :maven_klibs,
+      attributes: {
+        repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
+        artifacts: Attribute.new(MavenCoordinates, list: true),
+      },
+      implementation: ->(context, repository:, artifacts:) {
+        artifacts.map(&:klib).each do |artifact|
+          context.package(artifact.package_path) do
+            http_file(
+              name: artifact.filename,
+              url: artifact.url(repository),
+              sha256: nil,
+            )
+
+            kotlin_import(
+              name: "klib",
+              klib: artifact.filename,
+            )
+          end
+        end
+      },
+    )
+
+    registry.new_macro(
       :maven_kt_js_jar,
       attributes: {
         repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
@@ -614,31 +638,6 @@ module Wake
             name: "jar",
             jar: artifact.filename,
             js_path: js_path,
-          )
-        end
-      },
-    )
-
-    registry.new_macro(
-      :maven_klib,
-      attributes: {
-        repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
-        artifact: Attribute.new(MavenCoordinates),
-        sha256: Attribute.new(Verifier),
-      },
-      implementation: ->(context, repository:, artifact:, sha256:) {
-        artifact = artifact.klib
-
-        context.package(artifact.package_path) do
-          http_file(
-            name: artifact.filename,
-            url: artifact.url(repository),
-            sha256: sha256,
-          )
-
-          kt_native_import(
-            name: "klib",
-            klib: artifact.filename,
           )
         end
       },
@@ -2941,7 +2940,7 @@ module Wake
   class KotlinNativeCompilerInfo < Struct.new(:java_runtime, :classpath, :files, keyword_init: true)
     def compile(context:, srcs:, deps:, plugins:)
       source_paths = srcs.map { |path| context.expand_path(path) }
-      dependencies = deps.map { |dep| dep.fetch(KotlinNativeInfo) }
+      dependencies = deps.map { |dep| dep.fetch(KotlinInfo) }
       dependency_paths = dependencies.map(&:klib)
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
       output = context.expand_path("lib%{name}.klib")
@@ -2985,7 +2984,7 @@ module Wake
         )
       end
 
-      [KotlinNativeInfo.new(
+      [KotlinInfo.new(
         klib: output,
         deps: dependencies,
       )]
@@ -3065,7 +3064,7 @@ module Wake
     end
   end
 
-  class KotlinNativeInfo < Struct.new(:klib, :deps, keyword_init: true)
+  class KotlinInfo < Struct.new(:klib, :deps, keyword_init: true)
     def transitive_runtime_dependencies
       [klib, *deps.map(&:transitive_runtime_dependencies)]
     end
