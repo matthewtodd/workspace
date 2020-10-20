@@ -43,3 +43,33 @@ class JavascriptBacktraceInterpreter : BacktraceInterpreter {
     return js("e.stack")
   }
 }
+
+internal external val global: dynamic
+
+fun main() {
+  val runner = TestRunner(JavascriptBacktraceInterpreter())
+
+  val suiteNames: MutableList<String> = mutableListOf()
+
+  global.describe = fun(name: String, fn: () -> Unit) {
+    if (name.isNotBlank()) {
+      suiteNames.add(name)
+    }
+
+    fn()
+
+    if (name.isNotBlank()) {
+      suiteNames.removeAt(suiteNames.count() - 1)
+    }
+  }
+
+  global.xdescribe = fun(_: String, _: () -> Unit) { }
+
+  global.it = fun(name: String, fn: () -> Any?) {
+    runner.test(suiteNames.joinToString("."), name, false, fn)
+  }
+
+  global.xit = fun(name: String, fn: () -> Any?) {
+    runner.test(suiteNames.joinToString("."), name, true, fn)
+  }
+}
