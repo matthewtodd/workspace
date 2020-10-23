@@ -23,11 +23,16 @@ maven_jars(
   ],
 )
 
-maven_klibs(
+maven_js_klibs(
   artifacts: [
     "org.jetbrains.kotlinx:kotlinx-serialization-core-js:1.0.0",
-    "org.jetbrains.kotlinx:kotlinx-serialization-core-macosx64:1.0.0",
     "org.jetbrains.kotlinx:kotlinx-serialization-json-js:1.0.0",
+  ],
+)
+
+maven_native_klibs(
+  artifacts: [
+    "org.jetbrains.kotlinx:kotlinx-serialization-core-macosx64:1.0.0",
     "org.jetbrains.kotlinx:kotlinx-serialization-json-macosx64:1.0.0",
   ],
 )

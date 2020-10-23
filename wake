@@ -373,7 +373,7 @@ module Wake
             klib: jar.fetch(FileInfo).path,
             deps: [],
           ),
-          KotlinJsInfo.new(
+          DeprecatedKotlinJsInfo.new(
             jar: jar.fetch(FileInfo).path,
             js: context.expand_path(js_path),
             deps: [],
@@ -387,9 +387,9 @@ module Wake
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, providers: [KotlinInfo, KotlinJsInfo]),
+        deps: Attribute.new(Label, list: true, providers: [KotlinInfo, DeprecatedKotlinJsInfo]),
         kdeps: Attribute.new(Label, list: true, default: [], providers: [KotlinInfo]),
-        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinInfo, KotlinJsInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinInfo, DeprecatedKotlinJsInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, kdeps:, stdlib:, plugins:) {
@@ -403,12 +403,12 @@ module Wake
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
+        deps: Attribute.new(Label, list: true, default: [], providers: [DeprecatedKotlinJsInfo]),
         kdeps: Attribute.new(Label, list: true, default: [], providers: [KotlinInfo]),
-        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinInfo, KotlinJsInfo]),
-        kotlin_test_js: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar", providers: [KotlinInfo, KotlinJsInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinInfo, DeprecatedKotlinJsInfo]),
+        kotlin_test_js: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar", providers: [KotlinInfo, DeprecatedKotlinJsInfo]),
         node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:js", providers: [KotlinInfo, KotlinJsInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:js", providers: [KotlinInfo, DeprecatedKotlinJsInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, kdeps:, stdlib:, kotlin_test_js:, node_runtime:, test_runner:) {
         compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
@@ -424,13 +424,13 @@ module Wake
         node = node_runtime.fetch(NodeRuntimeInfo)
 
         # THE DEPRECATED ONE
-        deprecated_test_module = test_modules.find(-> { raise }) { |provider| KotlinJsInfo === provider }
-        deprecated_modules = [test_runner.fetch(KotlinJsInfo), deprecated_test_module].map(&:transitive_runtime_dependencies).flatten.sort.uniq
+        deprecated_test_module = test_modules.find(-> { raise }) { |provider| DeprecatedKotlinJsInfo === provider }
+        deprecated_modules = [test_runner.fetch(DeprecatedKotlinJsInfo), deprecated_test_module].map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
         deprecated_test_executable = TestExecutableInfo.new(
           executable: node.node,
           runfiles: deprecated_modules,
-          arguments: ["-r", File.basename(test_runner.fetch(KotlinJsInfo).js), File.join(".", deprecated_test_module.js)],
+          arguments: ["-r", File.basename(test_runner.fetch(DeprecatedKotlinJsInfo).js), File.join(".", deprecated_test_module.js)],
           env: { "NODE_PATH" => deprecated_modules.map { |path| File.join(".", File.dirname(path)) }.uniq.join(":") },
         )
 
@@ -504,7 +504,20 @@ module Wake
     )
 
     registry.new_rule(
-      :kotlin_import,
+      :kotlin_js_import,
+      attributes: {
+        klib: Attribute.new(Label, providers: [FileInfo]),
+      },
+      implementation: ->(context, klib:) {
+        [KotlinInfo.new(
+          klib: klib.fetch(FileInfo).path,
+          deps: [],
+        )]
+      },
+    )
+
+    registry.new_rule(
+      :kotlin_native_import,
       attributes: {
         klib: Attribute.new(Label, providers: [FileInfo]),
       },
@@ -612,7 +625,7 @@ module Wake
     )
 
     registry.new_macro(
-      :maven_klibs,
+      :maven_js_klibs,
       attributes: {
         repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
         artifacts: Attribute.new(MavenCoordinates, list: true),
@@ -626,7 +639,31 @@ module Wake
               sha256: nil,
             )
 
-            kotlin_import(
+            kotlin_js_import(
+              name: "klib",
+              klib: artifact.filename,
+            )
+          end
+        end
+      },
+    )
+
+    registry.new_macro(
+      :maven_native_klibs,
+      attributes: {
+        repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
+        artifacts: Attribute.new(MavenCoordinates, list: true),
+      },
+      implementation: ->(context, repository:, artifacts:) {
+        artifacts.map(&:klib).each do |artifact|
+          context.package(artifact.package_path) do
+            http_file(
+              name: artifact.filename,
+              url: artifact.url(repository),
+              sha256: nil,
+            )
+
+            kotlin_native_import(
               name: "klib",
               klib: artifact.filename,
             )
@@ -2895,7 +2932,7 @@ module Wake
       classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
       source_paths = srcs.map { |path| context.expand_path(path) }
-      dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
+      dependencies = deps.map { |dep| dep.fetch(DeprecatedKotlinJsInfo) }
       dependency_paths = dependencies.map(&:jar)
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
 
@@ -2947,7 +2984,7 @@ module Wake
         end
       end
 
-      KotlinJsInfo.new(
+      DeprecatedKotlinJsInfo.new(
         jar: output_jar,
         js: output_js,
         deps: dependencies,
@@ -3120,13 +3157,15 @@ module Wake
     end
   end
 
-  class KotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)
+  class KotlinJsInfo < Struct.new(:klib, :deps, :js, keyword_init: true)
+    def transitive_compilation_dependencies
+      [klib, *deps.map(&:transitive_compilation_dependencies)]
+    end
+  end
+
+  class DeprecatedKotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)
     def transitive_runtime_dependencies
       [js, *deps.map(&:transitive_runtime_dependencies)]
-    end
-
-    def require_path
-      File.basename(js).chomp(".js")
     end
   end
 
