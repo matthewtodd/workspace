@@ -448,7 +448,7 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
-        standard_deps: Attribute.new(Label, list: true, default: ["//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", "//lib/maven/org_jetbrains_kotlin/kotlin_test:jar", "//lib/kotlin:test_junit5", "//lib/maven/org_junit_jupiter/junit_jupiter_api:jar"], providers: [JavaInfo]),
+        standard_deps: Attribute.new(Label, list: true, default: ["//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", "//lib/maven/org_jetbrains_kotlin/kotlin_test:jar", "//lib/maven/org_jetbrains_kotlin/kotlin_test_junit5:jar", "//lib/maven/org_junit_jupiter/junit_jupiter_api:jar"], providers: [JavaInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:junit", providers: [JavaInfo]),
       },
