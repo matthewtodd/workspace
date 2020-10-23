@@ -1,26 +1,6 @@
 package org.matthewtodd.wake.test
 
 import kotlin.js.js
-import kotlin.test.FrameworkAdapter
-
-class WakeTest : FrameworkAdapter {
-  private val runner = TestRunner(JavascriptBacktraceInterpreter())
-  private val suiteNames: MutableList<String> = mutableListOf()
-
-  override fun suite(name: String, ignored: Boolean, suiteFn: () -> Unit) {
-    if (name.isNotBlank()) {
-      suiteNames.add(name)
-    }
-    suiteFn()
-    if (name.isNotBlank()) {
-      suiteNames.removeAt(suiteNames.count() - 1)
-    }
-  }
-
-  override fun test(name: String, ignored: Boolean, testFn: () -> Any?) {
-    runner.test(suiteNames.joinToString("."), name, ignored, testFn)
-  }
-}
 
 class JavascriptBacktraceInterpreter : BacktraceInterpreter {
   override fun errorType(e: Throwable): String {
