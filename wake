@@ -370,6 +370,7 @@ module Wake
 
         [
           KotlinJsInfo.new(
+            js: "", # FIXME does this whole rule go away?
             klib: jar.fetch(FileInfo).path,
             deps: [],
           ),
@@ -441,19 +442,19 @@ module Wake
         # But how do I get those? I don't think I'll be generating them by default, will I?
         # Because each kotlin lib down the stack will just be a klib, and I don't think I'd make both a klib and the js file, would I?
         # I mean I could, but it would double the compilation time? Or could I do both? What are the -Xir options?
-        # test_module_js = test_modules.find(-> { raise }) { |provider| KotlinJsInfo === provider }.js
-        # test_runner_js = test_runner.fetch(KotlinJsInfo).js
+        test_module_js = test_modules.find(-> { raise }) { |provider| KotlinJsInfo === provider }.js
+        test_runner_js = test_runner.fetch(KotlinJsInfo).js
 
-        # test_executable = TestExecutableInfo.new(
-        #   executable: node.node,
-        #   runfiles: [test_module_js, test_runner_js],
-        #   arguments: ["-r", File.join(".", test_runner_js), File.join(".", test_module_js)],
-        #   env: { "NODE_PATH" => "." },
-        # )
+        test_executable = TestExecutableInfo.new(
+          executable: node.node,
+          runfiles: [test_module_js, test_runner_js],
+          arguments: ["-r", File.join(".", test_runner_js), File.join(".", test_module_js)],
+          env: { "NODE_PATH" => "." },
+        )
 
         [
-          deprecated_test_executable,
-        # test_executable,
+          # deprecated_test_executable,
+          test_executable,
         ]
       },
     )
@@ -510,6 +511,7 @@ module Wake
       },
       implementation: ->(context, klib:) {
         [KotlinJsInfo.new(
+          js: "", # FIXME what's going on here? What do we need?
           klib: klib.fetch(FileInfo).path,
           deps: [],
         )]
@@ -2892,10 +2894,11 @@ module Wake
 
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
-      dependency_paths = dependencies.map(&:klib)
+      dependency_paths = dependencies.map(&:transitive_compilation_dependencies).flatten.sort.uniq
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
 
-      output = context.expand_path("lib%{name}.klib")
+      output_js = context.expand_path("lib%{name}.js")
+      output_klib = context.expand_path("lib%{name}.js.klib")
 
       parameters = [
         "-api-version", "1.4",
@@ -2903,27 +2906,34 @@ module Wake
         "-no-stdlib",
         "-target", "v6",
         "-Werror",
+        "-Xir-dce",
+        "-Xir-produce-js",
         "-Xir-produce-klib-file",
         "-Xmulti-platform",
         "-Xopt-in=kotlin.RequiresOptIn",
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
-      context.run(inputs: [*java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths], parameters: [*java_runtime.arguments, *parameters], outputs: [output]) do |fs|
+      context.run(
+        inputs: [*java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths],
+        parameters: [*java_runtime.arguments, *parameters],
+        outputs: [output_js, output_klib],
+      ) do |fs|
         fs.exec!(
           java_runtime.java,
           java_runtime.arguments,
           "-cp", classpath.join(":"),
           "org.jetbrains.kotlin.cli.js.K2JSCompiler",
           "-libraries", dependency_paths.join(":"),
-          "-output", output.chomp(".klib"),
+          "-output", output_js,
           parameters,
           source_paths
         )
       end
 
       KotlinJsInfo.new(
-        klib: output,
+        js: output_js,
+        klib: output_klib,
         deps: dependencies,
       )
     end
@@ -3157,7 +3167,7 @@ module Wake
     end
   end
 
-  class KotlinJsInfo < Struct.new(:klib, :deps, keyword_init: true)
+  class KotlinJsInfo < Struct.new(:js, :klib, :deps, keyword_init: true)
     def transitive_compilation_dependencies
       [klib, *deps.map(&:transitive_compilation_dependencies)]
     end
