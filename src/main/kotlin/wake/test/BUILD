@@ -24,11 +24,6 @@ kt_js_lib(
   ],
   deps: [
     "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:jar",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_js:jar",
-  ],
-  kdeps: [
-    "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar",
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:klib",
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_js:klib",
   ],

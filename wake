@@ -374,11 +374,6 @@ module Wake
             klib: jar.fetch(FileInfo).path,
             deps: [],
           ),
-          DeprecatedKotlinJsInfo.new(
-            jar: jar.fetch(FileInfo).path,
-            js: context.expand_path(js_path),
-            deps: [],
-          ),
         ]
       },
     )
@@ -388,14 +383,13 @@ module Wake
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, providers: [KotlinJsInfo, DeprecatedKotlinJsInfo]),
-        kdeps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
-        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo, DeprecatedKotlinJsInfo]),
+        deps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, kdeps:, stdlib:, plugins:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:) {
         compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
-        compiler.compile(srcs: srcs, deps: [stdlib, *deps], kdeps: [stdlib, *kdeps], plugins: plugins, context: context)
+        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context)
       },
     )
 
@@ -404,58 +398,32 @@ module Wake
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
         srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, default: [], providers: [DeprecatedKotlinJsInfo]),
-        kdeps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
-        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo, DeprecatedKotlinJsInfo]),
-        kotlin_test_js: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar", providers: [KotlinJsInfo, DeprecatedKotlinJsInfo]),
+        deps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo]),
+        kotlin_test_js: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar", providers: [KotlinJsInfo]),
         node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:js", providers: [KotlinJsInfo, DeprecatedKotlinJsInfo]),
+        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:js", providers: [KotlinJsInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, kdeps:, stdlib:, kotlin_test_js:, node_runtime:, test_runner:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, kotlin_test_js:, node_runtime:, test_runner:) {
         compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
 
         test_modules = compiler.compile(
           srcs: srcs,
           deps: [stdlib, kotlin_test_js, *deps],
-          kdeps: [stdlib, kotlin_test_js, *kdeps],
           plugins: [],
           context: context,
         )
 
         node = node_runtime.fetch(NodeRuntimeInfo)
-
-        # THE DEPRECATED ONE
-        deprecated_test_module = test_modules.find(-> { raise }) { |provider| DeprecatedKotlinJsInfo === provider }
-        deprecated_modules = [test_runner.fetch(DeprecatedKotlinJsInfo), deprecated_test_module].map(&:transitive_runtime_dependencies).flatten.sort.uniq
-
-        deprecated_test_executable = TestExecutableInfo.new(
-          executable: node.node,
-          runfiles: deprecated_modules,
-          arguments: ["-r", File.basename(test_runner.fetch(DeprecatedKotlinJsInfo).js), File.join(".", deprecated_test_module.js)],
-          env: { "NODE_PATH" => deprecated_modules.map { |path| File.join(".", File.dirname(path)) }.uniq.join(":") },
-        )
-
-        # THE MODERN ONE
-        # What's going to happen here?
-        # I think I'm aiming for 2 javascript files, one for the test runner and one for the test itself.
-        # So that I can say `node -r test-runner example-test.js`
-        # But how do I get those? I don't think I'll be generating them by default, will I?
-        # Because each kotlin lib down the stack will just be a klib, and I don't think I'd make both a klib and the js file, would I?
-        # I mean I could, but it would double the compilation time? Or could I do both? What are the -Xir options?
         test_module_js = test_modules.find(-> { raise }) { |provider| KotlinJsInfo === provider }.js
         test_runner_js = test_runner.fetch(KotlinJsInfo).js
 
-        test_executable = TestExecutableInfo.new(
+        [TestExecutableInfo.new(
           executable: node.node,
           runfiles: [test_module_js, test_runner_js],
           arguments: ["-r", File.join(".", test_runner_js), File.join(".", test_module_js)],
           env: { "NODE_PATH" => "." },
-        )
-
-        [
-          # deprecated_test_executable,
-          test_executable,
-        ]
+        )]
       },
     )
 
@@ -2881,10 +2849,9 @@ module Wake
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
   class KotlinJsCompilerInfo < Struct.new(:deprecated_java_archiver, :java_runtime, :classpath, keyword_init: true)
-    def compile(srcs:, deps:, kdeps: [], plugins:, context:)
-      kotlin_info = modern_compile(srcs: srcs, deps: kdeps, plugins: plugins, context: context)
-      kotlin_js_info = deprecated_compile(srcs: srcs, deps: deps, plugins: plugins, context: context)
-      [kotlin_info, kotlin_js_info].compact
+    def compile(srcs:, deps:, plugins:, context:)
+      kotlin_info = modern_compile(srcs: srcs, deps: deps, plugins: plugins, context: context)
+      [kotlin_info].compact
     end
 
     private
@@ -2934,69 +2901,6 @@ module Wake
       KotlinJsInfo.new(
         js: output_js,
         klib: output_klib,
-        deps: dependencies,
-      )
-    end
-
-    def deprecated_compile(srcs:, deps:, plugins:, context:)
-      classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
-
-      source_paths = srcs.map { |path| context.expand_path(path) }
-      dependencies = deps.map { |dep| dep.fetch(DeprecatedKotlinJsInfo) }
-      dependency_paths = dependencies.map(&:jar)
-      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
-
-      output_filename = context.expand_path("%{name}").
-        gsub("src/main/kotlin/", "").
-        gsub("src/test/kotlin/", "").
-        gsub("/", "-")
-
-      output_js = context.expand_path("#{output_filename}.js")
-      output_jar = context.expand_path("#{output_filename}.jar")
-
-      parameters = [
-        "-api-version", "1.4",
-        "-language-version", "1.4",
-        "-meta-info",
-        "-module-kind", "umd",
-        "-no-stdlib",
-        "-target", "v6",
-        "-Werror",
-        "-Xmulti-platform",
-        "-Xopt-in=kotlin.RequiresOptIn",
-        *plugin_paths.map { |path| "-Xplugin=#{path}" },
-      ]
-
-      context.run(inputs: [*deprecated_java_archiver.files, *java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths], parameters: [*deprecated_java_archiver.arguments, *java_runtime.arguments, *parameters, File.basename(output_js)], outputs: [output_jar, output_js]) do |fs|
-        fs.mktmpdir do |tmp|
-          fs.exec!(
-            java_runtime.java,
-            java_runtime.arguments,
-            "-cp", classpath.join(":"),
-            "org.jetbrains.kotlin.cli.js.K2JSCompiler",
-            "-libraries", dependency_paths.join(":"),
-            "-output", File.join(tmp, File.basename(output_js)),
-            parameters,
-            source_paths
-          )
-
-          fs.exec!(
-            deprecated_java_archiver.jar,
-            deprecated_java_archiver.arguments,
-            "cf",
-            output_jar,
-            "-C",
-            tmp,
-            "."
-          )
-
-          fs.exec!("cp", File.join(tmp, File.basename(output_js)), output_js)
-        end
-      end
-
-      DeprecatedKotlinJsInfo.new(
-        jar: output_jar,
-        js: output_js,
         deps: dependencies,
       )
     end
@@ -3170,12 +3074,6 @@ module Wake
   class KotlinJsInfo < Struct.new(:js, :klib, :deps, keyword_init: true)
     def transitive_compilation_dependencies
       [klib, *deps.map(&:transitive_compilation_dependencies)]
-    end
-  end
-
-  class DeprecatedKotlinJsInfo < Struct.new(:jar, :js, :deps, keyword_init: true)
-    def transitive_runtime_dependencies
-      [js, *deps.map(&:transitive_runtime_dependencies)]
     end
   end
 
