@@ -175,8 +175,6 @@ module Wake
         extractor = case format
           when :tar_gz
             TarGzip
-          when :zip
-            Zip
           else
             raise "Unsupported Extractor #{format}"
           end
@@ -356,18 +354,6 @@ module Wake
         js_path: Attribute.new(String),
       },
       implementation: ->(context, jar:, js_path:) {
-        context.run(inputs: [jar.fetch(FileInfo).path], parameters: [js_path], outputs: [context.expand_path(js_path)]) do |fs|
-          fs.open(jar.fetch(FileInfo).path, "rb") do |archive_io|
-            Zip.foreach(archive_io) do |entry_path, entry_io, entry_mode|
-              if js_path == entry_path
-                fs.open(context.expand_path(entry_path), "wb", permissions: entry_mode & 01555) do |output_io|
-                  IO.copy_stream(entry_io, output_io)
-                end
-              end
-            end
-          end
-        end
-
         [
           KotlinJsInfo.new(
             js: "", # FIXME does this whole rule go away?
