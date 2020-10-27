@@ -1629,14 +1629,23 @@ module Wake
     end
 
     def get(url, io, original: url)
-      Net::HTTP.get_response(url) do |response|
-        case response
-        when Net::HTTPSuccess
-          response.read_body(CompositeIO.new(io, Progress.new(@console, original, response["content-length"].to_i)))
-        when Net::HTTPRedirection
-          get(URI.parse(response["location"]), io, original: original)
-        else
-          response.error!
+      http = Net::HTTP.new(url.hostname, url.port)
+      http.use_ssl = true
+
+      if http.proxy? # TODO figure out self-signed cert handling for local caching squid installation
+        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+
+      http.start do |http|
+        http.request_get(url) do |response|
+          case response
+          when Net::HTTPSuccess
+            response.read_body(CompositeIO.new(io, Progress.new(@console, original, response["content-length"].to_i)))
+          when Net::HTTPRedirection
+            get(URI.parse(response["location"]), io, original: original)
+          else
+            response.error!
+          end
         end
       end
     end
