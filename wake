@@ -16,6 +16,7 @@ require "rubygems/package"
 require "set"
 require "shellwords"
 require "stringio"
+require "strscan"
 require "tempfile"
 require "tmpdir"
 require "uri"
@@ -1501,18 +1502,11 @@ module Wake
         previous = ""
 
         while buffer = @renderings.pop
-          unless previous.empty?
-            row_count = previous.
-              gsub(/\e\[.*?m/, ""). # strip non-printing ANSI escape codes
-              gsub(/(.{#{cols}})(.)/, "\\1\n\\2"). # wrap long lines; careful! rows of exactly cols columns shouldn't wrap
-              count("\n")
-            io.write("\e[#{row_count}F")
-            io.write("\e[J")
+          if buffer != previous
+            io.write AnsiRendering.new(from: WrappedAnsiString.new(previous, cols: cols).to_s, to: WrappedAnsiString.new(buffer, cols: cols).to_s)
+            io.flush
+            previous = buffer
           end
-
-          io.write(buffer)
-          io.flush
-          previous = buffer
         end
       end
     end
@@ -1617,6 +1611,97 @@ module Wake
 
         buffer.string
       end
+    end
+  end
+
+  class WrappedAnsiString
+    def initialize(string, cols:)
+      @scanner = StringScanner.new(string)
+      @wrapped = ""
+      @terminal_width = cols
+    end
+
+    def to_s
+      until @scanner.eos?
+        if text = @scanner.scan(/[^\e]+/)
+          process_plain_text(text)
+        elsif sgr_sequence = @scanner.scan(/\e\[.*?m/)
+          process_escape_code(sgr_sequence)
+        else
+          raise "Unhandled escape code! #{@scanner.rest}"
+        end
+      end
+
+      @wrapped
+    end
+
+    private
+
+    def process_plain_text(text)
+      text.lines.each { |line| process_plain_text_line(line) }
+    end
+
+    def process_plain_text_line(line)
+      if line.chomp.length > @terminal_width
+        process_plain_text_line_wrapping(line)
+      else
+        @wrapped << line
+      end
+    end
+
+    def process_plain_text_line_wrapping(line)
+      scanner = StringScanner.new(line)
+      pos = 0
+      until scanner.eos?
+        if chars = scanner.scan(/[^\n]{1,#{@terminal_width - pos}}/)
+          @wrapped << chars
+          pos += chars.length
+          if @terminal_width == pos && scanner.check(/[^\n]/)
+            @wrapped << "\n"
+            pos = 0
+          end
+        elsif scanner.scan("\n")
+          @wrapped << "\n"
+          pos = 0
+        else
+          raise "What happened? #{scanner.rest}"
+        end
+      end
+    end
+
+    def process_escape_code(escape_code)
+      @wrapped << escape_code
+    end
+  end
+
+  class AnsiRendering
+    def initialize(from:, to:)
+      @rows = to.lines.zip(from.lines)
+      @from_row_count = from.lines.count
+    end
+
+    def to_s
+      result = ""
+
+      if @from_row_count > 0
+        result << "\e[#{@from_row_count}F"
+      end
+
+      @rows.each do |to, from|
+        if to != from
+          # TODO could do something fancy with diff editing, but cursor
+          # movements again get tricky given ANSI escape sequences
+          result << to.chomp
+          result << "\e[K"
+          result << "\n"
+        else
+          result << "\e[E"
+        end
+      end
+
+      result << "\e[J"
+
+      result
     end
   end
 
