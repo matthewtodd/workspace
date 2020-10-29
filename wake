@@ -1660,7 +1660,7 @@ module Wake
             @wrapped << "\n"
             pos = 0
           end
-        elsif scanner.scan("\n")
+        elsif scanner.scan(/\n/)
           @wrapped << "\n"
           pos = 0
         else
