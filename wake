@@ -223,13 +223,11 @@ module Wake
       :java_import,
       attributes: {
         jar: Attribute.new(Label, providers: [FileInfo]),
-        neverlink: Attribute.new(TrueClass, default: false),
       },
-      implementation: ->(context, jar:, neverlink:) {
+      implementation: ->(context, jar:) {
         [JavaInfo.new(
           jar: jar.fetch(FileInfo).path,
           deps: [],
-          neverlink: neverlink,
         )]
       },
     )
@@ -266,7 +264,6 @@ module Wake
         [JavaInfo.new(
           jar: output,
           deps: java_info.deps,
-          neverlink: java_info.neverlink,
         )]
       },
     )
@@ -2574,9 +2571,9 @@ module Wake
     end
   end
 
-  class JavaInfo < Struct.new(:jar, :deps, :neverlink, keyword_init: true)
+  class JavaInfo < Struct.new(:jar, :deps, keyword_init: true)
     def transitive_runtime_dependencies
-      neverlink ? [] : [jar, *deps.map { |dep| dep.transitive_runtime_dependencies }]
+      [jar, *deps.map { |dep| dep.transitive_runtime_dependencies }]
     end
   end
 
@@ -2706,7 +2703,6 @@ module Wake
       [JavaInfo.new(
         jar: output,
         deps: dependencies,
-        neverlink: false,
       )]
     end
   end
