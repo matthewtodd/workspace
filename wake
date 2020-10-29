@@ -2171,8 +2171,8 @@ module Wake
 
   class MavenCoordinates
     def self.parse(string)
-      string.match %r{^([^:]+):([^:]+):([^:]+)$} do |match|
-        new(match[1], match[2], match[3])
+      string.match %r{^([^:]+):([^:]+):([^:@]+)(?::(\w+))?(?:@(\w+))?$} do |match|
+        new(match[1], match[2], match[3], classifier: match[4], packaging: match[5] || :jar)
       end
     end
 
@@ -2184,51 +2184,50 @@ module Wake
       @packaging = packaging
     end
 
-    def filename(suffix: nil)
-      [[@artifact, @version, @classifier].compact.join("-"), @packaging, suffix].compact.join(".")
+    def filename
+      [[@artifact, @version, @classifier].compact.join("-"), @packaging].join(".")
     end
 
     def package_path
       "#{@group.gsub(".", "_")}/#{@artifact.gsub("-", "_")}"
     end
 
+    # FIXME kill this. Let the maven_foo macro/rule callers declare explicitly.
     def klib
       self.class.new(@group, @artifact, @version, classifier: @classifier, packaging: :klib)
     end
 
-    def sources
-      self.class.new(@group, @artifact, @version, classifier: :sources, packaging: @packaging)
-    end
-
-    def url(repository, suffix: nil)
-      repository + [repository.path, *@group.split("."), @artifact, @version, filename(suffix: suffix)].join("/")
+    def url(repository)
+      repository + [repository.path, *@group.split("."), @artifact, @version, filename].join("/")
     end
   end
 
   class MavenCoordinatesTest < Test
-    def setup
-      @subject = MavenCoordinates.parse("a.b.c:x-y-z:1.2.3")
-    end
-
     def test_filename
-      assert_equal "x-y-z-1.2.3.jar", @subject.filename
-    end
-
-    def test_filename_with_suffix
-      assert_equal "x-y-z-1.2.3.jar.md5", @subject.filename(suffix: :md5)
+      assert_equal "x-y-z-1.2.3.jar", parse("a.b.c:x-y-z:1.2.3").filename
     end
 
     def test_package_path
-      assert_equal "a_b_c/x_y_z", @subject.package_path
-    end
-
-    def test_sources_filename
-      assert_equal "x-y-z-1.2.3-sources.jar", @subject.sources.filename
+      assert_equal "a_b_c/x_y_z", parse("a.b.c:x-y-z:1.2.3").package_path
     end
 
     def test_url
       assert_equal URI.parse("https://example.com/maven/a/b/c/x-y-z/1.2.3/x-y-z-1.2.3.jar"),
-        @subject.url(URI.parse("https://example.com/maven"))
+        parse("a.b.c:x-y-z:1.2.3").url(URI.parse("https://example.com/maven"))
+    end
+
+    def test_classifier
+      assert_equal "x-y-z-1.2.3-sources.jar", parse("a.b.c:x-y-z:1.2.3:sources").filename
+    end
+
+    def test_packaging
+      assert_equal "x-y-z-1.2.3.pom", parse("a.b.c:x-y-z:1.2.3@pom").filename
+    end
+
+    private
+
+    def parse(coordinates)
+      MavenCoordinates.parse(coordinates)
     end
   end
 
