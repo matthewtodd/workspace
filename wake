@@ -346,23 +346,6 @@ module Wake
     )
 
     registry.new_rule(
-      :kt_js_import,
-      attributes: {
-        jar: Attribute.new(Label, providers: [FileInfo]),
-        js_path: Attribute.new(String, default: ""),
-      },
-      implementation: ->(context, jar:, js_path:) {
-        [
-          KotlinJsInfo.new(
-            js: "", # FIXME does this whole rule go away?
-            klib: jar.fetch(FileInfo).path,
-            deps: [],
-          ),
-        ]
-      },
-    )
-
-    registry.new_rule(
       :kt_js_lib,
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
@@ -570,7 +553,7 @@ module Wake
             )
 
             java_import(
-              name: "jar",
+              name: artifact.label_name,
               jar: artifact.filename,
             )
           end
@@ -594,7 +577,7 @@ module Wake
             )
 
             kotlin_js_import(
-              name: "klib",
+              name: artifact.label_name,
               klib: artifact.filename,
             )
           end
@@ -618,33 +601,10 @@ module Wake
             )
 
             kotlin_native_import(
-              name: "klib",
+              name: artifact.label_name,
               klib: artifact.filename,
             )
           end
-        end
-      },
-    )
-
-    registry.new_macro(
-      :maven_kt_js_jar,
-      attributes: {
-        repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
-        artifact: Attribute.new(MavenCoordinates),
-        sha256: Attribute.new(Verifier),
-      },
-      implementation: ->(context, repository:, artifact:, sha256:) {
-        context.package(artifact.package_path) do
-          http_file(
-            name: artifact.filename,
-            url: artifact.url(repository),
-            sha256: sha256,
-          )
-
-          kt_js_import(
-            name: "jar",
-            jar: artifact.filename,
-          )
         end
       },
     )
@@ -1723,6 +1683,8 @@ module Wake
             response.read_body(CompositeIO.new(io, Progress.new(@console, original, response["content-length"].to_i)))
           when Net::HTTPRedirection
             get(URI.parse(response["location"]), io, original: original)
+          when Net::HTTPNotFound
+            raise "404 #{url}"
           else
             response.error!
           end
@@ -2186,6 +2148,10 @@ module Wake
       [[@artifact, @version, @classifier].compact.join("-"), @packaging].join(".")
     end
 
+    def label_name
+      [@classifier, @packaging].compact.join("_")
+    end
+
     def package_path
       "#{@group.gsub(".", "_")}/#{@artifact.gsub("-", "_")}"
     end
@@ -2215,6 +2181,14 @@ module Wake
 
     def test_packaging
       assert_equal "x-y-z-1.2.3.pom", parse("a.b.c:x-y-z:1.2.3@pom").filename
+    end
+
+    def test_label_name
+      assert_equal "jar", parse("a.b.c:x-y-z:1.2.3").label_name
+    end
+
+    def test_label_name_with_classifier_and_packaging
+      assert_equal "sources_zip", parse("a.b.c:x-y-z:1.2.3:sources@zip").label_name
     end
 
     private
