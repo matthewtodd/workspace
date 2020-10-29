@@ -25,42 +25,26 @@ maven_jars(
 
 maven_js_klibs(
   artifacts: [
-    "org.jetbrains.kotlinx:kotlinx-serialization-core-js:1.0.0",
-    "org.jetbrains.kotlinx:kotlinx-serialization-json-js:1.0.0",
+    "org.jetbrains.kotlinx:kotlinx-serialization-core-js:1.0.0@klib",
+    "org.jetbrains.kotlinx:kotlinx-serialization-json-js:1.0.0@klib",
   ],
 )
 
 maven_native_klibs(
   artifacts: [
-    "org.jetbrains.kotlinx:kotlinx-serialization-core-macosx64:1.0.0",
-    "org.jetbrains.kotlinx:kotlinx-serialization-json-macosx64:1.0.0",
+    "org.jetbrains.kotlinx:kotlinx-serialization-core-macosx64:1.0.0@klib",
+    "org.jetbrains.kotlinx:kotlinx-serialization-json-macosx64:1.0.0@klib",
   ],
 )
 
 # TODO deprecated
 maven_kt_js_jar(
   artifact: "org.jetbrains.kotlin:kotlin-stdlib-js:1.4.10",
-  js_path: "kotlin.js",
   sha256: nil,
 )
 
 # TODO deprecated
 maven_kt_js_jar(
   artifact: "org.jetbrains.kotlin:kotlin-test-js:1.4.10",
-  js_path: "kotlin-test.js",
-  sha256: nil,
-)
-
-# TODO deprecated
-maven_kt_js_jar(
-  artifact: "org.jetbrains.kotlinx:kotlinx-serialization-core-js:1.0.0",
-  js_path: "kotlinx-serialization-kotlinx-serialization-core-jsLegacy.js",
-  sha256: nil,
-)
-
-# TODO deprecated
-maven_kt_js_jar(
-  artifact: "org.jetbrains.kotlinx:kotlinx-serialization-json-js:1.0.0",
-  js_path: "kotlinx-serialization-kotlinx-serialization-json-jsLegacy.js",
   sha256: nil,
 )

@@ -349,7 +349,7 @@ module Wake
       :kt_js_import,
       attributes: {
         jar: Attribute.new(Label, providers: [FileInfo]),
-        js_path: Attribute.new(String),
+        js_path: Attribute.new(String, default: ""),
       },
       implementation: ->(context, jar:, js_path:) {
         [
@@ -585,7 +585,7 @@ module Wake
         artifacts: Attribute.new(MavenCoordinates, list: true),
       },
       implementation: ->(context, repository:, artifacts:) {
-        artifacts.map(&:klib).each do |artifact|
+        artifacts.each do |artifact|
           context.package(artifact.package_path) do
             http_file(
               name: artifact.filename,
@@ -609,7 +609,7 @@ module Wake
         artifacts: Attribute.new(MavenCoordinates, list: true),
       },
       implementation: ->(context, repository:, artifacts:) {
-        artifacts.map(&:klib).each do |artifact|
+        artifacts.each do |artifact|
           context.package(artifact.package_path) do
             http_file(
               name: artifact.filename,
@@ -632,9 +632,8 @@ module Wake
         repository: Attribute.new(URI, default: "https://repo1.maven.org/maven2"),
         artifact: Attribute.new(MavenCoordinates),
         sha256: Attribute.new(Verifier),
-        js_path: Attribute.new(String),
       },
-      implementation: ->(context, repository:, artifact:, sha256:, js_path:) {
+      implementation: ->(context, repository:, artifact:, sha256:) {
         context.package(artifact.package_path) do
           http_file(
             name: artifact.filename,
@@ -645,7 +644,6 @@ module Wake
           kt_js_import(
             name: "jar",
             jar: artifact.filename,
-            js_path: js_path,
           )
         end
       },
@@ -2190,11 +2188,6 @@ module Wake
 
     def package_path
       "#{@group.gsub(".", "_")}/#{@artifact.gsub("-", "_")}"
-    end
-
-    # FIXME kill this. Let the maven_foo macro/rule callers declare explicitly.
-    def klib
-      self.class.new(@group, @artifact, @version, classifier: @classifier, packaging: :klib)
     end
 
     def url(repository)
