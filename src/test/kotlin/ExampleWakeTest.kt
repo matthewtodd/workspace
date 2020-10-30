@@ -1,1 +1,3 @@
-class ExampleWakeTest
+class ExampleWakeTest {
+  fun foo() = Unit
+}

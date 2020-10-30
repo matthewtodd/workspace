@@ -2,7 +2,7 @@
 
 kt_jvm_lib(
   name: "plugin_raw",
-  srcs: ["CompilerPlugin.kt"],
+  srcs: ["plugin.kt"],
   deps: ["//lib/maven/org_jetbrains_kotlin/kotlin_compiler:jar"],
 )
 
@@ -11,8 +11,14 @@ java_lib_with_resources(
   name: "plugin",
   jar: ":plugin_raw",
   services: {
-    "org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar" => "org.matthewtodd.wake.test.WakeTestComponentRegistrar",
+    "org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar" => "org.matthewtodd.wake.test.WakeTestCompilerPlugin",
   },
+)
+
+kt_js_lib(
+  name: "api_js",
+  srcs: ["api.kt"],
+  deps: [],
 )
 
 kt_js_lib(
