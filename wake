@@ -1629,6 +1629,12 @@ module Wake
     end
   end
 
+  class WrappedAnsiStringTest < Test
+    def test_limit
+      assert_equal "100%\n", WrappedAnsiString.new("100%\n", cols: 4).to_s
+    end
+  end
+
   class AnsiRendering
     def initialize(from:, to:)
       @rows = to.lines.zip(from.lines)
@@ -1647,7 +1653,7 @@ module Wake
           # TODO could do something fancy with diff editing, but cursor
           # movements again get tricky given ANSI escape sequences
           result << to.chomp
-          result << "\e[K"
+          result << "\e[K" if to.chomp.length < from.to_s.chomp.length
           result << "\n"
         else
           result << "\e[E"
@@ -1657,6 +1663,12 @@ module Wake
       result << "\e[J"
 
       result
+    end
+  end
+
+  class AnsiRenderingTest < Test
+    def test_limit
+      assert_equal "\e[1F80%\n\e[J", AnsiRendering.new(from: "79%", to: "80%").to_s
     end
   end
 
