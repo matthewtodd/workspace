@@ -11,7 +11,7 @@ java_lib_with_resources(
   name: "plugin",
   jar: ":plugin_raw",
   services: {
-    "org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar" => "org.matthewtodd.wake.test.WakeTestCompilerPlugin",
+    "org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar" => "org.matthewtodd.wake.test.WakeTestComponentRegistrar",
   },
 )
 

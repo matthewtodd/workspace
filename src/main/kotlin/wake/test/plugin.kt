@@ -14,28 +14,35 @@ import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
 
-class WakeTestCompilerPlugin : ComponentRegistrar, IrGenerationExtension {
+class WakeTestComponentRegistrar : ComponentRegistrar {
   override fun registerProjectComponents(project: MockProject, configuration: CompilerConfiguration) {
-    IrGenerationExtension.registerExtension(project, this)
+    IrGenerationExtension.registerExtension(project, WakeTestIrGenerationExtension)
   }
+}
 
+private object WakeTestIrGenerationExtension : IrGenerationExtension {
   override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
-    moduleFragment.acceptVoid(
-      object : IrElementVisitorVoid {
-        override fun visitElement(element: IrElement) {
-          element.acceptChildrenVoid(this)
-        }
-
-        override fun visitSimpleFunction(declaration: IrSimpleFunction) {
-          if (declaration.hasAnnotation("wake.test.Test")) {
-            generateTestCall(declaration)
-          }
-        }
-      }
-    )
+    moduleFragment.acceptVoid(WakeTestIrElementVisitor)
   }
 
-  fun generateTestCall(@Suppress("UNUSED_PARAMETER") declaration: IrSimpleFunction) {
+  private fun generateTestCall(
+    @Suppress("UNUSED_PARAMETER") declaration: IrSimpleFunction,
+    @Suppress("UNUSED_PARAMETER") context: IrPluginContext,
+  ) {
+    // Look at JsIrBuilder.buildFunction, in
+    // compiler/ir/backend.js/src/org/jetbrains/kotlin/ir/backend/js/ir/IrBuilder.kt
+    // Also want to see how `--main call` works!
+  }
+}
+
+private object WakeTestIrElementVisitor : IrElementVisitorVoid {
+  override fun visitElement(element: IrElement) {
+    element.acceptChildrenVoid(this)
+  }
+
+  override fun visitSimpleFunction(declaration: IrSimpleFunction) {
+    if (declaration.hasAnnotation("wake.test.Test")) {
+    }
   }
 }
 
