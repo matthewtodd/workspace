@@ -31,7 +31,8 @@ private object WakeTestIrGenerationExtension : IrGenerationExtension {
   ) {
     // Look at JsIrBuilder.buildFunction, in
     // compiler/ir/backend.js/src/org/jetbrains/kotlin/ir/backend/js/ir/IrBuilder.kt
-    // Also want to see how `--main call` works!
+    // Also look at how JS code calls its main function
+    // org.jetbrains.kotlin.ir.backend.js.transformers.irToJs.IrModuleToJsTransformer#generateCallToMain
   }
 }
 
