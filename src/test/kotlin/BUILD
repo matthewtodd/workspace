@@ -21,4 +21,5 @@ kt_js_lib(
   srcs: "ExampleWakeTest.kt",
   deps: ["//src/main/kotlin/wake/test:api_js"],
   plugins: ["//src/main/kotlin/wake/test:plugin"],
+  verbose: true,
 )

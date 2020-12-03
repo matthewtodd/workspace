@@ -353,10 +353,11 @@ module Wake
         deps: Attribute.new(Label, list: true, default: [], providers: [KotlinJsInfo]),
         stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
+        verbose: Attribute.new(TrueClass, default: false),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:, verbose:) {
         compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
-        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context)
+        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context, verbose: verbose)
       },
     )
 
@@ -402,10 +403,11 @@ module Wake
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", providers: [JavaInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
+        verbose: Attribute.new(TrueClass, default: false),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:, verbose:) {
         compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
-        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context)
+        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context, verbose: verbose)
       },
     )
 
@@ -1476,6 +1478,7 @@ module Wake
 
     def write(*args)
       @events << [:arbitrary_output, *args]
+      args.join.length
     end
 
     def puts(*args)
@@ -1558,7 +1561,7 @@ module Wake
 
         if @arbitrary_output.any?
           @arbitrary_output.each do |args|
-            buffer.puts(*args)
+            buffer.write(*args)
           end
 
           buffer.puts
@@ -1583,7 +1586,7 @@ module Wake
         elsif sgr_sequence = @scanner.scan(/\e\[.*?m/)
           process_escape_code(sgr_sequence)
         else
-          raise "Unhandled escape code! #{@scanner.rest}"
+          raise "Unhandled escape code! WRAPPED:#{@wrapped} REST:#{@scanner.rest}"
         end
       end
 
@@ -2589,14 +2592,14 @@ module Wake
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
   class KotlinJsCompilerInfo < Struct.new(:deprecated_java_archiver, :java_runtime, :classpath, keyword_init: true)
-    def compile(srcs:, deps:, plugins:, context:)
-      kotlin_info = modern_compile(srcs: srcs, deps: deps, plugins: plugins, context: context)
+    def compile(srcs:, deps:, plugins:, context:, verbose: false)
+      kotlin_info = modern_compile(srcs: srcs, deps: deps, plugins: plugins, context: context, verbose: verbose)
       [kotlin_info].compact
     end
 
     private
 
-    def modern_compile(srcs:, deps:, plugins:, context:)
+    def modern_compile(srcs:, deps:, plugins:, context:, verbose: false)
       classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
       source_paths = srcs.map { |path| context.expand_path(path) }
@@ -2621,9 +2624,12 @@ module Wake
         *plugin_paths.map { |path| "-Xplugin=#{path}" },
       ]
 
+      all_parameters = [*java_runtime.arguments, *parameters, verbose]
+      all_parameters.push(rand) if verbose
+
       context.run(
         inputs: [*java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths],
-        parameters: [*java_runtime.arguments, *parameters],
+        parameters: all_parameters,
         outputs: [output_js, output_klib],
       ) do |fs|
         fs.exec!(
@@ -2634,7 +2640,8 @@ module Wake
           "-libraries", dependency_paths.join(":"),
           "-output", output_js,
           parameters,
-          source_paths
+          source_paths,
+          out: verbose ? $stdout : StringIO.new,
         )
       end
 
@@ -2647,7 +2654,7 @@ module Wake
   end
 
   class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :classpath, keyword_init: true)
-    def compile(srcs:, deps:, plugins:, context:)
+    def compile(srcs:, deps:, plugins:, context:, verbose: false)
       classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
       source_paths = srcs.map { |path| context.expand_path(path) }
@@ -2674,7 +2681,7 @@ module Wake
 
       context.run(
         inputs: [*java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths],
-        parameters: [*java_runtime.arguments, *kotlinc_parameters],
+        parameters: [*java_runtime.arguments, *kotlinc_parameters, verbose],
         outputs: [output],
       ) do |fs|
         fs.exec!(
@@ -2683,6 +2690,7 @@ module Wake
           "-cp", classpath.join(":"),
           "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
           kotlinc_parameters,
+          out: verbose ? $stdout : StringIO.new,
         )
       end
 
