@@ -6,13 +6,14 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.ir.IrElement
-import org.jetbrains.kotlin.ir.declarations.IrAnnotationContainer
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
-import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
+import org.jetbrains.kotlin.ir.util.dump
+import org.jetbrains.kotlin.ir.util.hasAnnotation
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
+import org.jetbrains.kotlin.name.FqName
 
 class WakeTestComponentRegistrar : ComponentRegistrar {
   override fun registerProjectComponents(project: MockProject, configuration: CompilerConfiguration) {
@@ -42,13 +43,11 @@ private object WakeTestIrElementVisitor : IrElementVisitorVoid {
   }
 
   override fun visitSimpleFunction(declaration: IrSimpleFunction) {
-    if (declaration.hasAnnotation("wake.test.Test")) {
+    if (declaration.hasAnnotation(FqName("wake.test.Test"))) {
+      println(declaration.dump())
     }
   }
 }
-
-private fun IrAnnotationContainer.hasAnnotation(fqName: String) =
-  annotations.any { it.symbol.owner.fqNameWhenAvailable?.parent()?.asString() == fqName }
 
 // Look at kotlin's TestGenerator for overall structure:
 // compiler/ir/backend.js/src/org/jetbrains/kotlin/ir/backend/js/lower/TestGenerator.kt
