@@ -9,7 +9,7 @@ http_file(
 
 http_file(
   name: "lldb",
-  url: "https://download.jetbrains.com/kotlin/native/lldb-2-macos.tar.gz",
+  url: "https://download.jetbrains.com/kotlin/native/lldb-3-macos.tar.gz",
   sha256: nil,
   os: :macos,
 )
