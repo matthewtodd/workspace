@@ -2055,9 +2055,17 @@ module Wake
 
   class Tar
     def self.foreach(io, &block)
+      # https://stackoverflow.com/questions/2078778/what-exactly-is-the-gnu-tar-longlink-trick
+      long_name = []
+
       Gem::Package::TarReader.new(io) do |tar|
         tar.each do |entry|
-          block.call(Pathname.new(entry.full_name).cleanpath.to_path, entry, entry.header.mode) if entry.file?
+          if entry.header.typeflag == "L"
+            long_name.push(entry.read.chomp("\0"))
+          else
+            name = long_name.pop || entry.full_name
+            block.call(Pathname.new(name).cleanpath.to_path, entry, entry.header.mode) if entry.file?
+          end
         end
       end
     end
