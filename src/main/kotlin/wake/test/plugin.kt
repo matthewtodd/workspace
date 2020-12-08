@@ -10,9 +10,7 @@ import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.util.dump
 import org.jetbrains.kotlin.ir.util.hasAnnotation
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
-import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
-import org.jetbrains.kotlin.ir.visitors.acceptVoid
+import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.name.FqName
 
 class WakeTestComponentRegistrar : ComponentRegistrar {
@@ -23,28 +21,18 @@ class WakeTestComponentRegistrar : ComponentRegistrar {
 
 private object WakeTestIrGenerationExtension : IrGenerationExtension {
   override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
-    moduleFragment.acceptVoid(WakeTestIrElementVisitor)
-  }
-
-  private fun generateTestCall(
-    @Suppress("UNUSED_PARAMETER") declaration: IrSimpleFunction,
-    @Suppress("UNUSED_PARAMETER") context: IrPluginContext,
-  ) {
-    // Look at JsIrBuilder.buildFunction, in
-    // compiler/ir/backend.js/src/org/jetbrains/kotlin/ir/backend/js/ir/IrBuilder.kt
-    // Also look at how JS code calls its main function
-    // org.jetbrains.kotlin.ir.backend.js.transformers.irToJs.IrModuleToJsTransformer#generateCallToMain
+    moduleFragment.accept(WakeTestIrElementVisitor) { e -> println(e.dump()) }
   }
 }
 
-private object WakeTestIrElementVisitor : IrElementVisitorVoid {
-  override fun visitElement(element: IrElement) {
-    element.acceptChildrenVoid(this)
+private object WakeTestIrElementVisitor : IrElementVisitor<Unit, (IrSimpleFunction) -> Unit> {
+  override fun visitElement(element: IrElement, data: (IrSimpleFunction) -> Unit) {
+    element.acceptChildren(this, data)
   }
 
-  override fun visitSimpleFunction(declaration: IrSimpleFunction) {
+  override fun visitSimpleFunction(declaration: IrSimpleFunction, data: (IrSimpleFunction) -> Unit) {
     if (declaration.hasAnnotation(FqName("wake.test.Test"))) {
-      println(declaration.dump())
+      data(declaration)
     }
   }
 }
@@ -63,3 +51,8 @@ private object WakeTestIrElementVisitor : IrElementVisitorVoid {
 //       test("org.matthewtodd.ExampleTest", "successful", ExampleTest()::successful)
 //       test("org.matthewtodd.ExampleTest", "alsoSuccessful", ExampleTest()::alsoSuccessful)
 //     }
+
+// Look at JsIrBuilder.buildFunction, in
+// compiler/ir/backend.js/src/org/jetbrains/kotlin/ir/backend/js/ir/IrBuilder.kt
+// Also look at how JS code calls its main function
+// org.jetbrains.kotlin.ir.backend.js.transformers.irToJs.IrModuleToJsTransformer#generateCallToMain
