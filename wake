@@ -953,14 +953,10 @@ module Wake
       private
 
       def exec(*args, out: StringIO.new, err: StringIO.new, env: {})
-        Open3.popen3(env, *args.flatten, chdir: @base, unsetenv_others: true) do |i, o, e, t|
-          i.close
-          out_reader = Thread.new { IO.copy_stream(o, out) }
-          err_reader = Thread.new { IO.copy_stream(e, err) }
-          out_reader.join
-          err_reader.join
-          t.value
-        end
+        o, e, s = Open3.capture3(env, *args.flatten, chdir: @base, unsetenv_others: true)
+        out.write(o)
+        err.write(e)
+        s
       end
 
       class ExecutionError < RuntimeError
