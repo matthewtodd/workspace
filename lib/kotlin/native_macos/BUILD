@@ -3,7 +3,7 @@
 # https://github.com/JetBrains/kotlin/releases/latest
 http_file(
   name: "dist",
-  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.20/kotlin-native-macos-1.4.20.tar.gz",
+  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.21/kotlin-native-macos-1.4.21.tar.gz",
   sha256: nil,
   os: :macos,
 )
