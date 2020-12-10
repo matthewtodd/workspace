@@ -22,6 +22,12 @@ kt_js_lib(
 )
 
 kt_js_lib(
+  name: "runtime_js",
+  srcs: ["runtime.kt"],
+  deps: [],
+)
+
+kt_js_lib(
   name: "js",
   srcs: [
     "JavascriptTestRunner.kt",

@@ -19,7 +19,10 @@ kt_native_macos_test(
 kt_js_lib(
   name: "ExampleWakeTestJs",
   srcs: "ExampleWakeTest.kt",
-  deps: ["//src/main/kotlin/wake/test:api_js"],
+  deps: [
+    "//src/main/kotlin/wake/test:api_js",
+    "//src/main/kotlin/wake/test:runtime_js",
+  ],
   plugins: ["//src/main/kotlin/wake/test:plugin"],
   verbose: true,
 )
