@@ -1,9 +1,10 @@
 # vim: ft=ruby
 
+# https://jdk.java.net
 http_file(
   name: "dist",
-  url: "https://download.java.net/java/GA/jdk15/779bf45e88a44cbd9ea6621d33e33db1/36/GPL/openjdk-15_linux-x64_bin.tar.gz",
-  sha256: "bb67cadee687d7b486583d03c9850342afea4593be4f436044d785fba9508fb7",
+  url: "https://download.java.net/java/GA/jdk15.0.1/51f4f36ad4ef43e39d0dfdbaf6549e32/9/GPL/openjdk-15.0.1_linux-x64_bin.tar.gz",
+  sha256: "83ec3a7b1649a6b31e021cde1e58ab447b07fb8173489f27f427e731c89ed84a",
   os: :linux,
 )
 
