@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities.LOCAL
 import org.jetbrains.kotlin.descriptors.impl.EmptyPackageFragmentDescriptor
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.SourceManager
@@ -77,12 +78,17 @@ private object WakeTestIrGenerationExtension : IrGenerationExtension {
         val testLambda = pluginContext.irFactory.buildFun {
           origin = LOCAL_FUNCTION_FOR_LAMBDA
           name = ANONYMOUS_FUNCTION
+          visibility = LOCAL
           returnType = pluginContext.irBuiltIns.unitType
         }.apply {
           parent = mainFunction
-          body = pluginContext.irFactory.createBlockBody(UNDEFINED_OFFSET, UNDEFINED_OFFSET, listOf(
-            irCall(testMethod.symbol).apply { dispatchReceiver = irCall(testClass.declarations.filterIsInstance<IrConstructor>().single().symbol) }
-          ))
+          body = pluginContext.irFactory.createBlockBody(
+            UNDEFINED_OFFSET,
+            UNDEFINED_OFFSET,
+            listOf(
+              irCall(testMethod.symbol).apply { dispatchReceiver = irCall(testClass.declarations.filterIsInstance<IrConstructor>().single().symbol) }
+            )
+          )
         }
 
         +irCall(wakeTestFunction).apply {

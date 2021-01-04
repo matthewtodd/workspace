@@ -24,5 +24,4 @@ kt_js_lib(
     "//src/main/kotlin/wake/test:runtime_js",
   ],
   plugins: ["//src/main/kotlin/wake/test:plugin"],
-  verbose: true,
 )
