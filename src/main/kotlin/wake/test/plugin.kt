@@ -24,9 +24,11 @@ import org.jetbrains.kotlin.ir.declarations.IrDeclarationOriginImpl
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.impl.IrFileImpl
+import org.jetbrains.kotlin.ir.expressions.IrErrorExpression
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin.LAMBDA
 import org.jetbrains.kotlin.ir.expressions.impl.IrFunctionExpressionImpl
 import org.jetbrains.kotlin.ir.types.impl.IrSimpleTypeImpl
+import org.jetbrains.kotlin.ir.util.getAnnotation
 import org.jetbrains.kotlin.ir.util.hasAnnotation
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.name.FqName
@@ -66,6 +68,7 @@ private object WakeTestIrGenerationExtension : IrGenerationExtension {
     moduleFragment.files += file
 
     val wakeTestFunction = pluginContext.referenceFunctions(FqName("org.matthewtodd.wake.test.runtime.test")).single()
+    val wakeIgnoreFunction = pluginContext.referenceFunctions(FqName("org.matthewtodd.wake.test.runtime.ignore")).single()
 
     val mainFunction = pluginContext.irFactory.addFunction(file) {
       name = Name.identifier("main")
@@ -75,35 +78,50 @@ private object WakeTestIrGenerationExtension : IrGenerationExtension {
 
     mainFunction.body = DeclarationIrBuilder(pluginContext, mainFunction.symbol).irBlockBody {
       moduleFragment.accept(TestMethodFinder) { testClass, testMethod ->
-        val testLambda = pluginContext.irFactory.buildFun {
-          origin = LOCAL_FUNCTION_FOR_LAMBDA
-          name = ANONYMOUS_FUNCTION
-          visibility = LOCAL
-          returnType = pluginContext.irBuiltIns.unitType
-        }.apply {
-          parent = mainFunction
-          body = pluginContext.irFactory.createBlockBody(
-            UNDEFINED_OFFSET,
-            UNDEFINED_OFFSET,
-            listOf(
-              irCall(testMethod.symbol).apply { dispatchReceiver = irCall(testClass.declarations.filterIsInstance<IrConstructor>().single().symbol) }
-            )
-          )
-        }
+        if (testMethod.hasAnnotation(FqName("org.matthewtodd.wake.test.Ignore"))) {
+          val ignore = testMethod.getAnnotation(FqName("org.matthewtodd.wake.test.Ignore"))!!
 
-        +irCall(wakeTestFunction).apply {
-          putValueArgument(0, irString(testClass.name.asString()))
-          putValueArgument(1, irString(testMethod.name.asString()))
-          putValueArgument(
-            2,
-            IrFunctionExpressionImpl( // TODO extract an irFunctionExpression()
-              startOffset = UNDEFINED_OFFSET,
-              endOffset = UNDEFINED_OFFSET,
-              type = IrSimpleTypeImpl(pluginContext.irBuiltIns.function(0), false, emptyList(), emptyList()),
-              function = testLambda,
-              origin = LAMBDA
+          val defaultMessage = ignore.symbol.owner.valueParameters.get(0).defaultValue?.expression
+          val message = ignore.getValueArgument(0) ?: defaultMessage
+
+          if (message !is IrErrorExpression) {
+            +irCall(wakeIgnoreFunction).apply {
+              putValueArgument(0, irString(testClass.name.asString()))
+              putValueArgument(1, irString(testMethod.name.asString()))
+              putValueArgument(2, message)
+            }
+          }
+        } else {
+          val testLambda = pluginContext.irFactory.buildFun {
+            origin = LOCAL_FUNCTION_FOR_LAMBDA
+            name = ANONYMOUS_FUNCTION
+            visibility = LOCAL
+            returnType = pluginContext.irBuiltIns.unitType
+          }.apply {
+            parent = mainFunction
+            body = pluginContext.irFactory.createBlockBody(
+              UNDEFINED_OFFSET,
+              UNDEFINED_OFFSET,
+              listOf(
+                irCall(testMethod.symbol).apply { dispatchReceiver = irCall(testClass.declarations.filterIsInstance<IrConstructor>().single().symbol) }
+              )
             )
-          )
+          }
+
+          +irCall(wakeTestFunction).apply {
+            putValueArgument(0, irString(testClass.name.asString()))
+            putValueArgument(1, irString(testMethod.name.asString()))
+            putValueArgument(
+              2,
+              IrFunctionExpressionImpl( // TODO extract an irFunctionExpression()
+                startOffset = UNDEFINED_OFFSET,
+                endOffset = UNDEFINED_OFFSET,
+                type = IrSimpleTypeImpl(pluginContext.irBuiltIns.function(0), false, emptyList(), emptyList()),
+                function = testLambda,
+                origin = LAMBDA
+              )
+            )
+          }
         }
       }
     }

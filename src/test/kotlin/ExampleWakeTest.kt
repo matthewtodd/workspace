@@ -1,3 +1,4 @@
+import org.matthewtodd.wake.test.Ignore
 import org.matthewtodd.wake.test.Test
 
 class ExampleWakeTest {
@@ -13,9 +14,13 @@ class ExampleWakeTest {
     throw Exception("Boom!")
   }
 
-  // @Test
-  // @Ignore
-  // fun skipped() = Unit
+  @Test
+  @Ignore
+  fun skipped() = Unit
+
+  @Test
+  @Ignore("Reasons.")
+  fun skippedWithMessage() = Unit
 
   fun assertTrue(actual: Boolean, message: String? = null) {
     if (!actual) {

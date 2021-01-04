@@ -29,6 +29,22 @@ fun test(suiteName: String, name: String, test: () -> Unit) {
         time = time.inSeconds,
         errors = errors,
         failures = failures,
+        skipped = listOf(),
+      )
+    )
+  )
+}
+
+fun ignore(suiteName: String, name: String, message: String) {
+  println(
+    Json.encodeToString(
+      TestResult(
+        class_name = suiteName,
+        name = name,
+        time = 0.0,
+        errors = listOf(),
+        failures = listOf(),
+        skipped = listOf(TestSkip(message)),
       )
     )
   )
@@ -44,7 +60,7 @@ data class TestResult(
   val time: Double,
   val errors: List<TestError>,
   val failures: List<TestFailure>,
-  val skipped: List<TestSkip> = emptyList(),
+  val skipped: List<TestSkip>,
 )
 
 @Serializable
