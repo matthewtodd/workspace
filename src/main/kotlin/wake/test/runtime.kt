@@ -15,9 +15,9 @@ fun test(suiteName: String, name: String, test: () -> Unit) {
     try {
       test()
     } catch (e: AssertionError) {
-      failures.add(TestFailure(e.message!!, "<unspecified>"))
+      failures.add(TestFailure(e.message!!, errorBacktrace(e).first()))
     } catch (e: Throwable) {
-      errors.add(TestError("UNKNOWN", e.message!!, listOf()))
+      errors.add(TestError(errorType(e), e.message!!, errorBacktrace(e)))
     }
   }
 
@@ -34,13 +34,16 @@ fun test(suiteName: String, name: String, test: () -> Unit) {
   )
 }
 
+expect fun errorType(e: Throwable): String
+expect fun errorBacktrace(e: Throwable): List<String>
+
 @Serializable
 data class TestResult(
   val class_name: String,
   val name: String,
   val time: Double,
-  val errors: List<TestError> = emptyList(),
-  val failures: List<TestFailure> = emptyList(),
+  val errors: List<TestError>,
+  val failures: List<TestFailure>,
   val skipped: List<TestSkip> = emptyList(),
 )
 

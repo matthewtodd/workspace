@@ -23,7 +23,10 @@ kt_js_lib(
 
 kt_js_lib(
   name: "runtime_js",
-  srcs: ["runtime.kt"],
+  srcs: [
+    "runtime.kt",
+    "runtime/js.kt",
+  ],
   deps: [
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:klib",
     "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_js:klib",
