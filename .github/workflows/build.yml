@@ -32,5 +32,5 @@ jobs:
           sudo chmod go-w /usr/share/rust
           sudo chmod go-w /usr/share/rust/.cargo
           sudo chmod go-w /usr/share/rust/.cargo/bin
-      - run: ruby -wU -r minitest/autorun ./wake
+      - run: ruby -wU -r rubygems -r minitest/autorun ./wake
       - run: ruby -wU --disable-all ./wake
