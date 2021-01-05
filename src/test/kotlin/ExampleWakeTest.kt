@@ -1,13 +1,14 @@
 import org.matthewtodd.wake.test.Ignore
 import org.matthewtodd.wake.test.Test
+import org.matthewtodd.wake.test.assertThat
 
 class ExampleWakeTest {
   @Test fun successful() {
-    assertTrue(true)
+    assertThat(true).isTrue()
   }
 
   @Test fun failed() {
-    assertTrue(false, "This is supposed to fail")
+    assertThat(true).isFalse()
   }
 
   @Test fun error() {
@@ -21,10 +22,4 @@ class ExampleWakeTest {
   @Test
   @Ignore("Reasons.")
   fun skippedWithMessage() = Unit
-
-  fun assertTrue(actual: Boolean, message: String? = null) {
-    if (!actual) {
-      throw AssertionError(message)
-    }
-  }
 }
