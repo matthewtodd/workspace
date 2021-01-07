@@ -1,10 +1,5 @@
 # vim: ft=ruby
 
-kt_js_test(
-  name: "ExampleTestJs",
-  srcs: ["ExampleTest.kt"],
-)
-
 kt_jvm_test(
   name: "ExampleTestJvm",
   srcs: ["ExampleTest.kt"],
@@ -24,5 +19,4 @@ kt_js_lib(
     "//src/main/kotlin/wake/test:runtime_js",
   ],
   plugins: ["//src/main/kotlin/wake/test:plugin"],
-  verbose: true,
 )
