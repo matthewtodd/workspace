@@ -362,6 +362,38 @@ module Wake
     )
 
     registry.new_rule(
+      :kt_js_test,
+      attributes: {
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJsCompilerInfo]),
+        srcs: Attribute.new(String, list: true),
+        deps: Attribute.new(Label, list: true, default: ["//src/main/kotlin/wake/test:api_js", "//src/main/kotlin/wake/test:runtime_js"], providers: [KotlinJsInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib_js:jar", providers: [KotlinJsInfo]),
+        plugins: Attribute.new(Label, list: true, default: ["//src/main/kotlin/wake/test:plugin"], providers: [JavaInfo]),
+        node_runtime: Attribute.new(Label, default: "//lib/node:runtime", providers: [NodeRuntimeInfo]),
+      },
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:, node_runtime:) {
+        compiler = kotlin_compiler.fetch(KotlinJsCompilerInfo)
+
+        test_modules = compiler.compile(
+          srcs: srcs,
+          deps: [stdlib, *deps],
+          plugins: plugins,
+          context: context,
+        )
+
+        node = node_runtime.fetch(NodeRuntimeInfo)
+        test_module_js = test_modules.find(-> { raise }) { |provider| KotlinJsInfo === provider }.js
+
+        [TestExecutableInfo.new(
+          executable: node.node,
+          runfiles: [test_module_js],
+          arguments: [File.join(".", test_module_js)],
+          env: { "NODE_PATH" => "." },
+        )]
+      },
+    )
+
+    registry.new_rule(
       :kt_jvm_lib,
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
