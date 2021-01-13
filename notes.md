@@ -2,7 +2,6 @@
 
 ## TODO
 
-- Write new `kt_js_test` rule.
 - Write new `kt_native_macos_test` rule.
 - Write new `kt_jvm_test` rule.
 - Remove old test support infrastructure.

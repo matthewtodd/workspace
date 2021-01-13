@@ -525,6 +525,27 @@ module Wake
     )
 
     registry.new_rule(
+      :kt_native_macos_wake_test,
+      attributes: {
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinNativeCompilerInfo]),
+        srcs: Attribute.new(String, list: true),
+        deps: Attribute.new(Label, list: true, default: [], providers: [KotlinNativeInfo]),
+        plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
+        verbose: Attribute.new(TrueClass, default: false),
+      },
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:, verbose:) {
+        compiler = kotlin_compiler.fetch(KotlinNativeCompilerInfo)
+        compiler.compile_wake_test_binary(
+          srcs: srcs,
+          deps: deps,
+          plugins: plugins,
+          context: context,
+          verbose: verbose,
+        )
+      },
+    )
+
+    registry.new_rule(
       :node_runtime,
       attributes: {
         node: Attribute.new(Label, providers: [FileInfo]),
@@ -2748,7 +2769,7 @@ module Wake
       )]
     end
 
-    def compile_test_binary(context:, entry_point:, srcs:, deps:)
+    def compile_test_binary(context:, entry_point:, srcs:, deps:, plugins: [])
       source_paths = srcs
       dependency_paths = deps
       output = context.expand_path("%{name}.kexe")
@@ -2788,6 +2809,59 @@ module Wake
           "konanc",
           kotlinc_parameters,
           source_paths,
+          env: env,
+        )
+      end
+
+      [TestExecutableInfo.new(
+        executable: output,
+        runfiles: [],
+        arguments: [],
+        env: {},
+      )]
+    end
+
+    def compile_wake_test_binary(context:, srcs:, deps:, plugins:, verbose:)
+      source_paths = srcs.map { |path| context.expand_path(path) }
+      dependency_paths = deps.map { |dep| dep.fetch(KotlinNativeInfo).transitive_runtime_dependencies }.flatten.sort.uniq
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
+      output = context.expand_path("%{name}.kexe")
+
+      java_parameters = [
+        "-Dkonan.home=%{pwd}/#{konan_home}",
+      ]
+
+      kotlinc_parameters = [
+        "-api-version", "1.4",
+        "-language-version", "1.4",
+        *dependency_paths.flat_map { |path| ["-library", path] },
+        "-o", output.chomp(".kexe"),
+        "-Werror",
+        "-Xmulti-platform",
+        "-Xopt-in=kotlin.RequiresOptIn",
+        *plugin_paths.map { |path| "-Xplugin=#{path}" },
+      ]
+
+      env = {
+        "KONAN_DATA_DIR" => konan_data_dir,
+      }
+
+      context.run(
+        inputs: [*java_runtime.files, *classpath, *files, *plugin_paths, *source_paths, *dependency_paths],
+        parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters, *env, verbose ? rand.to_s : nil].compact,
+        outputs: [output],
+      ) do |fs|
+        fs.exec!(
+          java_runtime.java,
+          java_runtime.arguments,
+          java_parameters,
+          "-cp",
+          classpath.join(":"),
+          "org.jetbrains.kotlin.cli.utilities.MainKt",
+          "konanc",
+          kotlinc_parameters,
+          source_paths,
+          out: verbose ? $stdout : StringIO.new,
           env: env,
         )
       end

@@ -36,6 +36,27 @@ kt_js_lib(
   ],
 )
 
+kt_native_macos_lib(
+  name: "api_native",
+  srcs: ["api.kt"],
+  deps: [],
+)
+
+kt_native_macos_lib(
+  name: "runtime_native",
+  srcs: [
+    "runtime.kt",
+    "runtime/native.kt",
+  ],
+  deps: [
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_macosx64:klib",
+    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_macosx64:klib",
+  ],
+  plugins: [
+    "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
+  ],
+)
+
 kt_js_lib(
   name: "js",
   srcs: [

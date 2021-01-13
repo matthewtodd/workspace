@@ -43,6 +43,8 @@ class WakeTestComponentRegistrar : ComponentRegistrar {
 
 private object WakeTestIrGenerationExtension : IrGenerationExtension {
   override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
+    println("Woo!")
+
     val file = IrFileImpl(
       object : SourceManager.FileEntry {
         override val name = "<test suite>"
