@@ -40,6 +40,7 @@ kt_native_macos_lib(
   name: "api_native",
   srcs: ["api.kt"],
   deps: [],
+  os: :macos,
 )
 
 kt_native_macos_lib(
@@ -55,6 +56,7 @@ kt_native_macos_lib(
   plugins: [
     "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
   ],
+  os: :macos,
 )
 
 kt_js_lib(
