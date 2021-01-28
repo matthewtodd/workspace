@@ -109,16 +109,16 @@ module Wake
   def self.define_rules(registry, console:)
     registry.new_target(
       label: Label.parse("//tools:console"),
-      os: :any,
       # Dummy for now because ruby 2.5.3 on Travis otherwise complains splatting no kwargs.
       rule: lambda { |context, dummy:| [console] },
+      common: Target::COMMON.parse({ name: "console" }),
       attributes: AttributeSchema.new({ dummy: Attribute.new(String) }).parse({ dummy: "42" }),
     )
 
     registry.new_target(
       label: Label.parse("//tools:http"),
-      os: :any,
       rule: lambda { |context, console:| [HttpDownloader.new(console.fetch(Console))] },
+      common: Target::COMMON.parse({ name: "http" }),
       attributes: AttributeSchema.new({
         console: Attribute.new(Label, default: "//tools:console", providers: [Console]),
       }).parse({}),
@@ -1248,16 +1248,16 @@ module Wake
       schema = AttributeSchema.new(attributes)
 
       @dsl.class_eval(<<~END)
-        def #{rule_name}(#{schema.dsl_method_parameters(:name, os: :any)})
-          __#{rule_name}(#{schema.dsl_method_forwarding_parameters(:name, :os)})
+        def #{rule_name}(#{[Target::COMMON.dsl_method_parameters, schema.dsl_method_parameters].reject(&:empty?).join(", ")})
+          __#{rule_name}(#{[Target::COMMON.dsl_method_forwarding_parameters, schema.dsl_method_forwarding_parameters].reject(&:empty?).join(", ")})
         end
       END
 
-      @dsl.define_method("__#{rule_name}") do |name:, os:, **attributes|
+      @dsl.define_method("__#{rule_name}") do |**attributes|
         @registry.new_target(
-          label: Label.new(package: @package, name: name),
-          os: os,
+          label: Label.new(package: @package, name: attributes.fetch(:name)),
           rule: implementation,
+          common: Target::COMMON.parse(attributes, package: @package),
           attributes: schema.parse(attributes, package: @package),
         )
       end
@@ -1265,8 +1265,8 @@ module Wake
       @dsl.class_eval("private :__#{rule_name}")
     end
 
-    def new_target(label:, os:, rule:, attributes:)
-      @targets[label] = Target.new(os: os, rule: rule, attributes: attributes)
+    def new_target(label:, rule:, common:, attributes:)
+      @targets[label] = Target.new(rule: rule, common: common, attributes: attributes)
     end
 
     def new_toolchain_type(package:, name:, providers:)
@@ -1275,6 +1275,7 @@ module Wake
 
     def new_toolchain(package:, name:, os:, toolchain:, toolchain_type:)
       @toolchains << Toolchain.new(
+        name: name,
         os: os,
         toolchain: Label.parse(toolchain, package: package),
         toolchain_type: Label.parse(toolchain_type, package: package),
@@ -1314,7 +1315,7 @@ module Wake
         providers = @toolchain_types.fetch(toolchain.toolchain_type)
 
         result[toolchain.toolchain_type] = Target.new(
-          os: toolchain.os,
+          common: Target::COMMON.parse({ name: toolchain.name, os: toolchain.os }),
           attributes: AttributeSchema.new(
             actual: Attribute.new(Label, providers: providers),
           ).parse({
@@ -1357,7 +1358,7 @@ module Wake
       end
     end
 
-    class Toolchain < Struct.new(:os, :toolchain, :toolchain_type, keyword_init: true)
+    class Toolchain < Struct.new(:name, :os, :toolchain, :toolchain_type, keyword_init: true)
       def compatible_with?(platform)
         platform.compatible_with?(os: os)
       end
@@ -1815,55 +1816,6 @@ module Wake
     end
   end
 
-  class Target
-    def initialize(os:, rule:, attributes:)
-      @os = os
-      @rule = rule
-      @attributes = attributes
-    end
-
-    def compatible_with?(platform)
-      platform.compatible_with?(os: @os)
-    end
-
-    def dependencies
-      @attributes.dependencies
-    end
-
-    def invoke(context)
-      context.invoke(@rule, @attributes)
-    end
-  end
-
-  class TargetTest < Test
-    def test_dependencies
-      target = Target.new(
-        os: :any,
-        rule: ->(context, **attributes) { },
-        attributes: AttributeSchema.new(
-          thing: Attribute.new(Label),
-          things: Attribute.new(Label, list: true),
-          irrelevant_things: Attribute.new(String, list: true),
-        ).parse({
-          thing: "//src/main:quux",
-          things: [
-            "//src/main:bar",
-            "//src/main:baz",
-          ],
-          irrelevant_things: [
-            "a.rb",
-            "b.rb",
-          ],
-        }),
-      )
-      assert_equal [
-        Label["//src/main:bar"],
-        Label["//src/main:baz"],
-        Label["//src/main:quux"],
-      ].to_set, target.dependencies
-    end
-  end
-
   class AttributeSchema
     def initialize(fields = {})
       @fields = fields
@@ -1873,15 +1825,12 @@ module Wake
       @fields.map { |name, type| type.dependencies(values.fetch(name)) }.reduce(Set.new, &:merge).freeze
     end
 
-    def dsl_method_parameters(*required, **optional)
-      result = required.map { |name| "#{name}:" }
-      result.concat(optional.map { |name, value| "#{name}: #{value.inspect}" })
-      result.concat(@fields.map { |name, type| type.as_method_parameter(name) }).join(", ")
+    def dsl_method_parameters
+      @fields.map { |name, type| type.as_method_parameter(name) }.join(", ")
     end
 
-    def dsl_method_forwarding_parameters(*names)
-      result = names.map { |name| "#{name}: #{name}" }
-      result.concat(@fields.keys.map { |name| "#{name}: #{name}" }).join(", ")
+    def dsl_method_forwarding_parameters
+      @fields.keys.map { |name| "#{name}: #{name}" }.join(", ")
     end
 
     def parse(raw, **options)
@@ -1915,19 +1864,9 @@ module Wake
         @schema.dsl_method_parameters
     end
 
-    def test_dsl_method_parameters_with_further_required_and_optional_parameters
-      assert_equal "name:, os: :any, deps:, compiler: \"//lib:compiler\", strip_components: 0, build: ->() { }, neverlink: false",
-        @schema.dsl_method_parameters(:name, os: :any)
-    end
-
     def test_dsl_method_forwarding_parameters
       assert_equal "deps: deps, compiler: compiler, strip_components: strip_components, build: build, neverlink: neverlink",
         @schema.dsl_method_forwarding_parameters
-    end
-
-    def test_dsl_method_forwarding_parameters_with_further_required_and_optional_parameters
-      assert_equal "name: name, os: os, deps: deps, compiler: compiler, strip_components: strip_components, build: build, neverlink: neverlink",
-        @schema.dsl_method_forwarding_parameters(:name, :os)
     end
   end
 
@@ -2038,6 +1977,60 @@ module Wake
 
     def test_parse_relative_label
       assert_equal Label["//src/main:foo"], Attribute.new(Label).parse(":foo", package: "src/main")
+    end
+  end
+
+  class Target
+    COMMON = AttributeSchema.new(
+      name: Attribute.new(String),
+      os: Attribute.new(Symbol, default: :any),
+    )
+
+    def initialize(rule:, common:, attributes:)
+      @rule = rule
+      @common = common
+      @attributes = attributes
+    end
+
+    def compatible_with?(platform)
+      platform.compatible_with?(os: @common.to_hash.fetch(:os))
+    end
+
+    def dependencies
+      @attributes.dependencies
+    end
+
+    def invoke(context)
+      context.invoke(@rule, @attributes)
+    end
+  end
+
+  class TargetTest < Test
+    def test_dependencies
+      target = Target.new(
+        rule: ->(context, **attributes) { },
+        common: Target::COMMON.parse({ name: "foo" }),
+        attributes: AttributeSchema.new(
+          thing: Attribute.new(Label),
+          things: Attribute.new(Label, list: true),
+          irrelevant_things: Attribute.new(String, list: true),
+        ).parse({
+          thing: "//src/main:quux",
+          things: [
+            "//src/main:bar",
+            "//src/main:baz",
+          ],
+          irrelevant_things: [
+            "a.rb",
+            "b.rb",
+          ],
+        }),
+      )
+      assert_equal [
+        Label["//src/main:bar"],
+        Label["//src/main:baz"],
+        Label["//src/main:quux"],
+      ].to_set, target.dependencies
     end
   end
 
