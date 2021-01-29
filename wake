@@ -47,7 +47,7 @@ module Wake
     end
 
     targets = registry.resolve(platform: Platform.new(host_os: RbConfig::CONFIG.fetch("host_os")))
-    actions = Actions.new(console, RealFilesystem.new(Dir.pwd))
+    filesystem = RealFilesystem.new(Dir.pwd)
     providers = ProviderRegistry.new
 
     plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
@@ -55,7 +55,7 @@ module Wake
     workers = Array.new(options.fetch(:jobs)) do
       Thread.new do
         plan.each do |label|
-          context = Context.new(actions, providers, label)
+          context = Context.new(filesystem, providers, label)
           target = targets.fetch(label)
           console.report_target_invocation(label)
           target.invoke(context)
@@ -71,37 +71,16 @@ module Wake
     test_plan = Plan.new(tests.keys) { |label| [] } # no dependencies
     test_plan.each do |label|
       test = tests.fetch(label)
-      out = File.join(label.package, "#{label.name}-out.txt")
-      process_test_output = lambda do |io|
-        until io.eof?
-          test_case = TestCase.json_create(JSON.parse(io.readline.chomp))
-          console.report_test_result(test_case)
-          broken_tests << test_case if test_case.broken?
-        end
-      end
-
-      action_did_run = false
-
-      actions.run(label, inputs: [test.executable, *test.runfiles], parameters: [*test.arguments, *test.env.flatten], outputs: [out]) do |fs|
-        action_did_run = true
-        rd, wr = IO.pipe
-        reader = Thread.new(rd, &process_test_output)
-        fs.open(out, "wb") do |io|
-          fs.exec!(test.executable, *test.arguments, out: CompositeIO.new(io, wr), env: test.env)
-        end
-        wr.close
-        reader.join
-      end
-
-      if !action_did_run
-        # TODO var/tmp is duplication with Actions
-        File.open(File.join("var/tmp", out), "rb", &process_test_output)
+      test.run do |test_case|
+        console.report_test_result(test_case)
+        broken_tests << test_case if test_case.broken?
       end
     end
 
     console.join
 
-    actions.expire(before: Time.now - (60 * 60 * 24))
+    # TODO var/cache is duplication with Actions
+    filesystem.purge("var/cache", before: Time.now - (60 * 60 * 24))
 
     broken_tests.count
   end
@@ -384,6 +363,7 @@ module Wake
         test_module_js = test_modules.find(-> { raise }) { |provider| KotlinJsInfo === provider }.js
 
         [TestExecutableInfo.new(
+          context: context,
           executable: node.node,
           runfiles: [test_module_js],
           arguments: [File.join(".", test_module_js)],
@@ -424,6 +404,7 @@ module Wake
         classpath = [test_runner.fetch(JavaInfo), test_library].map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
         [TestExecutableInfo.new(
+          context: context,
           executable: jre.java,
           runfiles: jre.files.concat(classpath),
           arguments: [
@@ -634,15 +615,23 @@ module Wake
   end
 
   class Context
-    def initialize(actions, providers, label)
-      @actions = actions
+    def initialize(filesystem, providers, label)
+      @filesystem = filesystem
       @providers = providers
       @label = label
     end
 
-    def invoke(rule, attributes)
+    def invoke(rule, config, attributes)
       # TODO do we want rules to register providers more explicitly?
-      @providers[@label] = rule.call(self, **attributes.using(@providers)) || []
+      @providers[@label] = rule.call(Actions.new(@label, @filesystem, **config.using(@providers)), **attributes.using(@providers)) || []
+    end
+  end
+
+  class Actions
+    def initialize(label, filesystem, **config)
+      @label = label
+      @filesystem = filesystem
+      @config = config
     end
 
     def expand_path(path)
@@ -650,59 +639,44 @@ module Wake
     end
 
     def run(inputs: [], parameters: [], outputs:, &block)
-      @actions.run(@label, inputs: inputs, parameters: parameters, outputs: outputs, &block)
-    end
-  end
+      alien = outputs.reject { |path| path.start_with?(@label.package) }
+      raise "Action for #{@label} cannot produce outputs outside of #{@label.package}, but claims #{alien}." if alien.any?
 
-  class Actions
-    def initialize(console, fs)
-      @console = console
-      @fs = fs
-    end
+      key = Digest::SHA256.hexdigest("#{@label}-#{inputs.map { |path| checksum(path) }.join("-")}-#{parameters.join("-")}-#{outputs.join("-")}")
 
-    def run(label, inputs: [], parameters: [], outputs:, &block)
-      alien = outputs.reject { |path| path.start_with?(label.package) }
-      raise "Action for #{label} cannot produce outputs outside of #{label.package}, but claims #{alien}." if alien.any?
-
-      key = Digest::SHA256.hexdigest("#{label}-#{inputs.map { |path| checksum(path) }.join("-")}-#{parameters.join("-")}-#{outputs.join("-")}")
-
-      if !@fs.exists?("var/cache/#{key}")
-        @fs.mktmpdir do |dir|
+      if !@filesystem.exists?("var/cache/#{key}")
+        @filesystem.mktmpdir do |dir|
           inputs.each do |path|
-            if @fs.exists?(path)
-              @fs.link(path, "#{dir}/#{path}")
+            if @filesystem.exists?(path)
+              @filesystem.link(path, "#{dir}/#{path}")
             else
-              @fs.link("var/tmp/#{path}", "#{dir}/#{path}")
+              @filesystem.link("var/tmp/#{path}", "#{dir}/#{path}")
             end
           end
 
-          block.call(@fs.sandbox(dir))
+          block.call(@filesystem.sandbox(dir))
 
-          missing = outputs.reject { |path| @fs.exists?("#{dir}/#{path}") }
-          raise "Action for #{label} failed to produce outputs #{missing}." if missing.any?
+          missing = outputs.reject { |path| @filesystem.exists?("#{dir}/#{path}") }
+          raise "Action for #{@label} failed to produce outputs #{missing}." if missing.any?
 
           outputs.each do |path|
-            @fs.link("#{dir}/#{path}", "var/cache/#{key}/#{path}")
+            @filesystem.link("#{dir}/#{path}", "var/cache/#{key}/#{path}")
           end
         end
       end
 
       outputs.each do |path|
-        @fs.link("var/cache/#{key}/#{path}", "var/tmp/#{path}")
+        @filesystem.link("var/cache/#{key}/#{path}", "var/tmp/#{path}")
       end
-    end
-
-    def expire(before:)
-      @fs.purge("var/cache", before: before)
     end
 
     private
 
     def checksum(path)
-      if @fs.exists?(path)
-        @fs.checksum(path)
+      if @filesystem.exists?(path)
+        @filesystem.checksum(path)
       else
-        @fs.checksum("var/tmp/#{path}")
+        @filesystem.checksum("var/tmp/#{path}")
       end
     end
   end
@@ -710,18 +684,18 @@ module Wake
   class ActionsTest < Test
     def setup
       @files = {}
-      @actions = Actions.new(Console.new(StringIO.new), InMemoryFilesystem.new("/workspace", @files))
+      @filesystem = InMemoryFilesystem.new("/workspace", @files)
     end
 
     def test_run_caching
       @files["/workspace/src/foo.txt"] = "FOO"
       @files["/workspace/src/bar.txt"] = "BAR"
 
-      @actions.run(Label["//src:baz"], outputs: ["src/baz.out"]) do |fs|
+      Actions.new(Label["//src:baz"], @filesystem).run(outputs: ["src/baz.out"]) do |fs|
         fs.open("src/baz.out", "w") { |io| io.puts("BAZ") }
       end
 
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
+      Actions.new(Label["//src:foo"], @filesystem).run(inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         fs.open("src/foo.out", "w") do |io|
           2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
           2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
@@ -739,14 +713,14 @@ module Wake
       END
 
       # nothing changes (re-run with raising block?)
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
+      Actions.new(Label["//src:foo"], @filesystem).run(inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         raise "Shouldn't get here!"
       end
 
       # source changes
       @files["/workspace/src/foo.txt"] = "FOOFOO"
 
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
+      Actions.new(Label["//src:foo"], @filesystem).run(inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         fs.open("src/foo.out", "w") do |io|
           2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
           2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
@@ -764,11 +738,11 @@ module Wake
       END
 
       # generated changes
-      @actions.run(Label["//src:baz"], parameters: [:changed], outputs: ["src/baz.out"]) do |fs|
+      Actions.new(Label["//src:baz"], @filesystem).run(parameters: [:changed], outputs: ["src/baz.out"]) do |fs|
         fs.open("src/baz.out", "w") { |io| io.puts("BAZBAZ") }
       end
 
-      @actions.run(Label["//src:foo"], inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
+      Actions.new(Label["//src:foo"], @filesystem).run(inputs: ["src/foo.txt", "src/bar.txt", "src/baz.out"], outputs: ["src/foo.out"]) do |fs|
         fs.open("src/foo.out", "w") do |io|
           2.times { fs.open("src/foo.txt", "r") { |foo| io.puts(foo.read) } }
           2.times { fs.open("src/bar.txt", "r") { |bar| io.puts(bar.read) } }
@@ -1984,6 +1958,7 @@ module Wake
     COMMON = AttributeSchema.new(
       name: Attribute.new(String),
       os: Attribute.new(Symbol, default: :any),
+      verbose: Attribute.new(TrueClass, default: false),
     )
 
     def initialize(rule:, common:, attributes:)
@@ -2001,7 +1976,7 @@ module Wake
     end
 
     def invoke(context)
-      context.invoke(@rule, @attributes)
+      context.invoke(@rule, @common, @attributes)
     end
   end
 
@@ -2798,6 +2773,7 @@ module Wake
       end
 
       [TestExecutableInfo.new(
+        context: context,
         executable: output,
         runfiles: [],
         arguments: [],
@@ -2850,6 +2826,7 @@ module Wake
       end
 
       [TestExecutableInfo.new(
+        context: context,
         executable: output,
         runfiles: [],
         arguments: [],
@@ -2881,8 +2858,38 @@ module Wake
     end
   end
 
-  class TestExecutableInfo < Struct.new(:executable, :runfiles, :arguments, :env, keyword_init: true)
-    # TODO move any relevant behavior here
+  class TestExecutableInfo < Struct.new(:context, :executable, :runfiles, :arguments, :env, keyword_init: true)
+    def run(&block)
+      out = context.expand_path("%{name}-out.txt")
+
+      process_test_output = lambda do |io|
+        until io.eof?
+          block.call(TestCase.json_create(JSON.parse(io.readline.chomp)))
+        end
+      end
+
+      action_did_run = false
+
+      context.run(
+        inputs: [executable, *runfiles],
+        parameters: [*arguments, *env.flatten],
+        outputs: [out],
+      ) do |fs|
+        action_did_run = true
+        rd, wr = IO.pipe
+        reader = Thread.new(rd, &process_test_output)
+        fs.open(out, "wb") do |io|
+          fs.exec!(executable, *arguments, out: CompositeIO.new(io, wr), env: test.env)
+        end
+        wr.close
+        reader.join
+      end
+
+      if !action_did_run
+        # TODO var/tmp is duplication with Actions
+        File.open(File.join("var/tmp", out), "rb", &process_test_output)
+      end
+    end
   end
 
   if Kernel.const_defined?(:Minitest)
