@@ -22,5 +22,5 @@ kt_native_macos_test(
 #   deps: ["//src/main/kotlin/wake/test:api_native", "//src/main/kotlin/wake/test:runtime_native"],
 #   plugins: ["//src/main/kotlin/wake/test:plugin"],
 #   os: :macos,
-    # verbose: true,
+#   verbose: true,
 # )

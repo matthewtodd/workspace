@@ -642,6 +642,7 @@ module Wake
       alien = outputs.reject { |path| path.start_with?(@label.package) }
       raise "Action for #{@label} cannot produce outputs outside of #{@label.package}, but claims #{alien}." if alien.any?
 
+      parameters << rand.to_s if @config[:verbose]
       key = Digest::SHA256.hexdigest("#{@label}-#{inputs.map { |path| checksum(path) }.join("-")}-#{parameters.join("-")}-#{outputs.join("-")}")
 
       if !@filesystem.exists?("var/cache/#{key}")
@@ -654,7 +655,7 @@ module Wake
             end
           end
 
-          block.call(@filesystem.sandbox(dir))
+          block.call(@filesystem.sandbox(dir, **@config))
 
           missing = outputs.reject { |path| @filesystem.exists?("#{dir}/#{path}") }
           raise "Action for #{@label} failed to produce outputs #{missing}." if missing.any?
@@ -790,7 +791,7 @@ module Wake
       @files.delete_if { |path, content| path.start_with?(tmp) }
     end
 
-    def sandbox(base)
+    def sandbox(base, **config)
       Sandbox.new(absolute_path(base), @files)
     end
 
@@ -893,8 +894,8 @@ module Wake
       Dir.mktmpdir(&block)
     end
 
-    def sandbox(base)
-      Sandbox.new(self, absolute_path(base))
+    def sandbox(base, **config)
+      Sandbox.new(self, absolute_path(base), **config)
     end
 
     private
@@ -904,9 +905,10 @@ module Wake
     end
 
     class Sandbox
-      def initialize(fs, base)
+      def initialize(fs, base, **config)
         @fs = fs
         @base = base
+        @config = config
       end
 
       def open(path, mode, permissions: 0644, &block)
@@ -919,13 +921,21 @@ module Wake
         spy_out = StringIO.new
         spy_err = StringIO.new
 
+        if @config[:verbose]
+          out = CompositeIO.new(out, spy_out, $stdout)
+          err = CompositeIO.new(err, spy_err, $stderr)
+        else
+          out = CompositeIO.new(out, spy_out)
+          err = CompositeIO.new(err, spy_err)
+        end
+
         initial_files = Find.find(@base).
           reject { |path| File.directory?(path) }.
           map { |path| path[@base.length + 1, path.length - 1] }
 
         args = args.flatten.map { |a| a.gsub("%{pwd}", @base) }
         env = env.map { |k, v| [k, v.gsub("%{pwd}", @base)] }.to_h
-        status = exec(*args, out: CompositeIO.new(out, spy_out), err: CompositeIO.new(err, spy_err), env: env)
+        status = exec(*args, out: out, err: err, env: env)
 
         if !status.success?
           files = Find.find(@base).
