@@ -2879,7 +2879,7 @@ module Wake
         rd, wr = IO.pipe
         reader = Thread.new(rd, &process_test_output)
         fs.open(out, "wb") do |io|
-          fs.exec!(executable, *arguments, out: CompositeIO.new(io, wr), env: test.env)
+          fs.exec!(executable, *arguments, out: CompositeIO.new(io, wr), env: env)
         end
         wr.close
         reader.join
