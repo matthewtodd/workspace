@@ -264,15 +264,13 @@ module Wake
     registry.new_rule(
       :kotlin_compiler,
       attributes: {
-        deprecated_java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
         classpath: Attribute.new(Label, list: true, providers: [JavaInfo]),
         native: Attribute.new(Label, providers: [KotlinNativeCompilerInfo]),
       },
-      implementation: ->(context, deprecated_java_archiver:, java_runtime:, classpath:, native:) {
+      implementation: ->(context, java_runtime:, classpath:, native:) {
         [
           KotlinJsCompilerInfo.new(
-            deprecated_java_archiver: deprecated_java_archiver.fetch(JavaArchiverInfo),
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
             classpath: classpath.map { |dep| dep.fetch(JavaInfo) },
           ),
@@ -2580,7 +2578,7 @@ module Wake
   end
 
   # https://kotlinlang.org/docs/reference/compiler-reference.html
-  class KotlinJsCompilerInfo < Struct.new(:deprecated_java_archiver, :java_runtime, :classpath, keyword_init: true)
+  class KotlinJsCompilerInfo < Struct.new(:java_runtime, :classpath, keyword_init: true)
     def compile(srcs:, deps:, plugins:, context:)
       kotlin_info = modern_compile(srcs: srcs, deps: deps, plugins: plugins, context: context)
       [kotlin_info].compact
