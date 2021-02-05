@@ -3,7 +3,7 @@
 # https://github.com/JetBrains/kotlin/releases/latest
 http_file(
   name: "dist",
-  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.21/kotlin-native-prebuilt-linux-1.4.21.tar.gz",
+  url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.30/kotlin-native-prebuilt-linux-1.4.30.tar.gz",
   sha256: nil,
   os: :linux,
 )
@@ -124,6 +124,8 @@ extract(
     "klib/common/stdlib/default/targets/android_x86/native/runtime.bc",
     "klib/common/stdlib/default/targets/linux_arm32_hfp/native/runtime.bc",
     "klib/common/stdlib/default/targets/linux_arm64/native/runtime.bc",
+    "klib/common/stdlib/default/targets/linux_mips32/native/runtime.bc",
+    "klib/common/stdlib/default/targets/linux_mipsel32/native/runtime.bc",
     "klib/common/stdlib/default/targets/linux_x64/native/runtime.bc",
     "klib/common/stdlib/default/targets/wasm32/included/index.html",
     "klib/common/stdlib/default/targets/wasm32/included/jsinterop.js",
