@@ -14,11 +14,11 @@ maven_jars(
     "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.0.1", # https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-jvm/
     "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.0.1", # https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-jvm/
     "org.jetbrains:annotations:13.0", # https://repo1.maven.org/maven2/org/jetbrains/annotations/
-    "org.junit.jupiter:junit-jupiter-api:5.7.0", # https://repo1.maven.org/maven2/org/junit/jupiter/junit-jupiter-api/
-    "org.junit.jupiter:junit-jupiter-engine:5.7.0", # https://repo1.maven.org/maven2/org/junit/jupiter/junit-jupiter-engine/
-    "org.junit.platform:junit-platform-commons:1.7.0", # https://repo1.maven.org/maven2/org/junit/platform/junit-platform-commons/
-    "org.junit.platform:junit-platform-engine:1.7.0", # https://repo1.maven.org/maven2/org/junit/platform/junit-platform-engine/
-    "org.junit.platform:junit-platform-launcher:1.7.0", # https://repo1.maven.org/maven2/org/junit/platform/junit-platform-launcher/
+    "org.junit.jupiter:junit-jupiter-api:5.7.1", # https://repo1.maven.org/maven2/org/junit/jupiter/junit-jupiter-api/
+    "org.junit.jupiter:junit-jupiter-engine:5.7.1", # https://repo1.maven.org/maven2/org/junit/jupiter/junit-jupiter-engine/
+    "org.junit.platform:junit-platform-commons:1.7.1", # https://repo1.maven.org/maven2/org/junit/platform/junit-platform-commons/
+    "org.junit.platform:junit-platform-engine:1.7.1", # https://repo1.maven.org/maven2/org/junit/platform/junit-platform-engine/
+    "org.junit.platform:junit-platform-launcher:1.7.1", # https://repo1.maven.org/maven2/org/junit/platform/junit-platform-launcher/
     "org.opentest4j:opentest4j:1.2.0", # https://repo1.maven.org/maven2/org/opentest4j/opentest4j/
   ],
 )
