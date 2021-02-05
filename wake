@@ -2654,7 +2654,7 @@ module Wake
         "-cp", dependency_paths.join(":"),
         "-d", output,
         "-language-version", "1.4",
-        "-jvm-target", "14",
+        "-jvm-target", "15",
         "-no-reflect",
         "-no-stdlib",
         "-Werror",
