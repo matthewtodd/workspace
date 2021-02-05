@@ -640,10 +640,9 @@ module Wake
       alien = outputs.reject { |path| path.start_with?(@label.package) }
       raise "Action for #{@label} cannot produce outputs outside of #{@label.package}, but claims #{alien}." if alien.any?
 
-      parameters << rand.to_s if @config[:verbose]
       key = Digest::SHA256.hexdigest("#{@label}-#{inputs.map { |path| checksum(path) }.join("-")}-#{parameters.join("-")}-#{outputs.join("-")}")
 
-      if !@filesystem.exists?("var/cache/#{key}")
+      if @config[:verbose] || !@filesystem.exists?("var/cache/#{key}")
         @filesystem.mktmpdir do |dir|
           inputs.each do |path|
             if @filesystem.exists?(path)
@@ -2620,6 +2619,10 @@ module Wake
           java_runtime.java,
           java_runtime.arguments,
           "-cp", classpath.join(":"),
+          # TODO remove once fixed in intellij-core and taken up by kotlin-compiler
+          # https://youtrack.jetbrains.com/issue/KT-43704
+          # https://youtrack.jetbrains.com/issue/IDEA-24878
+          "--add-opens", "java.base/java.util=ALL-UNNAMED",
           "org.jetbrains.kotlin.cli.js.K2JSCompiler",
           "-libraries", dependency_paths.join(":"),
           "-output", output_js,
@@ -2671,6 +2674,10 @@ module Wake
           java_runtime.java,
           java_runtime.arguments,
           "-cp", classpath.join(":"),
+          # TODO remove once fixed in intellij-core and taken up by kotlin-compiler
+          # https://youtrack.jetbrains.com/issue/KT-43704
+          # https://youtrack.jetbrains.com/issue/IDEA-24878
+          "--add-opens", "java.base/java.util=ALL-UNNAMED",
           "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
           kotlinc_parameters,
         )
@@ -2722,6 +2729,10 @@ module Wake
           java_parameters,
           "-cp",
           classpath.join(":"),
+          # TODO remove once fixed in intellij-core and taken up by kotlin-compiler
+          # https://youtrack.jetbrains.com/issue/KT-43704
+          # https://youtrack.jetbrains.com/issue/IDEA-24878
+          "--add-opens", "java.base/java.util=ALL-UNNAMED",
           "org.jetbrains.kotlin.cli.utilities.MainKt",
           "konanc",
           kotlinc_parameters,
@@ -2772,6 +2783,10 @@ module Wake
           java_parameters,
           "-cp",
           classpath.join(":"),
+          # TODO remove once fixed in intellij-core and taken up by kotlin-compiler
+          # https://youtrack.jetbrains.com/issue/KT-43704
+          # https://youtrack.jetbrains.com/issue/IDEA-24878
+          "--add-opens", "java.base/java.util=ALL-UNNAMED",
           "org.jetbrains.kotlin.cli.utilities.MainKt",
           "konanc",
           kotlinc_parameters,
@@ -2825,6 +2840,10 @@ module Wake
           java_parameters,
           "-cp",
           classpath.join(":"),
+          # TODO remove once fixed in intellij-core and taken up by kotlin-compiler
+          # https://youtrack.jetbrains.com/issue/KT-43704
+          # https://youtrack.jetbrains.com/issue/IDEA-24878
+          "--add-opens", "java.base/java.util=ALL-UNNAMED",
           "org.jetbrains.kotlin.cli.utilities.MainKt",
           "konanc",
           kotlinc_parameters,
