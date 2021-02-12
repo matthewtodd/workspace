@@ -632,6 +632,10 @@ module Wake
       @config = config
     end
 
+    def debug?
+      @config[:debug]
+    end
+
     def expand_path(path)
       File.join(@label.package, path.gsub("%{name}", @label.name))
     end
@@ -642,7 +646,7 @@ module Wake
 
       key = Digest::SHA256.hexdigest("#{@label}-#{inputs.map { |path| checksum(path) }.join("-")}-#{parameters.join("-")}-#{outputs.join("-")}")
 
-      if @config[:verbose] || !@filesystem.exists?("var/cache/#{key}")
+      if @config[:debug] || @config[:verbose] || !@filesystem.exists?("var/cache/#{key}")
         @filesystem.mktmpdir do |dir|
           inputs.each do |path|
             if @filesystem.exists?(path)
@@ -1966,6 +1970,7 @@ module Wake
       name: Attribute.new(String),
       os: Attribute.new(Symbol, default: :any),
       verbose: Attribute.new(TrueClass, default: false),
+      debug: Attribute.new(TrueClass, default: false),
     )
 
     def initialize(rule:, common:, attributes:)
@@ -2813,6 +2818,11 @@ module Wake
       java_parameters = [
         "-Dkonan.home=%{pwd}/#{konan_home}",
       ]
+
+      # To debug: ./var/tmp/lib/java/jdk15_macos/bin/jdb -attach localhost:9253
+      if context.debug?
+        java_parameters << "-agentlib:jdwp=transport=dt_socket,server=y,address=9253"
+      end
 
       kotlinc_parameters = [
         "-api-version", "1.4",
