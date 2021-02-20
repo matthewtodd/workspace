@@ -1,18 +1,16 @@
 package org.matthewtodd.wake.test
 
 import com.intellij.mock.MockProject
+import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities.LOCAL
-import org.jetbrains.kotlin.descriptors.impl.EmptyPackageFragmentDescriptor
+import org.jetbrains.kotlin.extensions.CollectAdditionalSourcesExtension
 import org.jetbrains.kotlin.ir.IrElement
-import org.jetbrains.kotlin.ir.SourceManager
-import org.jetbrains.kotlin.ir.SourceRangeInfo
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
-import org.jetbrains.kotlin.ir.builders.declarations.addFunction
 import org.jetbrains.kotlin.ir.builders.declarations.buildFun
 import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.builders.irCall
@@ -23,7 +21,6 @@ import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin.LOCAL_FUNCTION_F
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOriginImpl
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
-import org.jetbrains.kotlin.ir.declarations.impl.IrFileImpl
 import org.jetbrains.kotlin.ir.expressions.IrErrorExpression
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin.LAMBDA
 import org.jetbrains.kotlin.ir.expressions.impl.IrFunctionExpressionImpl
@@ -32,51 +29,42 @@ import org.jetbrains.kotlin.ir.util.getAnnotation
 import org.jetbrains.kotlin.ir.util.hasAnnotation
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.SpecialNames.ANONYMOUS_FUNCTION
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtPsiFactory
 
 class WakeTestComponentRegistrar : ComponentRegistrar {
   override fun registerProjectComponents(project: MockProject, configuration: CompilerConfiguration) {
+    CollectAdditionalSourcesExtension.registerExtension(project, WakeTestCollectAdditionalSourcesExtension)
     IrGenerationExtension.registerExtension(project, WakeTestIrGenerationExtension)
+  }
+}
+
+private object WakeTestCollectAdditionalSourcesExtension : CollectAdditionalSourcesExtension {
+  private var done = false
+
+  override fun collectAdditionalSourcesAndUpdateConfiguration(
+    knownSources: Collection<KtFile>,
+    configuration: CompilerConfiguration,
+    project: Project
+  ): Collection<KtFile> {
+    if (done) {
+      return listOf()
+    }
+
+    done = true
+
+    val factory = KtPsiFactory(project, false)
+    val mainFunction = factory.createPhysicalFile("main.kt", "fun main() {}")
+    return listOf(mainFunction)
   }
 }
 
 private object WakeTestIrGenerationExtension : IrGenerationExtension {
   override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
-    println("Woo!")
-
-    val file = IrFileImpl(
-      object : SourceManager.FileEntry {
-        override val name = "<test suite>"
-        override val maxOffset = UNDEFINED_OFFSET
-
-        override fun getSourceRangeInfo(beginOffset: Int, endOffset: Int) =
-          SourceRangeInfo(
-            "",
-            UNDEFINED_OFFSET,
-            UNDEFINED_OFFSET,
-            UNDEFINED_OFFSET,
-            UNDEFINED_OFFSET,
-            UNDEFINED_OFFSET,
-            UNDEFINED_OFFSET
-          )
-
-        override fun getLineNumber(offset: Int) = UNDEFINED_OFFSET
-        override fun getColumnNumber(offset: Int) = UNDEFINED_OFFSET
-      },
-      EmptyPackageFragmentDescriptor(moduleFragment.descriptor, FqName.ROOT)
-    )
-
-    moduleFragment.files += file
-
+    val mainFunction = pluginContext.referenceFunctions(FqName("main")).single().owner
     val wakeTestFunction = pluginContext.referenceFunctions(FqName("org.matthewtodd.wake.test.runtime.test")).single()
     val wakeIgnoreFunction = pluginContext.referenceFunctions(FqName("org.matthewtodd.wake.test.runtime.ignore")).single()
-
-    val mainFunction = pluginContext.irFactory.addFunction(file) {
-      name = Name.identifier("main")
-      returnType = pluginContext.irBuiltIns.unitType
-      origin = SYNTHETIC_DECLARATION
-    }
 
     mainFunction.body = DeclarationIrBuilder(pluginContext, mainFunction.symbol).irBlockBody {
       moduleFragment.accept(TestMethodFinder) { testClass, testMethod ->

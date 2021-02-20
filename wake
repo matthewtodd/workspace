@@ -2562,13 +2562,20 @@ module Wake
       [java, *libs]
     end
 
-    def arguments
+    def arguments(debug: false)
       # So, it seems like, when we have multiple jvms running, there's some leakage of knowledge about where ${JAVA_HOME}/lib is.
-      [
+      result = [
         "-Djava.home=%{pwd}/#{java_home}",
         "-Djava.library.path=%{pwd}/#{java_home}/lib",
         "-Dsun.boot.library.path=%{pwd}/#{java_home}/lib",
       ]
+
+      # To debug: ./var/tmp/lib/java/jdk15_macos/bin/jdb -attach localhost:9253
+      if debug
+        result << "-agentlib:jdwp=transport=dt_socket,server=y,address=9253"
+      end
+
+      result
     end
 
     private
@@ -2584,13 +2591,6 @@ module Wake
   # https://kotlinlang.org/docs/reference/compiler-reference.html
   class KotlinJsCompilerInfo < Struct.new(:java_runtime, :classpath, keyword_init: true)
     def compile(srcs:, deps:, plugins:, context:)
-      kotlin_info = modern_compile(srcs: srcs, deps: deps, plugins: plugins, context: context)
-      [kotlin_info].compact
-    end
-
-    private
-
-    def modern_compile(srcs:, deps:, plugins:, context:)
       classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
       source_paths = srcs.map { |path| context.expand_path(path) }
@@ -2622,7 +2622,7 @@ module Wake
       ) do |fs|
         fs.exec!(
           java_runtime.java,
-          java_runtime.arguments,
+          java_runtime.arguments(debug: context.debug?),
           "-cp", classpath.join(":"),
           # TODO remove once fixed in intellij-core and taken up by kotlin-compiler
           # https://youtrack.jetbrains.com/issue/KT-43704
@@ -2636,11 +2636,11 @@ module Wake
         )
       end
 
-      KotlinJsInfo.new(
+      [KotlinJsInfo.new(
         js: output_js,
         klib: output_klib,
         deps: dependencies,
-      )
+      )]
     end
   end
 
@@ -2818,11 +2818,6 @@ module Wake
       java_parameters = [
         "-Dkonan.home=%{pwd}/#{konan_home}",
       ]
-
-      # To debug: ./var/tmp/lib/java/jdk15_macos/bin/jdb -attach localhost:9253
-      if context.debug?
-        java_parameters << "-agentlib:jdwp=transport=dt_socket,server=y,address=9253"
-      end
 
       kotlinc_parameters = [
         "-api-version", "1.4",

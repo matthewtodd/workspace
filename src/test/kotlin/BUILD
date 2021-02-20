@@ -16,12 +16,10 @@ kt_native_macos_test(
   os: :macos,
 )
 
-# kt_native_macos_wake_test(
-#   name: "ExampleWakeTestNativeMacos",
-#   srcs: ["ExampleWakeTest.kt"],
-#   deps: ["//src/main/kotlin/wake/test:api_native", "//src/main/kotlin/wake/test:runtime_native"],
-#   plugins: ["//src/main/kotlin/wake/test:plugin"],
-#   os: :macos,
-#   verbose: true,
-#   debug: true,
-# )
+kt_native_macos_wake_test(
+  name: "ExampleWakeTestNativeMacos",
+  srcs: ["ExampleWakeTest.kt"],
+  deps: ["//src/main/kotlin/wake/test:api_native", "//src/main/kotlin/wake/test:runtime_native"],
+  plugins: ["//src/main/kotlin/wake/test:plugin"],
+  os: :macos,
+)
