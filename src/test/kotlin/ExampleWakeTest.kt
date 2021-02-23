@@ -1,4 +1,3 @@
-
 import org.matthewtodd.wake.test.Test
 import org.matthewtodd.wake.test.assertThat
 

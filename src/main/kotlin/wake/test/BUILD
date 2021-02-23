@@ -59,23 +59,6 @@ kt_native_macos_lib(
   os: :macos,
 )
 
-kt_js_lib(
-  name: "js",
-  srcs: [
-    "JavascriptTestRunner.kt",
-    "TestResult.kt",
-    "TestRunner.kt",
-  ],
-  deps: [
-    "//lib/maven/org_jetbrains_kotlin/kotlin_test_js:jar",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_js:klib",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_js:klib",
-  ],
-  plugins: [
-    "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
-  ],
-)
-
 kt_jvm_lib(
   name: "junit",
   srcs: [
@@ -95,21 +78,4 @@ kt_jvm_lib(
   plugins: [
     "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
   ],
-)
-
-kt_native_macos_lib(
-  name: "native",
-  srcs: [
-    "NativeTestRunner.kt",
-    "TestResult.kt",
-    "TestRunner.kt",
-  ],
-  deps: [
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_macosx64:klib",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_macosx64:klib",
-  ],
-  plugins: [
-    "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
-  ],
-  os: :macos,
 )

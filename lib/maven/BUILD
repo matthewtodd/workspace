@@ -26,7 +26,6 @@ maven_jars(
 maven_js_klibs(
   artifacts: [
     "org.jetbrains.kotlin:kotlin-stdlib-js:1.4.30@jar", # https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-js/
-    "org.jetbrains.kotlin:kotlin-test-js:1.4.30@jar", # https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-test-js/
     "org.jetbrains.kotlinx:kotlinx-serialization-core-js:1.1.0-RC@klib", # https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-js/
     "org.jetbrains.kotlinx:kotlinx-serialization-json-js:1.1.0-RC@klib", # https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-js/
   ],
