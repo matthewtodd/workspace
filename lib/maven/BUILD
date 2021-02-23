@@ -8,8 +8,6 @@ maven_jars(
     "org.jetbrains.kotlin:kotlin-script-runtime:1.4.30", # https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-script-runtime/
     "org.jetbrains.kotlin:kotlin-serialization-unshaded:1.4.30", # https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-serialization-unshaded/
     "org.jetbrains.kotlin:kotlin-stdlib:1.4.30", # https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/
-    "org.jetbrains.kotlin:kotlin-test-junit5:1.4.30", # https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-test-junit5/
-    "org.jetbrains.kotlin:kotlin-test:1.4.30", # https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-test/
     "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.1.0-RC", # https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-jvm/
     "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.1.0-RC", # https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-jvm/
     "org.jetbrains:annotations:13.0", # https://repo1.maven.org/maven2/org/jetbrains/annotations/
