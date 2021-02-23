@@ -417,6 +417,37 @@ module Wake
     )
 
     registry.new_rule(
+      :kt_jvm_wake_test,
+      attributes: {
+        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
+        srcs: Attribute.new(String, list: true),
+        deps: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
+        stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", providers: [JavaInfo]),
+        plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
+        java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
+      },
+      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:, java_runtime:) {
+        compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
+        test_library = compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context).find(-> { raise }) { |provider| JavaInfo === provider }
+
+        jre = java_runtime.fetch(JavaRuntimeInfo)
+        classpath = test_library.transitive_runtime_dependencies.flatten.sort.uniq
+
+        [TestExecutableInfo.new(
+          context: context,
+          executable: jre.java,
+          runfiles: jre.files.concat(classpath),
+          arguments: [
+            jre.arguments,
+            "-cp", classpath.join(":"),
+            "MainKt",
+          ],
+          env: {},
+        )]
+      },
+    )
+
+    registry.new_rule(
       :kotlin_js_import,
       attributes: {
         klib: Attribute.new(Label, providers: [FileInfo]),

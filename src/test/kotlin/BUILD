@@ -10,6 +10,13 @@ kt_jvm_test(
   srcs: ["ExampleTest.kt"],
 )
 
+kt_jvm_wake_test(
+  name: "ExampleWakeTestJvm",
+  srcs: ["ExampleWakeTest.kt"],
+  deps: ["//src/main/kotlin/wake/test:api_jvm", "//src/main/kotlin/wake/test:runtime_jvm"],
+  plugins: ["//src/main/kotlin/wake/test:plugin"],
+)
+
 kt_native_macos_test(
   name: "ExampleWakeTestNativeMacos",
   srcs: ["ExampleWakeTest.kt"],
