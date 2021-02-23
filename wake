@@ -463,55 +463,11 @@ module Wake
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinNativeCompilerInfo]),
         srcs: Attribute.new(String, list: true),
         deps: Attribute.new(Label, list: true, default: [], providers: [KotlinNativeInfo]),
-        test_runner: Attribute.new(Label, default: "//src/main/kotlin/wake/test:native", providers: [KotlinNativeInfo]),
-      },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, test_runner:) {
-        launcher_path = context.expand_path("%{name}Launcher.kt")
-        launcher_contents = <<~END
-          package kotlin.native.internal.test
-
-          import org.matthewtodd.wake.test.NativeTestRunner
-
-          @ThreadLocal
-          private object GeneratedSuites {
-            val suites = mutableListOf<TestSuite>()
-            fun add(suite: TestSuite) = suites.add(suite)
-          }
-
-          public fun registerSuite(suite: TestSuite) {
-            GeneratedSuites.add(suite)
-          }
-
-          fun wake() {
-            NativeTestRunner(GeneratedSuites.suites).run()
-          }
-        END
-
-        context.run(inputs: [], parameters: [launcher_contents], outputs: [launcher_path]) do |fs|
-          fs.open(launcher_path, "wb") { |io| io.write(launcher_contents) }
-        end
-
-        compiler = kotlin_compiler.fetch(KotlinNativeCompilerInfo)
-        compiler.compile_test_binary(
-          entry_point: "kotlin.native.internal.test.wake",
-          srcs: [launcher_path, *srcs.map { |path| context.expand_path(path) }],
-          deps: [test_runner, *deps].map { |dep| dep.fetch(KotlinNativeInfo).transitive_runtime_dependencies }.flatten.sort.uniq,
-          context: context,
-        )
-      },
-    )
-
-    registry.new_rule(
-      :kt_native_macos_wake_test,
-      attributes: {
-        kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinNativeCompilerInfo]),
-        srcs: Attribute.new(String, list: true),
-        deps: Attribute.new(Label, list: true, default: [], providers: [KotlinNativeInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, plugins:) {
         compiler = kotlin_compiler.fetch(KotlinNativeCompilerInfo)
-        compiler.compile_wake_test_binary(
+        compiler.compile_test_binary(
           srcs: srcs,
           deps: deps,
           plugins: plugins,
@@ -2752,64 +2708,7 @@ module Wake
       )]
     end
 
-    def compile_test_binary(context:, entry_point:, srcs:, deps:, plugins: [])
-      source_paths = srcs
-      dependency_paths = deps
-      output = context.expand_path("%{name}.kexe")
-
-      java_parameters = [
-        "-Dkonan.home=%{pwd}/#{konan_home}",
-      ]
-
-      kotlinc_parameters = [
-        "-api-version", "1.4",
-        "-entry", entry_point,
-        "-language-version", "1.4",
-        *dependency_paths.flat_map { |path| ["-library", path] },
-        "-o", output.chomp(".kexe"),
-        "-tr",
-        "-Werror",
-        "-Xmulti-platform",
-        "-Xopt-in=kotlin.RequiresOptIn",
-      ]
-
-      env = {
-        "KONAN_DATA_DIR" => konan_data_dir,
-      }
-
-      context.run(
-        inputs: [*java_runtime.files, *classpath, *files, *source_paths, *dependency_paths],
-        parameters: [*java_runtime.arguments, *java_parameters, *kotlinc_parameters, *env],
-        outputs: [output],
-      ) do |fs|
-        fs.exec!(
-          java_runtime.java,
-          java_runtime.arguments,
-          java_parameters,
-          "-cp",
-          classpath.join(":"),
-          # TODO remove once fixed in intellij-core and taken up by kotlin-compiler
-          # https://youtrack.jetbrains.com/issue/KT-43704
-          # https://youtrack.jetbrains.com/issue/IDEA-24878
-          "--add-opens", "java.base/java.util=ALL-UNNAMED",
-          "org.jetbrains.kotlin.cli.utilities.MainKt",
-          "konanc",
-          kotlinc_parameters,
-          source_paths,
-          env: env,
-        )
-      end
-
-      [TestExecutableInfo.new(
-        context: context,
-        executable: output,
-        runfiles: [],
-        arguments: [],
-        env: {},
-      )]
-    end
-
-    def compile_wake_test_binary(context:, srcs:, deps:, plugins:)
+    def compile_test_binary(context:, srcs:, deps:, plugins:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependency_paths = deps.map { |dep| dep.fetch(KotlinNativeInfo).transitive_runtime_dependencies }.flatten.sort.uniq
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }

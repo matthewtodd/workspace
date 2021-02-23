@@ -9,14 +9,3 @@ kt_jvm_test(
     "//src/main/kotlin/wake/test:junit",
   ],
 )
-
-kt_native_macos_test(
-  name: "TestResultTestNativeMacos",
-  srcs: ["TestResultTest.kt"],
-  deps: [
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_macosx64:klib",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_macosx64:klib",
-    "//src/main/kotlin/wake/test:native",
-  ],
-  os: :macos,
-)
