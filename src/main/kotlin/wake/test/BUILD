@@ -79,24 +79,3 @@ kt_native_macos_lib(
   ],
   os: :macos,
 )
-
-kt_jvm_lib(
-  name: "junit",
-  srcs: [
-    "JUnitLauncher.kt",
-    "TestResult.kt",
-  ],
-  deps: [
-    "//lib/maven/org_apiguardian/apiguardian_api:jar", # NO
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_core_jvm:jar",
-    "//lib/maven/org_jetbrains_kotlinx/kotlinx_serialization_json_jvm:jar",
-    "//lib/maven/org_junit_jupiter/junit_jupiter_engine:jar",
-    "//lib/maven/org_junit_platform/junit_platform_commons:jar", # NO?
-    "//lib/maven/org_junit_platform/junit_platform_engine:jar",
-    "//lib/maven/org_junit_platform/junit_platform_launcher:jar",
-    "//lib/maven/org_opentest4j/opentest4j:jar", # NO
-  ],
-  plugins: [
-    "//lib/maven/org_jetbrains_kotlin/kotlin_serialization_unshaded:jar",
-  ],
-)

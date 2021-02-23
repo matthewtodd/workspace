@@ -6,11 +6,6 @@ kt_js_test(
 )
 
 kt_jvm_test(
-  name: "ExampleTestJvm",
-  srcs: ["ExampleTest.kt"],
-)
-
-kt_jvm_wake_test(
   name: "ExampleWakeTestJvm",
   srcs: ["ExampleWakeTest.kt"],
   deps: ["//src/main/kotlin/wake/test:api_jvm", "//src/main/kotlin/wake/test:runtime_jvm"],
