@@ -153,6 +153,8 @@ module Wake
       },
       implementation: ->(context, archive:, format:, paths:, strip_components:, suffix:) {
         extractor = case format
+          when :dmg
+            DiskImage
           when :tar_gz
             TarGzip
           else
@@ -164,13 +166,11 @@ module Wake
           parameters: [format, paths, strip_components],
           outputs: paths.map { |path| context.expand_path(path).concat(suffix) },
         ) do |fs|
-          fs.open(archive.fetch(FileInfo).path, "rb") do |archive_io|
-            extractor.foreach(archive_io) do |entry_path, entry_io, entry_mode|
-              if entry_path = strip_components.stripped_path(entry_path)
-                if paths.include?(entry_path)
-                  fs.open(context.expand_path(entry_path).concat(suffix), "wb", permissions: entry_mode & 01555) do |output_io|
-                    IO.copy_stream(entry_io, output_io)
-                  end
+          extractor.extract(fs, archive.fetch(FileInfo).path) do |entry_path, entry_io, entry_mode|
+            if entry_path = strip_components.stripped_path(entry_path)
+              if paths.include?(entry_path)
+                fs.open(context.expand_path(entry_path).concat(suffix), "wb", permissions: entry_mode & 01555) do |output_io|
+                  IO.copy_stream(entry_io, output_io)
                 end
               end
             end
@@ -868,6 +868,18 @@ module Wake
         @config = config
       end
 
+      def absolute_path
+        @base
+      end
+
+      def find(&block)
+        Find.find(@base) do |path|
+          if File.file?(path)
+            block.call(path.delete_prefix(@base + "/"))
+          end
+        end
+      end
+
       def open(path, mode, permissions: 0644, &block)
         path = File.join(@base, path)
         FileUtils.mkdir_p(File.dirname(path))
@@ -903,7 +915,13 @@ module Wake
       end
 
       def mktmpdir(&block)
-        @fs.mktmpdir(&block)
+        @fs.mktmpdir do |path|
+          block.call Sandbox.new(@fs, path, **@config)
+        end
+      end
+
+      def stat(path)
+        File.stat File.join(@base, path)
       end
 
       private
@@ -2056,9 +2074,43 @@ module Wake
   end
 
   class TarGzip
-    def self.foreach(io, &block)
-      Gzip.open(io) do |inflated_io|
-        Tar.foreach(inflated_io, &block)
+    # TODO perhaps we shell out after all! Would let us remove some complicated code and dependencies.
+    def self.extract(fs, path, &block)
+      fs.open(path, "rb") do |archive_io|
+        Gzip.open(archive_io) do |inflated_io|
+          Tar.foreach(inflated_io, &block)
+        end
+      end
+    end
+  end
+
+  class DiskImage
+    def self.extract(fs, path, &block)
+      fs.mktmpdir do |tmp|
+        fs.exec!(
+          "hdiutil",
+          "attach",
+          "-nobrowse",
+          "-readonly",
+          "-noidme",
+          "-mountpoint",
+          tmp.absolute_path,
+          path
+        )
+
+        begin
+          tmp.find do |relative_path|
+            tmp.open(relative_path, "rb") do |io|
+              block.call(relative_path, io, tmp.stat(relative_path).mode)
+            end
+          end
+        ensure
+          fs.exec!(
+            "hdiutil",
+            "detach",
+            tmp.absolute_path
+          )
+        end
       end
     end
   end
