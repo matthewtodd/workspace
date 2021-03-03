@@ -1,7 +1,7 @@
 language: generic
 script:
-  - ruby -wU -r rubygems -r minitest/autorun ./wake
-  - ruby -wU --disable-all ./wake
+  - ruby -wU -r rubygems -r minitest/autorun ./bin/wake
+  - ruby -wU --disable-all ./bin/wake
 cache:
   directories:
   - var/cache
