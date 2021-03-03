@@ -212,42 +212,6 @@ module Wake
     )
 
     registry.new_rule(
-      :java_lib_with_resources,
-      attributes: {
-        archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
-        jar: Attribute.new(Label, providers: [JavaInfo]),
-        services: Attribute.new(Hash, default: {}),
-      },
-      implementation: ->(context, archiver:, jar:, services:) {
-        archiver = archiver.fetch(JavaArchiverInfo)
-        java_info = jar.fetch(JavaInfo)
-        raw = java_info.jar
-
-        output = context.expand_path("lib%{name}.jar")
-
-        context.run(
-          inputs: [*archiver.files, raw],
-          parameters: [*services],
-          outputs: [output],
-        ) do |fs|
-          # TODO more efficient copy?
-          fs.open(raw, "rb") { |raw| fs.open(output, "wb") { |cooked| IO.copy_stream(raw, cooked) } }
-
-          services.each do |interface, provider|
-            fs.open("META-INF/services/#{interface}", "wb") { |io| io.puts(provider) }
-          end
-
-          fs.exec!(archiver.jar, "uf", output, "META-INF")
-        end
-
-        [JavaInfo.new(
-          jar: output,
-          deps: java_info.deps,
-        )]
-      },
-    )
-
-    registry.new_rule(
       :java_runtime,
       attributes: {
         java: Attribute.new(Label, providers: [FileInfo]),
@@ -265,10 +229,11 @@ module Wake
       :kotlin_compiler,
       attributes: {
         java_runtime: Attribute.new(Label, default: "//lib/java:runtime", providers: [JavaRuntimeInfo]),
+        java_archiver: Attribute.new(Label, default: "//lib/java:archiver", providers: [JavaArchiverInfo]),
         classpath: Attribute.new(Label, list: true, providers: [JavaInfo]),
         native: Attribute.new(Label, providers: [KotlinNativeCompilerInfo]),
       },
-      implementation: ->(context, java_runtime:, classpath:, native:) {
+      implementation: ->(context, java_runtime:, java_archiver:, classpath:, native:) {
         [
           KotlinJsCompilerInfo.new(
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
@@ -276,6 +241,7 @@ module Wake
           ),
           KotlinJvmCompilerInfo.new(
             java_runtime: java_runtime.fetch(JavaRuntimeInfo),
+            java_archiver: java_archiver.fetch(JavaArchiverInfo),
             classpath: classpath.map { |dep| dep.fetch(JavaInfo) },
           ),
           native.fetch(KotlinNativeCompilerInfo),
@@ -375,13 +341,14 @@ module Wake
       attributes: {
         kotlin_compiler: Attribute.new(Label, default: "//lib/kotlin:compiler", providers: [KotlinJvmCompilerInfo]),
         srcs: Attribute.new(String, list: true),
+        resources: Attribute.new(String, list: true, default: []),
         deps: Attribute.new(Label, list: true, providers: [JavaInfo]),
         stdlib: Attribute.new(Label, default: "//lib/maven/org_jetbrains_kotlin/kotlin_stdlib:jar", providers: [JavaInfo]),
         plugins: Attribute.new(Label, list: true, default: [], providers: [JavaInfo]),
       },
-      implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:) {
+      implementation: ->(context, kotlin_compiler:, srcs:, resources:, deps:, stdlib:, plugins:) {
         compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
-        compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context)
+        compiler.compile(srcs: srcs, resources: resources, deps: [stdlib, *deps], plugins: plugins, context: context)
       },
     )
 
@@ -397,7 +364,7 @@ module Wake
       },
       implementation: ->(context, kotlin_compiler:, srcs:, deps:, stdlib:, plugins:, java_runtime:) {
         compiler = kotlin_compiler.fetch(KotlinJvmCompilerInfo)
-        test_library = compiler.compile(srcs: srcs, deps: [stdlib, *deps], plugins: plugins, context: context).find(-> { raise }) { |provider| JavaInfo === provider }
+        test_library = compiler.compile(srcs: srcs, resources: [], deps: [stdlib, *deps], plugins: plugins, context: context).find(-> { raise }) { |provider| JavaInfo === provider }
 
         jre = java_runtime.fetch(JavaRuntimeInfo)
         classpath = test_library.transitive_runtime_dependencies.flatten.sort.uniq
@@ -2652,11 +2619,12 @@ module Wake
     end
   end
 
-  class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :classpath, keyword_init: true)
-    def compile(srcs:, deps:, plugins:, context:)
+  class KotlinJvmCompilerInfo < Struct.new(:java_runtime, :java_archiver, :classpath, keyword_init: true)
+    def compile(srcs:, resources:, deps:, plugins:, context:)
       classpath = self.classpath.map(&:transitive_runtime_dependencies).flatten.sort.uniq
 
       source_paths = srcs.map { |path| context.expand_path(path) }
+      resource_paths = resources.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(JavaInfo) }
       dependency_paths = dependencies.map { |java_info| java_info.jar }
       plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
@@ -2678,9 +2646,18 @@ module Wake
         source_paths,
       ]
 
+      jar_parameters = [
+        "--update",
+        "--file",
+        output,
+        "-C",
+        context.expand_path("."),
+        resources,
+      ]
+
       context.run(
-        inputs: [*java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths],
-        parameters: [*java_runtime.arguments, *kotlinc_parameters],
+        inputs: [*java_runtime.files, *classpath, *plugin_paths, *source_paths, *dependency_paths, *java_archiver.files, *resource_paths],
+        parameters: [*java_runtime.arguments, *kotlinc_parameters, *jar_parameters],
         outputs: [output],
       ) do |fs|
         fs.exec!(
@@ -2694,6 +2671,13 @@ module Wake
           "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
           kotlinc_parameters,
         )
+
+        if resources.any?
+          fs.exec!(
+            java_archiver.jar,
+            jar_parameters,
+          )
+        end
       end
 
       [JavaInfo.new(
