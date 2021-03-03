@@ -2,16 +2,14 @@
 
 set -euo pipefail
 
-ROOT=$(cd $(dirname ${BASH_SOURCE[0]}); cd ..; pwd)
+WORKSPACE_ROOT=$(cd $(dirname ${BASH_SOURCE[0]}); cd ..; pwd)
 
 export IDEA_PROPERTIES=$(mktemp -t idea.properties)
 
 cat <<END > $IDEA_PROPERTIES
-idea.config.path=${ROOT}/etc/idea
-idea.is.internal=true
-idea.log.path=${ROOT}/var/run/idea/log
+idea.config.path=${WORKSPACE_ROOT}/etc/idea
 # idea.plugins.path=
-idea.system.path=${ROOT}/var/run/idea/system
+idea.system.path=${WORKSPACE_ROOT}/var/run/idea
 END
 
-open -a ${ROOT}/var/tmp/lib/idea/IntelliJ\ IDEA\ CE.app
+open -a ${WORKSPACE_ROOT}/var/tmp/lib/idea/IntelliJ\ IDEA\ CE.app
