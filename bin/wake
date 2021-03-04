@@ -190,6 +190,26 @@ module Wake
     )
 
     registry.new_rule(
+      :filter,
+      attributes: {
+        source: Attribute.new(Label, providers: [FileGroupInfo]),
+        paths: Attribute.new(String, list: true),
+      },
+      implementation: ->(context, source:, paths:) {
+        source_paths = source.fetch(FileGroupInfo).paths.to_set
+        selected_paths = paths.map { |path| context.expand_path(path) }.to_set
+
+        unknown_paths = selected_paths.difference(source_paths)
+        raise "Unknown files! #{unknown_paths.to_a.inspect}" unless unknown_paths.empty?
+
+        file_group_info = FileGroupInfo.new(selected_paths.to_a)
+        result = [file_group_info]
+        result << FileInfo.new(file_group_info.only) if selected_paths.length == 1
+        result
+      },
+    )
+
+    registry.new_rule(
       :java_archiver,
       attributes: {
         jar: Attribute.new(Label, providers: [FileInfo]),
@@ -209,10 +229,12 @@ module Wake
         jars: Attribute.new(Label, providers: [FileGroupInfo]),
       },
       implementation: ->(context, jars:) {
-        [JavaInfo.new(
-          jars: jars.fetch(FileGroupInfo).paths,
-          deps: [],
-        )]
+        paths = jars.fetch(FileGroupInfo).paths
+
+        not_jars = paths.select { |path| path !~ /\.jar$/ }
+        raise "These aren't jars! #{not_jars}" unless not_jars.empty?
+
+        [JavaInfo.new(jars: paths, deps: [])]
       },
     )
 
