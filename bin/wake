@@ -2533,7 +2533,7 @@ module Wake
 
   class JavaInfo < Struct.new(:jars, :deps, keyword_init: true)
     def transitive_runtime_dependencies
-      [*jars, *deps.map { |dep| dep.transitive_runtime_dependencies }].compact
+      [*jars, *deps.map { |dep| dep.transitive_runtime_dependencies }]
     end
   end
 
