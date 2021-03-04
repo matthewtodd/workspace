@@ -112,13 +112,18 @@ module Wake
       },
       implementation: ->(context, http:, url:, sha256:) {
         path = context.expand_path(url.path.split("/").last)
+
         # TODO work back in (a new kind of?) verifier
         context.run(parameters: [url], outputs: [path]) do |fs|
           fs.open(path, "wb") do |io|
             http.fetch(HttpDownloader).get(url, io)
           end
         end
-        [FileInfo.new(path)]
+
+        [
+          FileInfo.new(path),
+          FileGroupInfo.new([path]),
+        ]
       },
     )
 
@@ -201,11 +206,11 @@ module Wake
     registry.new_rule(
       :java_import,
       attributes: {
-        jar: Attribute.new(Label, providers: [FileInfo]),
+        jars: Attribute.new(Label, providers: [FileGroupInfo]),
       },
-      implementation: ->(context, jar:) {
+      implementation: ->(context, jars:) {
         [JavaInfo.new(
-          jar: jar.fetch(FileInfo).path,
+          jars: jars.fetch(FileGroupInfo).paths,
           deps: [],
         )]
       },
@@ -473,7 +478,7 @@ module Wake
 
             java_import(
               name: artifact.label_name,
-              jar: artifact.filename,
+              jars: artifact.filename,
             )
           end
         end
@@ -2526,9 +2531,9 @@ module Wake
     end
   end
 
-  class JavaInfo < Struct.new(:jar, :deps, keyword_init: true)
+  class JavaInfo < Struct.new(:jars, :deps, keyword_init: true)
     def transitive_runtime_dependencies
-      [jar, *deps.map { |dep| dep.transitive_runtime_dependencies }]
+      [*jars, *deps.map { |dep| dep.transitive_runtime_dependencies }].compact
     end
   end
 
@@ -2571,7 +2576,7 @@ module Wake
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinJsInfo) }
       dependency_paths = dependencies.map(&:transitive_compilation_dependencies).flatten.sort.uniq
-      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jars }.flatten.sort.uniq
 
       output_js = context.expand_path("lib%{name}.js")
       output_klib = context.expand_path("lib%{name}.js.klib")
@@ -2626,8 +2631,8 @@ module Wake
       source_paths = srcs.map { |path| context.expand_path(path) }
       resource_paths = resources.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(JavaInfo) }
-      dependency_paths = dependencies.map { |java_info| java_info.jar }
-      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
+      dependency_paths = dependencies.map { |java_info| java_info.jars }.flatten.sort.uniq
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jars }.flatten.sort.uniq
       output = context.expand_path("lib%{name}.jar")
 
       kotlinc_parameters = [
@@ -2681,7 +2686,7 @@ module Wake
       end
 
       [JavaInfo.new(
-        jar: output,
+        jars: [output],
         deps: dependencies,
       )]
     end
@@ -2692,7 +2697,7 @@ module Wake
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependencies = deps.map { |dep| dep.fetch(KotlinNativeInfo) }
       dependency_paths = dependencies.map(&:klib)
-      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jars }.flatten.sort.uniq
       output = context.expand_path("lib%{name}.klib")
 
       java_parameters = [
@@ -2747,7 +2752,7 @@ module Wake
     def compile_test_binary(context:, srcs:, deps:, plugins:)
       source_paths = srcs.map { |path| context.expand_path(path) }
       dependency_paths = deps.map { |dep| dep.fetch(KotlinNativeInfo).transitive_runtime_dependencies }.flatten.sort.uniq
-      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jar }
+      plugin_paths = plugins.map { |plugin| plugin.fetch(JavaInfo).jars }.flatten.sort.uniq
       output = context.expand_path("%{name}.kexe")
 
       java_parameters = [
