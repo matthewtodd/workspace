@@ -2,7 +2,7 @@
 
 kt_jvm_lib(
   name: "plugin",
-  srcs: ["projectImport/WakeProjectOpenProcessor.kt"],
+  srcs: ["WakeProjectOpenProcessor.kt"],
   deps: ["//lib/idea:sdk"],
   resources: ["META-INF/plugin.xml"],
   os: :macos,

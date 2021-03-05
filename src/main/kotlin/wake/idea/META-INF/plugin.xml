@@ -8,6 +8,6 @@
         <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
         <idea-version since-build="203" />
         <extensions defaultExtensionNs="com.intellij">
-                <projectOpenProcessor implementation="org.matthewtodd.wake.idea.projectImport.WakeProjectOpenProcessor" />
+                <projectOpenProcessor implementation="org.matthewtodd.wake.idea.WakeProjectOpenProcessor" />
         </extensions>
 </idea-plugin>
