@@ -1,7 +1,6 @@
-import org.matthewtodd.wake.test.Test
-import org.matthewtodd.wake.test.assertThat
+package org.matthewtodd.wake.test
 
-class ExampleWakeTest {
+class ExampleTest {
   @Test fun successful() {
     assertThat(true).isTrue()
   }

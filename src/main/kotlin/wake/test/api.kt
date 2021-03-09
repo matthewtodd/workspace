@@ -8,7 +8,7 @@ annotation class Ignore(val message: String = "Ignored.")
 
 fun assertThat(actual: Boolean) = BooleanSubject(actual)
 
-class BooleanSubject(val actual: Boolean) {
+class BooleanSubject(private val actual: Boolean) {
   fun isTrue() {
     if (!actual) {
       throw AssertionError("expected to be true")
