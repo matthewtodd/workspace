@@ -4,6 +4,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.projectImport.ProjectOpenProcessor
 
+// I had hoped!
+// But see notes in WakeProjectOpenProcessorTest.
+// Until IntelliJ changes out its Project model, we're kind of stuck.
 class WakeProjectOpenProcessor : ProjectOpenProcessor() {
   override fun getName(): String = "Wake"
 
