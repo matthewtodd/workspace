@@ -10,7 +10,6 @@ require "open3"
 require "optparse"
 require "pathname"
 require "psych"
-require "rbconfig"
 require "rubygems" # TODO write a simple version of Gem::Package::TarReader?
 require "rubygems/package"
 require "set"
@@ -46,7 +45,7 @@ module Wake
       registry.new_package(build.dirname.to_path).instance_eval(build.read, build.to_path)
     end
 
-    targets = registry.resolve(platform: Platform.new(host_os: RbConfig::CONFIG.fetch("host_os")))
+    targets = registry.resolve
     filesystem = RealFilesystem.new(Dir.pwd)
     providers = ProviderRegistry.new
 
@@ -1138,53 +1137,6 @@ module Wake
     end
   end
 
-  class Platform
-    def initialize(host_os:)
-      @host_os = host_os
-    end
-
-    def compatible_with?(os:)
-      os == :any || os == host_os
-    end
-
-    private
-
-    def host_os
-      case @host_os
-      when /darwin/
-        :macos
-      when /linux/
-        :linux
-      end
-    end
-  end
-
-  class PlatformTest < Test
-    def test_host_os_darwin_any
-      assert Platform.new(host_os: "darwin19").compatible_with?(os: :any)
-    end
-
-    def test_host_os_darwin_linux
-      assert !Platform.new(host_os: "darwin19").compatible_with?(os: :linux)
-    end
-
-    def test_host_os_darwin_macos
-      assert Platform.new(host_os: "darwin19").compatible_with?(os: :macos)
-    end
-
-    def test_host_os_linux_any
-      assert Platform.new(host_os: "i686-linux").compatible_with?(os: :any)
-    end
-
-    def test_host_os_linux_linux
-      assert Platform.new(host_os: "i686-linux").compatible_with?(os: :linux)
-    end
-
-    def test_host_os_linux_macos
-      assert !Platform.new(host_os: "i686-linux").compatible_with?(os: :macos)
-    end
-  end
-
   class Registry
     def initialize
       @dsl = Class.new(Dsl)
@@ -1244,9 +1196,8 @@ module Wake
       macro.call(MacroContext.new(registry: self, package: package), **attributes)
     end
 
-    def resolve(platform:)
-      result = @targets.select { |label, target| target.compatible_with?(platform) }
-      result.freeze
+    def resolve
+      @targets.freeze
     end
 
     private
@@ -1833,7 +1784,6 @@ module Wake
   class Target
     COMMON = AttributeSchema.new(
       name: Attribute.new(String),
-      os: Attribute.new(Symbol, default: :any),
       verbose: Attribute.new(TrueClass, default: false),
       debug: Attribute.new(TrueClass, default: false),
     )
@@ -1842,10 +1792,6 @@ module Wake
       @rule = rule
       @common = common
       @attributes = attributes
-    end
-
-    def compatible_with?(platform)
-      platform.compatible_with?(os: @common.to_hash.fetch(:os))
     end
 
     def dependencies
