@@ -1189,8 +1189,6 @@ module Wake
     def initialize
       @dsl = Class.new(Dsl)
       @targets = {}
-      @toolchains = []
-      @toolchain_types = {}
     end
 
     def new_package(package)
@@ -1222,19 +1220,6 @@ module Wake
       @targets[label] = Target.new(rule: rule, common: common, attributes: attributes)
     end
 
-    def new_toolchain_type(package:, name:, providers:)
-      @toolchain_types[Label.new(package: package, name: name)] = providers
-    end
-
-    def new_toolchain(package:, name:, os:, toolchain:, toolchain_type:)
-      @toolchains << Toolchain.new(
-        name: name,
-        os: os,
-        toolchain: Label.parse(toolchain, package: package),
-        toolchain_type: Label.parse(toolchain_type, package: package),
-      )
-    end
-
     def new_macro(macro_name, attributes: {}, implementation: ->(context, **attributes) { })
       schema = AttributeSchema.new(attributes)
 
@@ -1261,25 +1246,6 @@ module Wake
 
     def resolve(platform:)
       result = @targets.select { |label, target| target.compatible_with?(platform) }
-
-      # TODO lazily include toolchains as we will repository targets!
-      # So, don't bother with //lib/java:compiler unless one of my targets depends on it.
-      @toolchains.select { |toolchain| toolchain.compatible_with?(platform) }.each do |toolchain|
-        providers = @toolchain_types.fetch(toolchain.toolchain_type)
-
-        result[toolchain.toolchain_type] = Target.new(
-          common: Target::COMMON.parse({ name: toolchain.name, os: toolchain.os }),
-          attributes: AttributeSchema.new(
-            actual: Attribute.new(Label, providers: providers),
-          ).parse({
-            actual: toolchain.toolchain,
-          }),
-          rule: ->(context, actual:) {
-            providers.map { |provider| actual.fetch(provider) }
-          },
-        )
-      end
-
       result.freeze
     end
 
@@ -1289,14 +1255,6 @@ module Wake
       def initialize(registry:, package:)
         @registry = registry
         @package = package
-      end
-
-      def toolchain_type(name:, providers: [])
-        @registry.new_toolchain_type(package: @package, name: name, providers: providers)
-      end
-
-      def toolchain(name:, os:, toolchain:, toolchain_type:)
-        @registry.new_toolchain(package: @package, name: name, os: os, toolchain: toolchain, toolchain_type: toolchain_type)
       end
     end
 
@@ -1309,67 +1267,6 @@ module Wake
       def package(name, &block)
         @registry.new_package([@package, name].join("/")).instance_exec(&block)
       end
-    end
-
-    class Toolchain < Struct.new(:name, :os, :toolchain, :toolchain_type, keyword_init: true)
-      def compatible_with?(platform)
-        platform.compatible_with?(os: os)
-      end
-    end
-  end
-
-  class RegistryTest < Test
-    def test_platform_constraints_for_toolchains
-      registry = Registry.new
-
-      registry.new_rule(:foo_compiler)
-
-      registry.new_macro(
-        :foo_compiler_package,
-        attributes: {
-          name: Attribute.new(String),
-        },
-        implementation: ->(context, name:) {
-          context.package(name) {
-            foo_compiler(name: "compiler")
-          }
-        },
-      )
-
-      registry.new_package("foo").instance_exec do
-        toolchain_type(name: "compiler")
-
-        foo_compiler_package(name: "linux")
-        foo_compiler_package(name: "macos")
-
-        toolchain(
-          name: "compiler_linux",
-          os: :linux,
-          toolchain: "//foo/linux:compiler",
-          toolchain_type: "//foo:compiler",
-        )
-
-        toolchain(
-          name: "compiler_macos",
-          os: :macos,
-          toolchain: "//foo/macos:compiler",
-          toolchain_type: "//foo:compiler",
-        )
-      end
-
-      linux_targets = registry.resolve(
-        platform: Platform.new(host_os: "i686-linux"),
-      )
-
-      macos_targets = registry.resolve(
-        platform: Platform.new(host_os: "darwin19"),
-      )
-
-      assert_equal Set[Label["//foo/linux:compiler"]],
-        linux_targets[Label["//foo:compiler"]].dependencies
-
-      assert_equal Set[Label["//foo/macos:compiler"]],
-        macos_targets[Label["//foo:compiler"]].dependencies
     end
   end
 
