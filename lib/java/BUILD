@@ -3,14 +3,13 @@
 # https://jdk.java.net
 http_file(
   name: "dist",
-  url: "https://download.java.net/java/GA/jdk15.0.1/51f4f36ad4ef43e39d0dfdbaf6549e32/9/GPL/openjdk-15.0.1_osx-x64_bin.tar.gz",
-  sha256: "e1d4868fb082d9202261c5a05251eded56fb805da2d641a65f604988b00b1979",
+  url: "https://download.java.net/java/GA/jdk16/7863447f0ab643c585b9bdebf67c69db/36/GPL/openjdk-16_osx-x64_bin.tar.gz",
+  sha256: "16f3e39a31e86f3f51b0b4035a37494a47ed3c4ead760eafc6afd7afdf2ad9f2",
 )
 
-# tar tzf openjdk-15_osx-x64_bin.tar.gz | grep -v '/$' | grep -v '/legal/' | cut -d/ -f4- | sort | pbcopy
+# tar tzf openjdk-16_osx-x64_bin.tar.gz | grep -v '/$' | grep -v '/legal/' | cut -d/ -f4- | sort | pbcopy
 #
 # CodeResources
-# Home/bin/jaotc
 # Home/bin/jar
 # Home/bin/jarsigner
 # Home/bin/java
@@ -85,7 +84,6 @@ http_file(
 # Home/jmods/java.xml.crypto.jmod
 # Home/jmods/java.xml.jmod
 # Home/jmods/jdk.accessibility.jmod
-# Home/jmods/jdk.aot.jmod
 # Home/jmods/jdk.attach.jmod
 # Home/jmods/jdk.charsets.jmod
 # Home/jmods/jdk.compiler.jmod
@@ -96,14 +94,12 @@ http_file(
 # Home/jmods/jdk.hotspot.agent.jmod
 # Home/jmods/jdk.httpserver.jmod
 # Home/jmods/jdk.incubator.foreign.jmod
-# Home/jmods/jdk.incubator.jpackage.jmod
+# Home/jmods/jdk.incubator.vector.jmod
 # Home/jmods/jdk.internal.ed.jmod
 # Home/jmods/jdk.internal.jvmstat.jmod
 # Home/jmods/jdk.internal.le.jmod
 # Home/jmods/jdk.internal.opt.jmod
 # Home/jmods/jdk.internal.vm.ci.jmod
-# Home/jmods/jdk.internal.vm.compiler.jmod
-# Home/jmods/jdk.internal.vm.compiler.management.jmod
 # Home/jmods/jdk.jartool.jmod
 # Home/jmods/jdk.javadoc.jmod
 # Home/jmods/jdk.jcmd.jmod
@@ -113,6 +109,7 @@ http_file(
 # Home/jmods/jdk.jdwp.agent.jmod
 # Home/jmods/jdk.jfr.jmod
 # Home/jmods/jdk.jlink.jmod
+# Home/jmods/jdk.jpackage.jmod
 # Home/jmods/jdk.jshell.jmod
 # Home/jmods/jdk.jsobject.jmod
 # Home/jmods/jdk.jstatd.jmod
@@ -147,6 +144,7 @@ http_file(
 # Home/lib/libextnet.dylib
 # Home/lib/libfontmanager.dylib
 # Home/lib/libfreetype.dylib
+# Home/lib/libharfbuzz.dylib
 # Home/lib/libinstrument.dylib
 # Home/lib/libj2gss.dylib
 # Home/lib/libj2pcsc.dylib
@@ -176,7 +174,6 @@ http_file(
 # Home/lib/librmi.dylib
 # Home/lib/libsaproc.dylib
 # Home/lib/libsplashscreen.dylib
-# Home/lib/libsunec.dylib
 # Home/lib/libverify.dylib
 # Home/lib/libzip.dylib
 # Home/lib/modules
@@ -196,6 +193,7 @@ http_file(
 # Info.plist
 # MacOS/libjli.dylib
 # _CodeSignature/CodeResources
+
 
 extract(
   name: "bin_jar",
@@ -233,6 +231,7 @@ extract(
     "conf/net.properties",
     "conf/security/java.policy",
     "conf/security/java.security",
+    "conf/security/policy/README.txt",
     "conf/security/policy/limited/default_US_export.policy",
     "conf/security/policy/limited/default_local.policy",
     "conf/security/policy/limited/exempt_local.policy",
@@ -255,6 +254,7 @@ extract(
     "lib/libextnet.dylib",
     "lib/libfontmanager.dylib",
     "lib/libfreetype.dylib",
+    "lib/libharfbuzz.dylib",
     "lib/libinstrument.dylib",
     "lib/libj2gss.dylib",
     "lib/libj2pcsc.dylib",
@@ -284,7 +284,6 @@ extract(
     "lib/librmi.dylib",
     "lib/libsaproc.dylib",
     "lib/libsplashscreen.dylib",
-    "lib/libsunec.dylib",
     "lib/libverify.dylib",
     "lib/libzip.dylib",
     "lib/modules",
@@ -295,6 +294,7 @@ extract(
     "lib/security/default.policy",
     "lib/security/public_suffix_list.dat",
     "lib/server/classes.jsa",
+    "lib/server/classes_nocoops.jsa",
     "lib/server/libjsig.dylib",
     "lib/server/libjvm.dylib",
     "lib/src.zip",
