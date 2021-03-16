@@ -29,7 +29,7 @@ Thread.report_on_exception = false
 
 module Wake
   def self.run(*args)
-    options = { jobs: 1 }
+    options = { jobs: `sysctl -n hw.physicalcpu`.to_i }
     parser = OptionParser.new
     parser.on("-j", "--jobs=NUM", Integer)
     parser.order(args, into: options)
