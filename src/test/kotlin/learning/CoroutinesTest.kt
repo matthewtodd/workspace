@@ -1,7 +1,6 @@
 package org.matthewtodd.learning
 
 import app.cash.turbine.test
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.matthewtodd.wake.test.Test
@@ -10,9 +9,8 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.minutes
 
 // TODO compiler parameters!
-// TODO -Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi
 // TODO -Xopt-in=kotlin.time.ExperimentalTime
-@OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
+@OptIn(ExperimentalTime::class)
 class CoroutinesTest {
   // TODO suspend fun is automatically runBlocking by wake.test
   // Or perhaps we want runBlockingTest,
