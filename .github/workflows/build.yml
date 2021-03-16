@@ -5,11 +5,5 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v1
-      - uses: actions/cache@v1
-        with:
-          path: var/cache
-          key: ${{ runner.os }}-var-cache-${{ hashFiles('**/BUILD') }}
-          restore-keys: |
-            ${{ runner.os }}-var-cache-
       - run: ruby -wU -r rubygems -r minitest/autorun ./bin/wake
       - run: ruby -wU --disable-all ./bin/wake
