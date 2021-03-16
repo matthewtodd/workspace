@@ -1,17 +1,24 @@
 # vim: ft=ruby
 
-toolchain_type(name: "runtime", providers: [NodeRuntimeInfo])
-
-toolchain(
-  name: "node12_macos_runtime",
+# https://nodejs.org/en/download/
+http_file(
+  name: "dist",
+  url: "https://nodejs.org/dist/v12.18.3/node-v12.18.3-darwin-x64.tar.gz",
+  sha256: "af376caf114bdd5d7e566dbf7590e9077ffc01f9b2692eb2651f31d7219a30bb",
   os: :macos,
-  toolchain: "//lib/node/node12_macos:runtime",
-  toolchain_type: "//lib/node:runtime",
 )
 
-toolchain(
-  name: "node12_linux_runtime",
-  os: :linux,
-  toolchain: "//lib/node/node12_linux:runtime",
-  toolchain_type: "//lib/node:runtime",
+extract(
+  name: "bin_node",
+  archive: ":dist",
+  format: :tar_gz,
+  paths: ["bin/node"],
+  strip_components: 1,
+  os: :macos,
+)
+
+node_runtime(
+  name: "runtime",
+  node: ":bin_node",
+  os: :macos,
 )
