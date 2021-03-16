@@ -5,7 +5,6 @@ http_file(
   name: "dist",
   url: "https://download.java.net/java/GA/jdk15.0.1/51f4f36ad4ef43e39d0dfdbaf6549e32/9/GPL/openjdk-15.0.1_osx-x64_bin.tar.gz",
   sha256: "e1d4868fb082d9202261c5a05251eded56fb805da2d641a65f604988b00b1979",
-  os: :macos,
 )
 
 # tar tzf openjdk-15_osx-x64_bin.tar.gz | grep -v '/$' | grep -v '/legal/' | cut -d/ -f4- | sort | pbcopy
@@ -204,7 +203,6 @@ extract(
   format: :tar_gz,
   paths: ["bin/jar"],
   strip_components: 3,
-  os: :macos,
 )
 
 extract(
@@ -213,7 +211,6 @@ extract(
   format: :tar_gz,
   paths: ["bin/java"],
   strip_components: 3,
-  os: :macos,
 )
 
 extract(
@@ -222,7 +219,6 @@ extract(
   format: :tar_gz,
   paths: ["bin/jdb"],
   strip_components: 3,
-  os: :macos,
 )
 
 extract(
@@ -305,19 +301,16 @@ extract(
     "lib/tzdb.dat",
   ],
   strip_components: 3,
-  os: :macos,
 )
 
 java_archiver(
   name: "archiver",
   jar: ":bin_jar",
   libs: ":lib",
-  os: :macos,
 )
 
 java_runtime(
   name: "runtime",
   java: ":bin_java",
   libs: ":lib",
-  os: :macos,
 )

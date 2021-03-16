@@ -5,5 +5,4 @@ kt_jvm_lib(
   srcs: ["WakeProjectOpenProcessor.kt"],
   deps: ["//lib/idea:sdk"],
   resources: ["META-INF/plugin.xml"],
-  os: :macos,
 )

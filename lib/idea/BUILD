@@ -5,7 +5,6 @@ http_file(
   name: "dmg",
   url: "https://download.jetbrains.com/idea/ideaIC-2020.3.2.dmg",
   sha256: nil,
-  os: :macos,
 )
 
 # find /Volumes/IntelliJ\ IDEA\ CE -type f | cut -d/ -f5- | sort | pbcopy
@@ -13,7 +12,6 @@ extract(
   name: "app",
   archive: ":dmg",
   format: :dmg,
-  os: :macos,
   paths: [
     "IntelliJ IDEA CE.app/Contents/CodeResources",
     "IntelliJ IDEA CE.app/Contents/Info.plist",
@@ -642,7 +640,6 @@ extract(
 filter(
   name: "lib_jars",
   source: ":app",
-  os: :macos,
   paths: [
     "IntelliJ IDEA CE.app/Contents/lib/FastInfoset-1.2.15.jar",
     "IntelliJ IDEA CE.app/Contents/lib/HdrHistogram-2.1.4.jar",
@@ -930,6 +927,5 @@ filter(
 
 java_import(
   name: "sdk",
-  os: :macos,
   jars: ":lib_jars",
 )

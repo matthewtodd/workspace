@@ -10,5 +10,4 @@ kt_jvm_test(
     "//src/main/kotlin/wake/test:runtime_jvm",
   ],
   plugins: ["//src/main/kotlin/wake/test:plugin"],
-  os: :macos,
 )

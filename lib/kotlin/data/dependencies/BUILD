@@ -8,7 +8,6 @@ file(
     "lldb-3-macos",
     "clang-llvm-apple-8.0.0-darwin-macos",
   ].join("\n"),
-  os: :macos,
 )
 
 extract(
@@ -20,7 +19,6 @@ extract(
     "libffi-3.2.1-3-darwin-macos/include/ffitarget.h",
     "libffi-3.2.1-3-darwin-macos/lib/libffi.a",
   ],
-  os: :macos,
 )
 
 extract(
@@ -324,7 +322,6 @@ extract(
     "lldb-3-macos/build.txt",
     "lldb-3-macos/lldb",
   ],
-  os: :macos,
 )
 
 extract(
@@ -2909,5 +2906,4 @@ extract(
     "clang-llvm-apple-8.0.0-darwin-macos/share/scan-view/bugcatcher.ico",
     "clang-llvm-apple-8.0.0-darwin-macos/share/scan-view/startfile.py",
   ],
-  os: :macos,
 )

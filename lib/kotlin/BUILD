@@ -19,7 +19,6 @@ http_file(
   name: "dist",
   url: "https://github.com/JetBrains/kotlin/releases/download/v1.4.31/kotlin-native-macos-1.4.31.tar.gz",
   sha256: nil,
-  os: :macos,
 )
 
 extract(
@@ -156,7 +155,6 @@ extract(
     "klib/common/stdlib/default/targets/watchos_x86/native/runtime.bc",
   ],
   strip_components: 1,
-  os: :macos,
 )
 
 extract(
@@ -168,7 +166,6 @@ extract(
     "konan/lib/trove4j.jar",
   ],
   strip_components: 1,
-  os: :macos,
 )
 
 extract(
@@ -178,7 +175,6 @@ extract(
   paths: ["konan/konan.properties"],
   strip_components: 1,
   suffix: ".orig",
-  os: :macos,
 )
 
 extract(
@@ -193,7 +189,6 @@ extract(
     "konan/nativelib/libllvmstubs.dylib",
   ],
   strip_components: 1,
-  os: :macos,
 )
 
 extract(
@@ -428,7 +423,6 @@ extract(
     "konan/targets/watchos_x86/native/strict.bc",
   ],
   strip_components: 1,
-  os: :macos,
 )
 
 kotlin_native_compiler(
@@ -444,5 +438,4 @@ kotlin_native_compiler(
     ":konan_nativelib",
     ":konan_targets",
   ],
-  os: :macos,
 )
