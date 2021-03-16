@@ -13,7 +13,7 @@ file(
 
 extract(
   name: "libffi",
-  archive: "//lib/kotlin/native_macos/data/cache:libffi",
+  archive: "//lib/kotlin/data/cache:libffi",
   format: :tar_gz,
   paths: [
     "libffi-3.2.1-3-darwin-macos/include/ffi.h",
@@ -25,7 +25,7 @@ extract(
 
 extract(
   name: "lldb",
-  archive: "//lib/kotlin/native_macos/data/cache:lldb",
+  archive: "//lib/kotlin/data/cache:lldb",
   format: :tar_gz,
   paths: [
     "lldb-3-macos/LLDB.framework/Headers/LLDB.h",
@@ -329,7 +329,7 @@ extract(
 
 extract(
   name: "clang",
-  archive: "//lib/kotlin/native_macos/data/cache:clang",
+  archive: "//lib/kotlin/data/cache:clang",
   format: :tar_gz,
   paths: [
     "clang-llvm-apple-8.0.0-darwin-macos/bin/bugpoint",
