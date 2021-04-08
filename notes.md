@@ -43,3 +43,27 @@ gradle.properties file:
 
 Note that incremental annotation processing requires incremental compilation to
 be enabled as well.
+
+## Output caching?
+
+As some of you might know, in 1.3.70 we added support for compiler caches for
+macosX64 and iosX64 targets. Long story short, compiler caches make compilation
+time of debug builds (e.g. linkDebug…) in Gradle significantly faster (well,
+except the first one, when dependencies are caching and Gradle daemon is
+warming up).
+
+In 1.5.0-M1 we add opt-in support for compiler caches for two more targets:
+- iosArm64
+- linuxX64 (only on Linux host)
+
+To enable them add a single line to your gradle.properties.
+For linuxX64 target: kotlin.native.cacheKind.linuxX64=static
+For iosArm64 target: kotlin.native.cacheKind.iosArm64=static
+
+“Why not enable it by default?” you might ask. While it doesn’t break our test
+projects, it might break yours.
+
+And who likes broken compilation after compiler update? :)
+
+So, we asking you to test compiler caches on your projects and report to us if
+you encounter any kind of problems. Let’s make Kotlin faster together! (edited)
