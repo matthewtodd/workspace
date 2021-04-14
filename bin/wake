@@ -46,33 +46,27 @@ module Wake
     end
 
     targets = registry.resolve
+    plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
     filesystem = RealFilesystem.new(Dir.pwd)
     providers = ProviderRegistry.new
 
-    plan = Plan.new(targets.keys) { |label| targets.fetch(label).dependencies }
-
-    workers = Array.new(options.fetch(:jobs)) do
+    Array.new(options.fetch(:jobs)) do
       Thread.new do
         plan.each do |label|
-          context = Context.new(filesystem, providers, label)
-          target = targets.fetch(label)
           console.report_target_invocation(label)
-          target.invoke(context)
+          targets.fetch(label).invoke(Context.new(filesystem, providers, label))
           console.report_target_completion(label)
         end
       end
-    end
+    end.each(&:join)
 
-    workers.each(&:join)
-
-    broken_tests = []
+    number_of_broken_tests = 0
     tests = providers.of(TestExecutableInfo)
     test_plan = Plan.new(tests.keys) { |label| [] } # no dependencies
     test_plan.each do |label|
-      test = tests.fetch(label)
-      test.run do |test_case|
+      tests.fetch(label).run do |test_case|
         console.report_test_result(test_case)
-        broken_tests << test_case if test_case.broken?
+        number_of_broken_tests += 1 if test_case.broken?
       end
     end
 
@@ -81,7 +75,7 @@ module Wake
     # TODO var/cache is duplication with Actions
     filesystem.purge("var/cache", before: Time.now - (60 * 60 * 24))
 
-    broken_tests.count
+    number_of_broken_tests
   end
 
   def self.define_rules(registry, console:)
