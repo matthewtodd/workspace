@@ -5,5 +5,5 @@ actual fun errorType(@Suppress("UNUSED_PARAMETER") e: Throwable): String {
 }
 
 actual fun errorBacktrace(@Suppress("UNUSED_PARAMETER") e: Throwable): List<String> {
-  return emptyList()
+  return listOf("TODO")
 }
