@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby -wU --disable-all
+#!/usr/bin/ruby -wU --disable-all
 
 require "digest/sha2"
 require "fileutils"
