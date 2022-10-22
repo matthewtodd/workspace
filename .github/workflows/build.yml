@@ -1,9 +1,0 @@
-name: build
-on: push
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v1
-      - run: ruby -wU -r rubygems -r minitest/autorun ./bin/wake
-      - run: ruby -wU --disable-all ./bin/wake

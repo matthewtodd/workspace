@@ -1,0 +1,56 @@
+load("@build_bazel_rules_apple//apple:macos.bzl", "macos_application", "macos_build_test", "macos_unit_test")
+load("@build_bazel_rules_apple//apple:versioning.bzl", "apple_bundle_version")
+load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
+
+# As I'm putting these pieces together, there's an example project here:
+# https://github.com/buildbuddy-io/rules_xcodeproj/tree/main/examples/integration/macOSApp
+
+
+# https://github.com/bazelbuild/rules_apple/blob/master/doc/rules-macos.md#macos_application
+macos_application(
+  name = "March",
+  bundle_id = "org.matthewtodd.march",
+  infoplists = [":Info.plist"],
+  minimum_os_version = "12.0",
+  version = ":MarchVersion",
+  deps = ["//src:app"],
+  visibility = ["//etc:__pkg__"],
+)
+
+# https://github.com/bazelbuild/rules_apple/blob/master/doc/rules-versioning.md#apple_bundle_version
+apple_bundle_version(
+  name = "MarchVersion",
+  build_version = "0.1",
+)
+
+# https://github.com/bazelbuild/rules_apple/blob/master/doc/rules-macos.md#macos_build_test
+macos_build_test(
+  name = "MarchTest",
+  minimum_os_version = "12.0",
+  targets = ["//src:app"],
+)
+
+# https://github.com/bazelbuild/rules_apple/blob/master/doc/rules-macos.md#macos_unit_test
+macos_unit_test(
+  name = "MarchUnitTest",
+  bundle_id = "org.matthewtodd.march",
+  minimum_os_version = "12.0",
+  deps = ["//src:app_tests"],
+  visibility = ["//etc:__pkg__"],
+)
+
+# https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
+swift_library(
+  name = "app_tests",
+  testonly = True,
+  srcs = ["AppDelegateTest.swift"],
+  # deps = [":app"],
+)
+
+# https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
+swift_library(
+  name = "app",
+  srcs = [
+    "AppDelegate.swift",
+  ],
+)
