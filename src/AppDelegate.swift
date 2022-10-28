@@ -1,4 +1,5 @@
 import Cocoa
+import Wren
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {

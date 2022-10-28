@@ -1,8 +1,8 @@
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
 # rules_xcodeproj
 # WORKSPACE snippets can be copied and pasted from the release notes:
 # https://github.com/buildbuddy-io/rules_xcodeproj/releases
-
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "com_github_buildbuddy_io_rules_xcodeproj",
@@ -44,3 +44,23 @@ load(
 )
 
 apple_support_dependencies()
+
+# wren
+# https://github.com/wren-lang/wren/releases
+
+http_archive(
+    name = "io_wren",
+    sha256 = "23c0ddeb6c67a4ed9285bded49f7c91714922c2e7bb88f42428386bf1cf7b339",
+    url = "https://github.com/wren-lang/wren/archive/refs/tags/0.4.0.tar.gz",
+    strip_prefix = "wren-0.4.0",
+    build_file_content = """
+cc_library(
+    name = "wren",
+    srcs = glob(["src/vm/*.h", "src/vm/*.c", "src/vm/*.inc", "src/optional/*.h", "src/optional/*.c", "src/optional/*.inc"]),
+    hdrs = ["src/include/wren.h"],
+    copts = ["-Iexternal/io_wren/src/include", "-Iexternal/io_wren/src/vm", "-Iexternal/io_wren/src/optional"],
+    tags = ["swift_module=Wren"],
+    visibility = ["//visibility:public"],
+)
+""",
+)

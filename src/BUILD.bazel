@@ -53,4 +53,7 @@ swift_library(
   srcs = [
     "AppDelegate.swift",
   ],
+  deps = [
+    "@io_wren//:wren",
+  ],
 )
