@@ -53,6 +53,7 @@ swift_library(
   srcs = [
     "AppDelegate.swift",
   ],
+  data = ["Main.storyboard"],
   deps = [
     "@io_wren//:wren",
   ],
