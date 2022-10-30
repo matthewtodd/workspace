@@ -52,8 +52,8 @@ swift_library(
   name = "app",
   srcs = [
     "AppDelegate.swift",
+    "main.swift",
   ],
-  data = ["Main.storyboard"],
   deps = [
     "@io_wren//:wren",
   ],

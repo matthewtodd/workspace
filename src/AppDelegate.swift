@@ -2,7 +2,6 @@ import os
 import Cocoa
 import Wren
 
-@NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger: Logger = Logger()
     private var vm: OpaquePointer?
@@ -29,8 +28,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         setUserData(vm: vm, userData: self)
 
-        let _ = withUnsafePointer(to: "foo") { (module) in
-            withUnsafePointer(to: "System.print(\"Whee!\")") { (source) in
+        let _ = withUnsafePointer(to: "foo".utf8CString.first!) { (module: UnsafePointer<CChar>) in
+            withUnsafePointer(to: "System.print(\"Whee!\")".utf8CString.first!) { (source: UnsafePointer<CChar>) in
                 wrenInterpret(vm, module, source)
             }
         }
