@@ -2,11 +2,11 @@ import os
 import Cocoa
 import Wren
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+public class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger: Logger = Logger()
     private var vm: OpaquePointer?
 
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
+    public func applicationDidFinishLaunching(_ aNotification: Notification) {
         logger.error("applicationDidFinishLaunching")
 
         var config: WrenConfiguration = WrenConfiguration();
@@ -35,7 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationWillTerminate(_ aNotification: Notification) {
+    public func applicationWillTerminate(_ aNotification: Notification) {
         logger.error("applicationWillTerminate")
         wrenFreeVM(vm)
     }

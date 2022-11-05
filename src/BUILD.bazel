@@ -1,6 +1,6 @@
 load("@build_bazel_rules_apple//apple:macos.bzl", "macos_application", "macos_build_test", "macos_unit_test")
 load("@build_bazel_rules_apple//apple:versioning.bzl", "apple_bundle_version")
-load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
+load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library", "swift_test")
 
 # As I'm putting these pieces together, there's an example project here:
 # https://github.com/buildbuddy-io/rules_xcodeproj/tree/main/examples/integration/macOSApp
@@ -13,7 +13,7 @@ macos_application(
   infoplists = [":Info.plist"],
   minimum_os_version = "12.0",
   version = ":MarchVersion",
-  deps = ["//src:app"],
+  deps = [":app"],
   visibility = ["//etc:__pkg__"],
 )
 
@@ -27,24 +27,24 @@ apple_bundle_version(
 macos_build_test(
   name = "MarchTest",
   minimum_os_version = "12.0",
-  targets = ["//src:app"],
+  targets = [":app"],
 )
 
 # https://github.com/bazelbuild/rules_apple/blob/master/doc/rules-macos.md#macos_unit_test
 macos_unit_test(
-  name = "MarchUnitTest",
+  name = "AppTest",
   bundle_id = "org.matthewtodd.march",
   minimum_os_version = "12.0",
-  deps = ["//src:app_tests"],
+  deps = [":app_test"],
   visibility = ["//etc:__pkg__"],
 )
 
 # https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
 swift_library(
-  name = "app_tests",
+  name = "app_test",
   testonly = True,
   srcs = ["AppDelegateTest.swift"],
-  # deps = [":app"],
+  deps = [":app"],
 )
 
 # https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
@@ -55,6 +55,31 @@ swift_library(
     "main.swift",
   ],
   deps = [
+    ":nest",
     "@io_wren//:wren",
   ],
+)
+
+# https://github.com/bazelbuild/rules_apple/blob/master/doc/rules-macos.md#macos_unit_test
+macos_unit_test(
+  name = "NestTest",
+  bundle_id = "org.matthewtodd.march",
+  minimum_os_version = "12.0",
+  deps = [":nest_test"],
+  visibility = ["//etc:__pkg__"],
+)
+
+# https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
+swift_library(
+  name = "nest_test",
+  testonly = True,
+  srcs = ["NestTest.swift"],
+  deps = [":nest"],
+)
+
+# https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
+swift_library(
+  name = "nest",
+  srcs = ["Nest.swift"],
+  deps = ["@io_wren//:wren"],
 )
