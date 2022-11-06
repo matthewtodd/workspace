@@ -60,7 +60,7 @@ cc_library(
     hdrs = ["src/include/wren.h"],
     copts = ["-Iexternal/io_wren/src/include", "-Iexternal/io_wren/src/vm", "-Iexternal/io_wren/src/optional"],
     tags = ["swift_module=Wren"],
-    visibility = ["//visibility:public"],
+    visibility = ["@//src:__pkg__"],
 )
 """,
 )
