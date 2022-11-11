@@ -14,14 +14,14 @@ class NestTest: XCTestCase {
         let logger = FakeLogger()
         let nest = Nest(logger: logger)
         nest.evaluate(code: "\"unterminated string literal")
-        XCTAssertEqual(["Error: Unterminated string."], logger.error)
+        XCTAssertEqual(["[foo line 1] [Error] Error: Unterminated string."], logger.error)
     }
 
     func testRuntimeError() {
         let logger = FakeLogger()
         let nest = Nest(logger: logger)
         nest.evaluate(code: "Fiber.abort(\"Boom!\")")
-        XCTAssertEqual(["Boom!", "(script)"], logger.error)
+        XCTAssertEqual(["[Runtime Error] Boom!", "[foo line 1] in (script)"], logger.error)
     }
 }
 
