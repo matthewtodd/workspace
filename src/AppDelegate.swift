@@ -10,7 +10,15 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationDidFinishLaunching(_ aNotification: Notification) {
-        nest.evaluate(code: "System.print(\"WE DID IT!\")")
+        nest.evaluate(code: """
+            class StatusItem {
+                construct new() {
+                    System.print("Whee!")
+                }
+            }
+            StatusItem.new()
+            """
+        )
     }
 }
 
