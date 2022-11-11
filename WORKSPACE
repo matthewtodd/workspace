@@ -56,9 +56,10 @@ http_archive(
     build_file_content = """
 cc_library(
     name = "wren",
-    srcs = glob(["src/vm/*.h", "src/vm/*.c", "src/vm/*.inc", "src/optional/*.h", "src/optional/*.c", "src/optional/*.inc"]),
+    srcs = glob(["src/vm/*.h", "src/vm/*.c", "src/vm/*.inc"]),
     hdrs = ["src/include/wren.h"],
-    copts = ["-Iexternal/io_wren/src/include", "-Iexternal/io_wren/src/vm", "-Iexternal/io_wren/src/optional"],
+    copts = ["-Iexternal/io_wren/src/include", "-Iexternal/io_wren/src/vm"],
+    local_defines = ["WREN_OPT_META=0", "WREN_OPT_RANDOM=0"],
     tags = ["swift_module=Wren"],
     visibility = ["@//src:__pkg__"],
 )
