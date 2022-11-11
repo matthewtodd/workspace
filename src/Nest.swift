@@ -34,7 +34,7 @@ public class Nest {
 
     public func evaluate(code: String) {
         // TODO default module name?
-        wrenInterpret(self.vm, "foo", code)
+        wrenInterpret(self.vm, "main", code)
     }
 }
 
