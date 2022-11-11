@@ -6,21 +6,21 @@ class NestTest: XCTestCase {
     func testSystemPrint() {
         let logger = FakeLogger()
         let nest = Nest(logger: logger)
-        nest.evaluate(code: "System.print(\"Whee!\")")
+        nest.evaluate(code: #"System.print("Whee!")"#)
         XCTAssertEqual(["Whee!", "\n"], logger.info)
     }
 
     func testCompileError() {
         let logger = FakeLogger()
         let nest = Nest(logger: logger)
-        nest.evaluate(code: "\"unterminated string literal")
+        nest.evaluate(code: #""unterminated string literal"#)
         XCTAssertEqual(["[main line 1] [Error] Error: Unterminated string."], logger.error)
     }
 
     func testRuntimeError() {
         let logger = FakeLogger()
         let nest = Nest(logger: logger)
-        nest.evaluate(code: "Fiber.abort(\"Boom!\")")
+        nest.evaluate(code: #"Fiber.abort("Boom!")"#)
         XCTAssertEqual(["[Runtime Error] Boom!", "[main line 1] in (script)"], logger.error)
     }
 }
