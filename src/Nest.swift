@@ -5,13 +5,18 @@ public protocol NestLogger {
     func error(_ message: String)
 }
 
+struct NullLogger: NestLogger {
+    func info(_ message: String) {}
+    func error(_ message: String) {}
+}
+
 public class Nest {
     let vm: OpaquePointer
     var config = WrenConfiguration()
     let logger: NestLogger
 
-    public init(logger: NestLogger) {
-        self.logger = logger
+    public init(logger: NestLogger? = nil) {
+        self.logger = logger ?? NullLogger()
 
         withUnsafeMutablePointer(to: &config) {
             wrenInitConfiguration($0)
