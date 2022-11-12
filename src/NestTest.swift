@@ -23,6 +23,23 @@ class NestTest: XCTestCase {
         nest.evaluate(code: #"Fiber.abort("Boom!")"#)
         XCTAssertEqual(["[Runtime Error] Boom!", "[main line 1] in (script)"], logger.error)
     }
+
+    func testImport() {
+        let logger = FakeLogger()
+        let nest = Nest(logger: logger, modules: [
+            "widget": """
+                      class Widget {
+                        construct new() {}
+                      }
+                      """
+        ])
+        nest.evaluate(code: """
+            import "widget" for Widget
+            System.print(Widget.new())
+        """)
+        XCTAssertEqual([], logger.error)
+        XCTAssertEqual(["instance of Widget", "\n"], logger.info)
+    }
 }
 
 class FakeLogger: NestLogger {

@@ -14,9 +14,11 @@ public class Nest {
     let vm: OpaquePointer
     var config = WrenConfiguration()
     let logger: NestLogger
+    let modules: Dictionary<String, String>
 
-    public init(logger: NestLogger? = nil) {
+    public init(logger: NestLogger? = nil, modules: Dictionary<String, String> = Dictionary()) {
         self.logger = logger ?? NullLogger()
+        self.modules = modules
 
         withUnsafeMutablePointer(to: &config) {
             wrenInitConfiguration($0)
@@ -24,6 +26,7 @@ public class Nest {
 
         config.writeFn = nestWriteFn
         config.errorFn = nestErrorFn
+        config.loadModuleFn = nestLoadModuleFn
         // TODO pass more config here
 
         self.vm = withUnsafeMutablePointer(to: &config) {
@@ -67,6 +70,31 @@ func nestErrorFn(vm: OpaquePointer?, type: WrenErrorType, module: UnsafePointer<
         break;
     }
 }
+
+func nestLoadModuleFn(vm: OpaquePointer?, name: UnsafePointer<CChar>?) -> WrenLoadModuleResult {
+    var result = WrenLoadModuleResult()
+
+    let opaque = wrenGetUserData(vm)!
+    let this = Unmanaged<Nest>.fromOpaque(opaque).takeUnretainedValue()
+
+    guard let unwrappedName = name else {
+        return result
+    }
+
+    guard let source = this.modules[String(cString: unwrappedName)] else {
+        return result
+    }
+
+    source.utf8CString.withUnsafeBytes {
+        // TODO free this memory - pass length to userData, freeing callback to onComplete?
+        let copy = UnsafeMutableRawBufferPointer.allocate(byteCount: $0.count, alignment: MemoryLayout<CChar>.alignment)
+        copy.copyMemory(from: $0)
+        result.source = UnsafeBufferPointer(copy.bindMemory(to: CChar.self)).baseAddress
+    }
+
+    return result
+}
+
 
 /// This StringInterpolation extension hides a lot of the line noise of logging
 /// the C strings we get back from the Wren API. By marking it private, we
