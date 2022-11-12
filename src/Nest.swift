@@ -10,13 +10,21 @@ struct NullLogger: NestLogger {
     func error(_ message: String) {}
 }
 
+public struct NestModule {
+    let source: String
+
+    public init(source: String) {
+        self.source = source
+    }
+}
+
 public class Nest {
     let vm: OpaquePointer
     var config = WrenConfiguration()
     let logger: NestLogger
-    let modules: Dictionary<String, String>
+    let modules: Dictionary<String, NestModule>
 
-    public init(logger: NestLogger? = nil, modules: Dictionary<String, String> = Dictionary()) {
+    public init(logger: NestLogger? = nil, modules: Dictionary<String, NestModule> = Dictionary()) {
         self.logger = logger ?? NullLogger()
         self.modules = modules
 
@@ -40,9 +48,9 @@ public class Nest {
         wrenFreeVM(vm)
     }
 
-    public func evaluate(code: String) {
+    public func evaluate(source: String) {
         // TODO default module name?
-        wrenInterpret(self.vm, "main", code)
+        wrenInterpret(self.vm, "main", source)
     }
 }
 
@@ -90,11 +98,11 @@ func nestLoadModuleFn(vm: OpaquePointer?, name: UnsafePointer<CChar>?) -> WrenLo
         return result
     }
 
-    guard let source = this.modules[String(cString: unwrappedName)] else {
+    guard let module = this.modules[String(cString: unwrappedName)] else {
         return result
     }
 
-    source.utf8CString.withUnsafeBytes {
+    module.source.utf8CString.withUnsafeBytes {
         // TODO free this memory - pass length to userData, freeing callback to onComplete?
         let copy = UnsafeMutableRawBufferPointer.allocate(byteCount: $0.count, alignment: MemoryLayout<CChar>.alignment)
         copy.copyMemory(from: $0)
