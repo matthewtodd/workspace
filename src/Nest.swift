@@ -46,15 +46,23 @@ public class Nest {
     }
 }
 
+func getThis(vm: OpaquePointer?) -> Nest? {
+    guard let opaque = wrenGetUserData(vm) else {
+        return nil
+    }
+    return Unmanaged<Nest>.fromOpaque(opaque).takeUnretainedValue()
+}
+
 func nestWriteFn(vm: OpaquePointer?, text: UnsafePointer<CChar>?) {
-    let opaque = wrenGetUserData(vm)!
-    let this = Unmanaged<Nest>.fromOpaque(opaque).takeUnretainedValue()
-    this.logger.info("\(text)")
+    if let this = getThis(vm: vm) {
+        this.logger.info("\(text)")
+    }
 }
 
 func nestErrorFn(vm: OpaquePointer?, type: WrenErrorType, module: UnsafePointer<CChar>?, line: Int32, message: UnsafePointer<CChar>?) -> Void {
-    let opaque = wrenGetUserData(vm)!
-    let this = Unmanaged<Nest>.fromOpaque(opaque).takeUnretainedValue()
+    guard let this = getThis(vm: vm) else {
+        return
+    }
 
     switch type {
     case WREN_ERROR_COMPILE:
@@ -74,8 +82,9 @@ func nestErrorFn(vm: OpaquePointer?, type: WrenErrorType, module: UnsafePointer<
 func nestLoadModuleFn(vm: OpaquePointer?, name: UnsafePointer<CChar>?) -> WrenLoadModuleResult {
     var result = WrenLoadModuleResult()
 
-    let opaque = wrenGetUserData(vm)!
-    let this = Unmanaged<Nest>.fromOpaque(opaque).takeUnretainedValue()
+    guard let this = getThis(vm: vm) else {
+        return result
+    }
 
     guard let unwrappedName = name else {
         return result
