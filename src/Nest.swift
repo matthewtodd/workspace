@@ -19,6 +19,7 @@ public struct NestModule {
 }
 
 public class Nest {
+    // TODO make these private
     let vm: OpaquePointer
     var config = WrenConfiguration()
     let logger: NestLogger
@@ -28,6 +29,7 @@ public class Nest {
         self.logger = logger ?? NullLogger()
         self.modules = modules
 
+        // TODO do I need this? Is init() enough?
         withUnsafeMutablePointer(to: &config) {
             wrenInitConfiguration($0)
         }
@@ -35,6 +37,7 @@ public class Nest {
         config.writeFn = nestWriteFn
         config.errorFn = nestErrorFn
         config.loadModuleFn = nestLoadModuleFn
+        config.bindForeignMethodFn = nestBindForeignMethodFn
         // TODO pass more config here
 
         self.vm = withUnsafeMutablePointer(to: &config) {
@@ -112,6 +115,15 @@ func nestLoadModuleFn(vm: OpaquePointer?, name: UnsafePointer<CChar>?) -> WrenLo
     return result
 }
 
+func nestBindForeignMethodFn(vm: OpaquePointer?, module: UnsafePointer<CChar>?, className: UnsafePointer<CChar>?, isStatic: Bool, signature: UnsafePointer<CChar>?) -> WrenForeignMethodFn? {
+    // TODO lift this code up into the test, as NestModule behavior
+    // It's unclear whether there's value in insulating NestModule from Wren.
+    return { (vm: OpaquePointer?) in
+        "bar".utf8CString.withUnsafeBytes {
+            wrenSetSlotString(vm!, 0, $0.baseAddress)
+        }
+    }
+}
 
 /// This StringInterpolation extension hides a lot of the line noise of logging
 /// the C strings we get back from the Wren API. By marking it private, we

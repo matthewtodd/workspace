@@ -42,6 +42,25 @@ class NestTest: XCTestCase {
         XCTAssertEqual([], logger.error)
         XCTAssertEqual(["instance of Widget", "\n"], logger.info)
     }
+
+    func testForeignStaticMethod() {
+        let logger = FakeLogger()
+        let nest = Nest(logger: logger, modules: [
+            "foo": NestModule(
+                source: """
+                    class Foo {
+                        foreign static bar()
+                    }
+                """
+            )
+        ])
+        nest.evaluate(source: """
+            import "foo" for Foo
+            System.print(Foo.bar())
+        """)
+        XCTAssertEqual([], logger.error)
+        XCTAssertEqual(["bar", "\n"], logger.info)
+    }
 }
 
 class FakeLogger: NestLogger {
