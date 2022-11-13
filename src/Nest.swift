@@ -10,11 +10,15 @@ struct NullLogger: NestLogger {
     func error(_ message: String) {}
 }
 
+public typealias NestForeignMethods = Dictionary<String, Dictionary<Bool, Dictionary<String, WrenForeignMethodFn>>>
+
 public struct NestModule {
     private let source: String
+    private let foreignMethods: NestForeignMethods
 
-    public init(source: String) {
+    public init(source: String, foreignMethods: NestForeignMethods = [:]) {
         self.source = source
+        self.foreignMethods = foreignMethods
     }
 
     func load() -> WrenLoadModuleResult {
@@ -37,13 +41,7 @@ public struct NestModule {
     }
 
     func bindForeignMethod(className: String, isStatic: Bool, signature: String) -> WrenForeignMethodFn? {
-        // TODO lift this code up into the test, as NestModule behavior
-        // It's unclear whether there's value in insulating NestModule from Wren.
-        return { (vm: OpaquePointer?) in
-            "bar".utf8CString.withUnsafeBytes {
-                wrenSetSlotString(vm!, 0, $0.baseAddress)
-            }
-        }
+        return foreignMethods[className].flatMap { $0[isStatic] }.flatMap { $0[signature] }
     }
 }
 

@@ -1,3 +1,4 @@
+import Wren
 import XCTest
 
 import src_nest
@@ -51,7 +52,12 @@ class NestTest: XCTestCase {
                     class Foo {
                         foreign static bar()
                     }
-                """
+                """,
+                foreignMethods: ["Foo": [true: ["bar()": { (vm: OpaquePointer?) in
+                    "bar".utf8CString.withUnsafeBytes {
+                        wrenSetSlotString(vm!, 0, $0.baseAddress)
+                    }
+                }]]]
             )
         ])
         nest.evaluate(source: """
