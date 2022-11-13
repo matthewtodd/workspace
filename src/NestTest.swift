@@ -53,11 +53,13 @@ class NestTest: XCTestCase {
                         foreign static bar()
                     }
                 """,
-                foreignMethods: ["Foo": [true: ["bar()": { (vm: OpaquePointer?) in
-                    "bar".utf8CString.withUnsafeBytes {
-                        wrenSetSlotString(vm!, 0, $0.baseAddress)
-                    }
-                }]]]
+                foreignMethods: [
+                    NestForeignMethodKey(className: "Foo", isStatic: true, signature: "bar()"): { (vm: OpaquePointer?) in
+                        "bar".utf8CString.withUnsafeBytes {
+                            wrenSetSlotString(vm!, 0, $0.baseAddress)
+                        }
+                    },
+                ]
             )
         ])
         nest.evaluate(source: """

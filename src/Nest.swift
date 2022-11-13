@@ -10,7 +10,19 @@ struct NullLogger: NestLogger {
     func error(_ message: String) {}
 }
 
-public typealias NestForeignMethods = Dictionary<String, Dictionary<Bool, Dictionary<String, WrenForeignMethodFn>>>
+public struct NestForeignMethodKey: Hashable {
+    let className: String
+    let isStatic: Bool
+    let signature: String
+
+    public init(className: String, isStatic: Bool, signature: String) {
+        self.className = className
+        self.isStatic = isStatic
+        self.signature = signature
+    }
+}
+
+public typealias NestForeignMethods = Dictionary<NestForeignMethodKey, WrenForeignMethodFn>
 
 public struct NestModule {
     private let source: String
@@ -41,7 +53,7 @@ public struct NestModule {
     }
 
     func bindForeignMethod(className: String, isStatic: Bool, signature: String) -> WrenForeignMethodFn? {
-        return foreignMethods[className].flatMap { $0[isStatic] }.flatMap { $0[signature] }
+        return foreignMethods[NestForeignMethodKey(className: className, isStatic: isStatic, signature: signature)]
     }
 }
 
