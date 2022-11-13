@@ -11,10 +11,39 @@ struct NullLogger: NestLogger {
 }
 
 public struct NestModule {
-    let source: String
+    private let source: String
 
     public init(source: String) {
         self.source = source
+    }
+
+    func load() -> WrenLoadModuleResult {
+        var source: UnsafePointer<CChar>?
+        let onComplete: WrenLoadModuleCompleteFn? = Optional.none
+        let userData: UnsafeMutableRawPointer? = Optional.none
+
+        self.source.utf8CString.withUnsafeBytes {
+            // TODO free this memory - pass length to userData, freeing callback to onComplete?
+            let copy = UnsafeMutableRawBufferPointer.allocate(byteCount: $0.count, alignment: MemoryLayout<CChar>.alignment)
+            copy.copyMemory(from: $0)
+            source = UnsafeBufferPointer(copy.bindMemory(to: CChar.self)).baseAddress
+        }
+
+        return WrenLoadModuleResult(
+            source: source,
+            onComplete: onComplete,
+            userData: userData
+        )
+    }
+
+    func bindForeignMethod(className: String, isStatic: Bool, signature: String) -> WrenForeignMethodFn? {
+        // TODO lift this code up into the test, as NestModule behavior
+        // It's unclear whether there's value in insulating NestModule from Wren.
+        return { (vm: OpaquePointer?) in
+            "bar".utf8CString.withUnsafeBytes {
+                wrenSetSlotString(vm!, 0, $0.baseAddress)
+            }
+        }
     }
 }
 
@@ -77,34 +106,11 @@ public class Nest {
     }
 
     func loadModule(name: String) -> WrenLoadModuleResult {
-        guard let module = modules[name] else { return WrenLoadModuleResult() }
-
-        var source: UnsafePointer<CChar>?
-        let onComplete: WrenLoadModuleCompleteFn? = Optional.none
-        let userData: UnsafeMutableRawPointer? = Optional.none
-
-        module.source.utf8CString.withUnsafeBytes {
-            // TODO free this memory - pass length to userData, freeing callback to onComplete?
-            let copy = UnsafeMutableRawBufferPointer.allocate(byteCount: $0.count, alignment: MemoryLayout<CChar>.alignment)
-            copy.copyMemory(from: $0)
-            source = UnsafeBufferPointer(copy.bindMemory(to: CChar.self)).baseAddress
-        }
-
-        return WrenLoadModuleResult(
-            source: source,
-            onComplete: onComplete,
-            userData: userData
-        )
+        modules[name].map { $0.load() } ?? WrenLoadModuleResult()
     }
 
     func bindForeignMethod(module: String, className: String, isStatic: Bool, signature: String) -> WrenForeignMethodFn? {
-        // TODO lift this code up into the test, as NestModule behavior
-        // It's unclear whether there's value in insulating NestModule from Wren.
-        return { (vm: OpaquePointer?) in
-            "bar".utf8CString.withUnsafeBytes {
-                wrenSetSlotString(vm!, 0, $0.baseAddress)
-            }
-        }
+        return modules[module].flatMap { $0.bindForeignMethod(className: className, isStatic: isStatic, signature: signature) }
     }
 }
 
