@@ -61,10 +61,32 @@ public class Nest {
             wrenInitConfiguration($0)
         }
 
-        config.writeFn = nestWrite
-        config.errorFn = nestError
-        config.loadModuleFn = nestLoadModule
-        config.bindForeignMethodFn = nestBindForeignMethod
+        config.writeFn = { (vm: OpaquePointer?, text: UnsafePointer<CChar>?) in
+            guard let nest = nest(vm: vm) else { return }
+            guard let unwrappedText = text else { return }
+            nest.write(text: String(cString: unwrappedText))
+        }
+
+        config.errorFn = { (vm: OpaquePointer?, type: WrenErrorType, module: UnsafePointer<CChar>?, line: Int32, message: UnsafePointer<CChar>?) in
+            guard let nest = nest(vm: vm) else { return }
+            guard let unwrappedMessage = message else { return }
+            nest.error(type: type, module: module.map { String(cString: $0) }, line: line, message: String(cString: unwrappedMessage))
+        }
+
+        config.loadModuleFn = { (vm: OpaquePointer?, name: UnsafePointer<CChar>?) -> WrenLoadModuleResult in
+            guard let nest = nest(vm: vm) else { return WrenLoadModuleResult() }
+            guard let unwrappedName = name else { return WrenLoadModuleResult() }
+            return nest.loadModule(name: String(cString: unwrappedName))
+        }
+
+        config.bindForeignMethodFn = { (vm: OpaquePointer?, module: UnsafePointer<CChar>?, className: UnsafePointer<CChar>?, isStatic: Bool, signature: UnsafePointer<CChar>?) -> WrenForeignMethodFn? in
+            guard let nest = nest(vm: vm) else { return nil }
+            guard let unwrappedModule = module else { return nil }
+            guard let unwrappedClassName = className else { return nil }
+            guard let unwrappedSignature = signature else { return nil }
+            return nest.bindForeignMethod(module: String(cString: unwrappedModule), className: String(cString: unwrappedClassName), isStatic: isStatic, signature: String(cString: unwrappedSignature))
+        }
+
         // TODO pass more config here
 
         self.vm = withUnsafeMutablePointer(to: &config) {
@@ -116,30 +138,4 @@ func nest(vm: OpaquePointer?) -> Nest? {
     return vm.flatMap(wrenGetUserData)
         .flatMap { Unmanaged<Nest>.fromOpaque($0) }
         .flatMap { $0.takeUnretainedValue() }
-}
-
-func nestWrite(vm: OpaquePointer?, text: UnsafePointer<CChar>?) {
-    guard let nest = nest(vm: vm) else { return }
-    guard let unwrappedText = text else { return }
-    nest.write(text: String(cString: unwrappedText))
-}
-
-func nestError(vm: OpaquePointer?, type: WrenErrorType, module: UnsafePointer<CChar>?, line: Int32, message: UnsafePointer<CChar>?) -> Void {
-    guard let nest = nest(vm: vm) else { return }
-    guard let unwrappedMessage = message else { return }
-    nest.error(type: type, module: module.map { String(cString: $0) }, line: line, message: String(cString: unwrappedMessage))
-}
-
-func nestLoadModule(vm: OpaquePointer?, name: UnsafePointer<CChar>?) -> WrenLoadModuleResult {
-    guard let nest = nest(vm: vm) else { return WrenLoadModuleResult() }
-    guard let unwrappedName = name else { return WrenLoadModuleResult() }
-    return nest.loadModule(name: String(cString: unwrappedName))
-}
-
-func nestBindForeignMethod(vm: OpaquePointer?, module: UnsafePointer<CChar>?, className: UnsafePointer<CChar>?, isStatic: Bool, signature: UnsafePointer<CChar>?) -> WrenForeignMethodFn? {
-    guard let nest = nest(vm: vm) else { return nil }
-    guard let unwrappedModule = module else { return nil }
-    guard let unwrappedClassName = className else { return nil }
-    guard let unwrappedSignature = signature else { return nil }
-    return nest.bindForeignMethod(module: String(cString: unwrappedModule), className: String(cString: unwrappedClassName), isStatic: isStatic, signature: String(cString: unwrappedSignature))
 }
