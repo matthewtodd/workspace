@@ -22,14 +22,17 @@ public struct NestForeignMethodKey: Hashable {
     }
 }
 
+public typealias NestForeignClasses = Dictionary<String, WrenForeignClassMethods>
 public typealias NestForeignMethods = Dictionary<NestForeignMethodKey, WrenForeignMethodFn>
 
 public struct NestModule {
     private let source: String
+    private let foreignClasses: NestForeignClasses
     private let foreignMethods: NestForeignMethods
 
-    public init(source: String, foreignMethods: NestForeignMethods = [:]) {
+    public init(source: String, foreignClasses: NestForeignClasses = [:], foreignMethods: NestForeignMethods = [:]) {
         self.source = source
+        self.foreignClasses = foreignClasses
         self.foreignMethods = foreignMethods
     }
 
@@ -50,6 +53,10 @@ public struct NestModule {
             onComplete: onComplete,
             userData: userData
         )
+    }
+
+    func bindForeignClass(className: String) -> WrenForeignClassMethods {
+        return foreignClasses[className] ?? WrenForeignClassMethods()
     }
 
     func bindForeignMethod(className: String, isStatic: Bool, signature: String) -> WrenForeignMethodFn? {
@@ -89,6 +96,13 @@ public class Nest {
             guard let nest = nest(vm: vm) else { return WrenLoadModuleResult() }
             guard let unwrappedName = name else { return WrenLoadModuleResult() }
             return nest.loadModule(name: String(cString: unwrappedName))
+        }
+
+        config.bindForeignClassFn = { (vm: OpaquePointer?, module: UnsafePointer<CChar>?, className: UnsafePointer<CChar>?) -> WrenForeignClassMethods in
+            guard let nest = nest(vm: vm) else { return WrenForeignClassMethods() }
+            guard let unwrappedModule = module else { return WrenForeignClassMethods() }
+            guard let unwrappedClassName = className else { return WrenForeignClassMethods() }
+            return nest.bindForeignClass(module: String(cString: unwrappedModule), className: String(cString: unwrappedClassName))
         }
 
         config.bindForeignMethodFn = { (vm: OpaquePointer?, module: UnsafePointer<CChar>?, className: UnsafePointer<CChar>?, isStatic: Bool, signature: UnsafePointer<CChar>?) -> WrenForeignMethodFn? in
@@ -139,6 +153,10 @@ public class Nest {
 
     func loadModule(name: String) -> WrenLoadModuleResult {
         modules[name].map { $0.load() } ?? WrenLoadModuleResult()
+    }
+
+    func bindForeignClass(module: String, className: String) -> WrenForeignClassMethods {
+        return modules[module].flatMap { $0.bindForeignClass(className: className) } ?? WrenForeignClassMethods()
     }
 
     func bindForeignMethod(module: String, className: String, isStatic: Bool, signature: String) -> WrenForeignMethodFn? {

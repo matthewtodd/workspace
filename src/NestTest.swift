@@ -69,6 +69,45 @@ class NestTest: XCTestCase {
         XCTAssertEqual([], logger.error)
         XCTAssertEqual(["bar", "\n"], logger.info)
     }
+
+    func testForeignClass() {
+        let logger = FakeLogger()
+        let nest = Nest(logger: logger, modules: [
+            "foo": NestModule(
+                source: """
+                    foreign class Foo {
+                        construct new() {}
+                        foreign bar()
+                    }
+                """,
+                foreignClasses: [
+                    "Foo": WrenForeignClassMethods(
+                        allocate: { (vm: OpaquePointer?) in
+                            "bar".utf8CString.withUnsafeBytes {
+                                let data = wrenSetSlotNewForeign(vm!, 0, 0, $0.count)
+                                data?.copyMemory(from: $0.baseAddress!, byteCount: $0.count)
+                            }
+
+                        },
+                        finalize: { (data: UnsafeMutableRawPointer?) in
+                            // Nothing needed here? "bar" above will have been collected, wren's data will be, too.
+                        }
+                    )
+                ],
+                foreignMethods: [
+                    NestForeignMethodKey(className: "Foo", isStatic: false, signature: "bar()"): { (vm: OpaquePointer?) in
+                        wrenSetSlotString(vm!, 0, wrenGetSlotForeign(vm!, 0))
+                    },
+                ]
+            )
+        ])
+        nest.evaluate(source: """
+            import "foo" for Foo
+            System.print(Foo.new().bar())
+        """)
+        XCTAssertEqual([], logger.error)
+        XCTAssertEqual(["bar", "\n"], logger.info)
+    }
 }
 
 class FakeLogger: NestLogger {
