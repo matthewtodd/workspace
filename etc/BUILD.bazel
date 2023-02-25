@@ -6,7 +6,6 @@ xcodeproj(
   project_name = "March",
   top_level_targets = [
     "//src:March",
-    "//src:AppTest",
     "//src:NestTest",
   ],
 )

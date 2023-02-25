@@ -87,7 +87,6 @@ class NestTest: XCTestCase {
                                 let data = wrenSetSlotNewForeign(vm!, 0, 0, $0.count)
                                 data?.copyMemory(from: $0.baseAddress!, byteCount: $0.count)
                             }
-
                         },
                         finalize: { (data: UnsafeMutableRawPointer?) in
                             // Nothing needed here? "bar" above will have been collected, wren's data will be, too.

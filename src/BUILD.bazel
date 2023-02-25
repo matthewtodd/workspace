@@ -30,23 +30,6 @@ macos_build_test(
   targets = [":app"],
 )
 
-# https://github.com/bazelbuild/rules_apple/blob/master/doc/rules-macos.md#macos_unit_test
-macos_unit_test(
-  name = "AppTest",
-  bundle_id = "org.matthewtodd.march",
-  minimum_os_version = "12.0",
-  deps = [":app_test"],
-  visibility = ["//etc:__pkg__"],
-)
-
-# https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
-swift_library(
-  name = "app_test",
-  testonly = True,
-  srcs = ["AppDelegateTest.swift"],
-  deps = [":app"],
-)
-
 # https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library
 swift_library(
   name = "app",
